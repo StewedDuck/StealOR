@@ -314,6 +314,25 @@ http://localhost:3000
 
 ---
 
+# Running the Application frontend
+
+```bash
+cd frontend
+npm run dev
+```
+
+# Access admin page
+open DevTools Console then run
+```bash
+localStorage.setItem("stealors_auth_user", JSON.stringify({
+  email: "admin@gmail.com",
+  name: "Admin",
+  initials: "AD",
+  accountRole: "admin"
+}))
+location.href = "/"
+```
+
 # Team Development Guidelines
 
 ## 1. Main Branch Protection

@@ -58,9 +58,17 @@ export default function StealorsApp() {
         hostEl.innerHTML = bodyHtml;
 
         const script = document.createElement("script");
-        script.textContent = scriptText;
+        script.id = "stealors-app-script";
+        
+        script.textContent = `
+          (() => {
+            ${scriptText}
+          })();
+        `;
+        
         document.body.appendChild(script);
         injectedScripts.push(script);
+
       } catch (err) {
         console.error("Failed to boot StealorsApp", err);
       }
