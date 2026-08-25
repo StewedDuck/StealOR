@@ -1,0 +1,63 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+@import "./mockup.css";
+
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--paper);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--paper-card);
+  border: 1px solid #E2E5E8;
+  border-radius: var(--radius);
+  padding: 28px 24px;
+}
+
+.login-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  margin: 18px 0 8px;
+  color: var(--text-dark);
+}
+
+.login-sub {
+  font-size: 13px;
+  color: var(--text-mid);
+  line-height: 1.55;
+  margin-bottom: 20px;
+}
+
+.btn-google {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border: 1px solid #DADCE0;
+  border-radius: 8px;
+  background: #fff;
+  color: #3C4043;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-google:hover:not(:disabled) {
+  background: #F8F9FA;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.15);
+}
+
+.btn-google:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}

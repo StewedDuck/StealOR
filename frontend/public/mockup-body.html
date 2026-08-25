@@ -1,0 +1,695 @@
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">T</div>
+      <div>
+        <div class="brand-name">sTealORs</div>
+        <div class="brand-sub">ค้นหา TOR · กรุงเทพฯ</div>
+      </div>
+    </div>
+
+    <div class="role-toggle">
+      <button class="active" id="roleContractorBtn" onclick="setRole('contractor')">ผู้รับจ้าง</button>
+      <button id="roleOwnerBtn" onclick="setRole('owner')">เจ้าของโครงการ</button>
+    </div>
+
+    <div id="contractorNav">
+      <div class="nav-group-label">ภาพรวม</div>
+      <button class="nav-item active" data-page="dashboard" onclick="goPage('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        แดชบอร์ด
+      </button>
+      <div class="nav-group-label">ค้นหา TOR</div>
+      <button class="nav-item" data-page="market" onclick="goPage('market')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        ตลาด TOR <span class="nav-badge">24</span>
+      </button>
+      <button class="nav-item" data-page="matched" onclick="goPage('matched')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6L9 17l-5-5"/></svg>
+        TOR ที่ตรงกัน <span class="nav-badge">8</span>
+      </button>
+      <button class="nav-item" data-page="draft" onclick="goPage('draft')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 13h6M9 17h6"/></svg>
+        TOR ร่าง
+      </button>
+      <button class="nav-item" data-page="saved" onclick="goPage('saved')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        บันทึกไว้
+      </button>
+      <div class="nav-group-label">บัญชีผู้ใช้</div>
+      <button class="nav-item" data-page="notifications" onclick="goPage('notifications')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        การแจ้งเตือน <span class="nav-badge">5</span>
+      </button>
+      <button class="nav-item" data-page="profile" onclick="goPage('profile')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+        โปรไฟล์
+      </button>
+    </div>
+
+    <div id="ownerNav" style="display:none;">
+      <div class="nav-group-label">เจ้าของโครงการ</div>
+      <button class="nav-item" data-page="create" onclick="goPage('create')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>
+        สร้าง TOR
+      </button>
+      <button class="nav-item" data-page="draft" onclick="goPage('draft')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/></svg>
+        TOR ร่างของฉัน
+      </button>
+      <div class="nav-group-label">บัญชีผู้ใช้</div>
+      <button class="nav-item" data-page="verify" onclick="goPage('verify')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+        ยืนยันตัวตน
+      </button>
+    </div>
+
+    <div id="adminNav" style="display:none;">
+      <div class="nav-group-label">ผู้ดูแลระบบ</div>
+      <button class="nav-item" data-page="admin-dashboard" onclick="goPage('admin-dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        แดชบอร์ดผู้ดูแล
+      </button>
+      <button class="nav-item" data-page="admin-users" onclick="goPage('admin-users')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6M14 20c0-2.2 1.8-4 4-4"/></svg>
+        จัดการผู้ใช้งาน
+      </button>
+      <button class="nav-item" data-page="admin-verify" onclick="goPage('admin-verify')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+        ยืนยันตัวตน <span class="nav-badge" id="adminVerifyBadge">0</span>
+      </button>
+      <button class="nav-item" data-page="admin-stats" onclick="goPage('admin-stats')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>
+        สถิติระบบ
+      </button>
+      <!-- <button class="nav-item" data-page="admin-sources" onclick="goPage('admin-sources')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h10M4 17h14"/></svg>
+        แหล่งข้อมูล TOR
+      </button> -->
+      <button class="nav-item" data-page="admin-logs" onclick="goPage('admin-logs')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 13h6M9 17h4"/></svg>
+        บันทึกกิจกรรม
+      </button>
+      <button class="nav-item" data-page="admin-reports" onclick="goPage('admin-reports')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10.3"/><path d="M14 3v4a1 1 0 0 0 1 1h4M12 18v-6M9 15h6"/></svg>
+        รายงาน / ร้องเรียน <span class="nav-badge" id="adminReportsBadge">3</span>
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="avatar-sm" id="sidebarAvatar">CD</div>
+      <div style="flex:1;min-width:0;">
+        <div class="name" id="sidebarName">Cooldog</div>
+        <div class="role" id="roleFooterLabel">บัญชีผู้รับจ้าง</div>
+      </div>
+      <button type="button" id="logoutBtn" class="nav-item" style="width:auto;padding:6px 8px;flex-shrink:0;" title="ออกจากระบบ" onclick="window.__stealorsLogout && window.__stealorsLogout()">ออก</button>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+
+    <div class="topbar">
+      <div>
+        <div class="page-title" id="pageTitle">แดชบอร์ด</div>
+        <div class="page-sub" id="pageSub">ภาพรวมกิจกรรม TOR ที่ตรงกับคุณสมบัติของคุณ</div>
+      </div>
+      <div class="topbar-actions" id="topbarActions">
+        <button class="icon-btn" id="topbarNotifBtn" onclick="goPage('notifications')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="dot"></span>
+        </button>
+        <div class="avatar-sm" id="topbarAvatar" style="cursor:pointer" onclick="goPage('profile')">CD</div>
+      </div>
+    </div>
+
+    <!-- ============ PAGE 1 — DASHBOARD ============ -->
+    <section class="page" id="page-dashboard">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>TOR ที่ตรงกัน</div>
+          <div class="stat-value">8</div>
+          <div class="stat-delta up">+3 สัปดาห์นี้</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>ใหม่วันนี้</div>
+          <div class="stat-value">4</div>
+          <div class="stat-delta flat">ประกาศใน 24 ชม. ที่ผ่านมา</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>ปิดรับภายใน 5 วัน</div>
+          <div class="stat-value">3</div>
+          <div class="stat-delta warn">ตรวจสอบก่อนหมดเวลา</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>มูลค่าโครงการที่อยู่ในสายงานการจับคู่</div>
+          <div class="stat-value">฿48.2M</div>
+          <div class="stat-delta up">รวม 8 TOR ที่ตรงกัน</div>
+        </div>
+      </div>
+
+      <div class="chart-row">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">ภาพรวม TOR matched รายเดือน</div>
+              <div class="panel-title-sub">จำนวน TOR ที่ matched</div>
+            </div>
+            <select class="chip-select"><option>6 เดือนล่าสุด</option><option>12 เดือนล่าสุด</option></select>
+          </div>
+          <div id="monthlyChart" style="height:220px;"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">คุณภาพการจับคู่</div>
+              <div class="panel-title-sub">8 TOR ที่ตรงกันตามคะแนน</div>
+            </div>
+          </div>
+          <div id="qualityChart" style="height:170px;"></div>
+          <div style="display:flex;justify-content:center;gap:14px;margin-top:12px;font-size:11px;color:var(--text-mid);">
+            <span><i class="dot" style="background:#1F2933"></i>สูง (80%+)</span><span><i class="dot" style="background:#4B7DB8"></i>ปานกลาง (60–79%)</span><span><i class="dot" style="background:#C6DAEC"></i>ต่ำ (&lt;60%)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-row">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">ใกล้ปิดรับ</div>
+              <div class="panel-title-sub">TOR ที่ตรงกันและใกล้หมดเวลา</div>
+            </div>
+            <button class="btn btn-outline" onclick="goPage('matched')">ดูทั้งหมด</button>
+          </div>
+          <div id="closingSoonList"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">แยกตามประเภทซอฟต์แวร์</div>
+              <div class="panel-title-sub">TOR ที่เปิดรับจากหน่วยงานในกรุงเทพฯ</div>
+            </div>
+          </div>
+          <div id="categoryChart"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PAGE 2 — TOR MARKET ============ -->
+    <section class="page hidden" id="page-market">
+      <div class="filter-bar">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          <input type="text" id="marketSearch" placeholder="ค้นหา TOR ตามชื่อหรือหน่วยงาน..." oninput="renderMarket()">
+        </div>
+        <select id="marketType" onchange="renderMarket()">
+          <option value="">ทุกประเภทซอฟต์แวร์</option>
+          <option value="Web Application">แอปพลิเคชันเว็บ</option>
+          <option value="Mobile Application">แอปพลิเคชันมือถือ</option>
+          <option value="ERP / System Integration">ERP / การบูรณาการระบบ</option>
+          <option value="Cloud Infrastructure">โครงสร้างพื้นฐานคลาวด์</option>
+          <option value="Cybersecurity">ความปลอดภัยไซเบอร์</option>
+          <option value="Data Analytics & AI">วิเคราะห์ข้อมูล & AI</option>
+          <option value="Network Infrastructure">โครงสร้างพื้นฐานเครือข่าย</option>
+        </select>
+        <select id="marketBudget" onchange="renderMarket()">
+          <option value="">ทุกงบประมาณ</option>
+          <option value="0-2">ต่ำกว่า ฿2M</option>
+          <option value="2-8">฿2M – ฿8M</option>
+          <option value="8-999">฿8M ขึ้นไป</option>
+        </select>
+        <select id="marketUrgency" onchange="renderMarket()">
+          <option value="">ทุกช่วงเวลา</option>
+          <option value="new">เปิดรับใหม่</option>
+          <option value="closing">ใกล้ปิดรับ</option>
+        </select>
+        <select id="marketSort" onchange="renderMarket()">
+          <option value="closing">เรียงตาม: ใกล้ปิดรับก่อน</option>
+          <option value="newest">เรียงตาม: ใหม่ล่าสุดก่อน</option>
+          <option value="budget-high">เรียงตาม: งบสูงไปต่ำ</option>
+          <option value="match">เรียงตาม: ตรงกันมากที่สุด</option>
+        </select>
+      </div>
+      <div class="tor-grid" id="marketList"></div>
+    </section>
+
+    <!-- ============ PAGE 3 — TOR MATCHED ============ -->
+    <section class="page hidden" id="page-matched">
+      <div class="filter-bar">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          <input type="text" id="matchedSearch" placeholder="ค้นหา TOR ที่ตรงกัน..." oninput="renderMatched()">
+        </div>
+        <select id="matchedType" onchange="renderMatched()">
+          <option value="">ทุกประเภทซอฟต์แวร์</option>
+          <option value="Web Application">แอปพลิเคชันเว็บ</option>
+          <option value="Mobile Application">แอปพลิเคชันมือถือ</option>
+          <option value="ERP / System Integration">ERP / การบูรณาการระบบ</option>
+          <option value="Cloud Infrastructure">โครงสร้างพื้นฐานคลาวด์</option>
+          <option value="Cybersecurity">ความปลอดภัยไซเบอร์</option>
+          <option value="Data Analytics & AI">วิเคราะห์ข้อมูล & AI</option>
+          <option value="Network Infrastructure">โครงสร้างพื้นฐานเครือข่าย</option>
+        </select>
+        <select id="matchedBudget" onchange="renderMatched()">
+          <option value="">ทุกงบประมาณ</option>
+          <option value="0-2">ต่ำกว่า ฿2M</option>
+          <option value="2-8">฿2M – ฿8M</option>
+          <option value="8-999">฿8M ขึ้นไป</option>
+        </select>
+        <select id="matchedUrgency" onchange="renderMatched()">
+          <option value="">ทุกช่วงเวลา</option>
+          <option value="new">เปิดรับใหม่</option>
+          <option value="closing">ใกล้ปิดรับ</option>
+        </select>
+        <span class="sort-label">เรียงตามคะแนนที่ตรงกัน (มากสุดก่อน)</span>
+      </div>
+      <div class="tor-grid" id="matchedList"></div>
+    </section>
+
+    <!-- ============ PAGE 4 — DRAFT TOR ============ -->
+    <section class="page hidden" id="page-draft">
+      <div class="info-banner" id="draftContractorBanner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/></svg>
+        <span><b>TOR ร่างยังไม่เปิดรับสมัคร</b> กรุณาอ่านข้อกำหนดล่วงหน้าและแสดงความคิดเห็น — เจ้าของโครงการจะตรวจสอบความคิดเห็นก่อนประกาศจริง</span>
+      </div>
+      <div class="info-banner" id="draftOwnerBanner" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span><b>TOR ร่างยังสามารถแก้ไขได้</b> ผู้รับจ้างจะตรวจสอบร่างของคุณและแสดงความคิดเห็นด้านล่าง — ใช้ความคิดเห็นเหล่านั้นเพื่อปรับปรุง TOR ก่อนประกาศ เมื่อประกาศแล้ว TOR จะไม่สามารถแก้ไขได้</span>
+      </div>
+      <div class="filter-bar" id="draftFilterBar">
+        <span class="sort-label" style="margin-left:0">เรียงตามวันที่คาดว่าจะประกาศ</span>
+        <select class="chip-select" style="margin-left:auto">
+          <option>ประกาศเร็วที่สุด</option>
+          <option>เพิ่มล่าสุด</option>
+        </select>
+      </div>
+      <div class="tor-grid" id="draftList"></div>
+    </section>
+
+    <!-- ============ PAGE 5 — SAVED ============ -->
+    <section class="page hidden" id="page-saved">
+      <div class="tor-grid" id="savedList"></div>
+    </section>
+
+    <!-- ============ PAGE 6 — NOTIFICATIONS ============ -->
+    <section class="page hidden" id="page-notifications">
+      <div class="notif-list" id="notifList"></div>
+    </section>
+
+    <!-- ============ PAGE 7 — PROFILE ============ -->
+    <section class="page hidden" id="page-profile">
+      <div class="profile-grid">
+        <div class="profile-card">
+          <div class="profile-photo">NK
+            <div class="photo-edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div>
+          </div>
+          <div class="profile-name">Cooldog</div>
+          <div class="profile-role">ผู้รับจ้างพัฒนาระบบแบบฟูลสแต็ก · ประสบการณ์ 7 ปี</div>
+          <div class="profile-stats">
+            <div class="profile-stat"><b>8</b><span>ตรงกัน</span></div>
+            <div class="profile-stat"><b>73%</b><span>ความตรงกันเฉลี่ย</span></div>
+            <div class="profile-stat"><b>12</b><span>บันทึกไว้</span></div>
+          </div>
+        </div>
+
+        <div class="form-panel">
+          <div class="form-section-title">ข้อมูลพื้นฐาน</div>
+          <div class="form-row">
+            <div class="field"><label class="field-label">ชื่อ</label><input value="Cooldog"></div>
+            <div class="field"><label class="field-label">นามสกุล</label><input value=""></div>
+          </div>
+          <div class="form-row">
+            <div class="field"><label class="field-label">อีเมล</label><input value="cooldog@devteam.co.th"></div>
+            <div class="field"><label class="field-label">เบอร์โทรศัพท์</label><input value="+66 89 123 4567"></div>
+          </div>
+          <div class="form-row full">
+            <div class="field"><label class="field-label">บริษัท / นิติบุคคล</label><input value="Northline Software Co., Ltd."></div>
+          </div>
+
+          <div class="form-section-title" style="margin-top:6px;">ประสบการณ์ &amp; คุณสมบัติ</div>
+          <div class="form-row full">
+            <div class="field"><label class="field-label">ปีที่มีประสบการณ์</label><input value="7"></div>
+          </div>
+          <div class="form-row full">
+            <div class="field"><label class="field-label">สรุปประสบการณ์</label>
+              <textarea>Led delivery of 12+ government and enterprise software projects across web platforms, mobile applications, and system integration for Bangkok public agencies.</textarea>
+            </div>
+          </div>
+          <div class="form-row full">
+            <div class="field">
+              <label class="field-label">ทักษะ &amp; คุณสมบัติ</label>
+              <div class="tag-input-area">
+                <span class="tag-pill">ISO 29110 certified <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+                <span class="tag-pill">Cloud Infrastructure <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+                <span class="tag-pill">React / Node.js <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+                <span class="tag-pill">Registered vendor, DGA <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+                <span class="tag-pill">API integration <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+                <span class="tag-add">+ เพิ่มคุณสมบัติ</span>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-outline">ยกเลิก</button>
+            <button class="btn btn-primary">บันทึกโปรไฟล์</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PAGE 8 — CREATE TOR ============ -->
+    <section class="page hidden" id="page-create">
+      <div class="step-track">
+        <div class="step"><div class="step-num">1</div><div class="step-label">รายละเอียด TOR</div></div>
+        <div class="step-line"></div>
+        <div class="step"><div class="step-num pending">2</div><div class="step-label pending">ข้อมูลติดต่อ &amp; เอกสาร</div></div>
+        <div class="step-line"></div>
+        <div class="step"><div class="step-num pending">3</div><div class="step-label pending">ตรวจสอบ &amp; บันทึกร่าง</div></div>
+      </div>
+
+      <div class="info-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+        <span>TOR ใหม่จะถูกบันทึกเป็น <b>ร่าง</b> ก่อน ผู้รับจ้างสามารถตรวจสอบข้อกำหนด แล้วคุณ <b>ประกาศ</b> เมื่อพร้อม การสมัครจะเกิดขึ้นโดยตรงระหว่างผู้รับจ้างและเจ้าของโครงการนอกแพลตฟอร์มนี้</span>
+      </div>
+
+      <div class="form-panel">
+        <div class="form-section-title">รายละเอียด TOR</div>
+        <div class="form-row full">
+          <div class="field"><label class="field-label">ชื่อเรื่อง TOR</label><input id="createTitle" placeholder="เช่น จ้างพัฒนาระบบบริหารจัดการเอกสารอิเล็กทรอนิกส์"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label class="field-label">หน่วยงานที่ออก TOR</label><input id="createAgency" placeholder="เช่น กรุงเทพมหานคร"></div>
+          <div class="field"><label class="field-label">ประเภทซอฟต์แวร์</label>
+            <select id="createType"><option>Web Application</option><option>Mobile Application</option><option>ERP / System Integration</option><option>Cloud Infrastructure</option><option>Cybersecurity</option><option>Data Analytics & AI</option><option>Network Infrastructure</option></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label class="field-label">ช่วงงบประมาณ (฿)</label><input id="createBudget" placeholder="เช่น 2,500,000 – 4,000,000"></div>
+          <div class="field"><label class="field-label">วันปิดรับสมัคร</label><input type="date" id="createClosing"></div>
+        </div>
+        <div class="form-row full">
+          <div class="field"><label class="field-label">สรุปขอบเขตงาน</label><textarea id="createDesc" placeholder="อธิบายขอบเขตงาน ผลส่งมอบ และเงื่อนไขสำคัญ..."></textarea></div>
+        </div>
+        <div class="form-row full">
+          <div class="field"><label class="field-label">คุณสมบัติที่ต้องการ</label>
+            <div class="tag-input-area">
+              <span class="tag-add">+ เพิ่มคุณสมบัติที่ต้องการ</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section-title" style="margin-top:8px;">เอกสาร TOR</div>
+        <div class="form-row full">
+          <div class="field">
+            <div class="upload-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+              <div class="up-title">อัปโหลดเอกสาร TOR ฉบับเต็ม</div>
+              <div class="up-sub">PDF ขนาดไม่เกิน 25MB</div>
+            </div>
+            <div class="file-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/></svg>
+              <span class="fname">TOR_ระบบบริหารเอกสาร_BMA_2569.pdf</span>
+              <span class="fsize">4.2 MB</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section-title" style="margin-top:8px;">ข้อมูลติดต่อ</div>
+        <div class="form-row">
+          <div class="field"><label class="field-label">ผู้ประสานงาน</label><input id="createContactName" placeholder="ชื่อ-นามสกุล"></div>
+          <div class="field"><label class="field-label">ตำแหน่ง</label><input id="createContactRole" placeholder="เช่น เจ้าหน้าที่พัสดุ"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label class="field-label">อีเมล</label><input id="createContactEmail" placeholder="name@agency.go.th"></div>
+          <div class="field"><label class="field-label">เบอร์โทรศัพท์</label><input id="createContactPhone" placeholder="0X-XXX-XXXX"></div>
+        </div>
+        <div class="form-row full">
+          <div class="field"><label class="field-label">ลิงก์ใบสมัครทางการ (ถ้ามี)</label><input id="createAppLink" placeholder="https://"></div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn-outline" onclick="saveTorDraft(true)">บันทึกและออก</button>
+          <button class="btn btn-primary" onclick="saveTorDraft(false)">บันทึกเป็นร่าง <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PAGE 9 — VERIFY IDENTITY (PROJECT OWNER) ============ -->
+    <section class="page hidden" id="page-verify">
+      <div id="verifyStatusSection"></div>
+      <div class="form-panel">
+        <div class="form-section-title">ยืนยันตัวตน</div>
+        <p style="font-size:12.5px;color:var(--text-mid);margin-bottom:16px;line-height:1.6;">ส่งข้อมูลยืนยันตัวตนเพื่อให้ผู้ดูแลตรวจสอบ คุณต้องผ่านการยืนยันก่อนจึงจะประกาศ TOR ให้เป็นสถานะ “ประกาศแล้ว/Final/Published” ได้</p>
+        <div class="form-row">
+          <div class="field"><label class="field-label">เลขบัตรประชาชน</label><input id="verifyNationalId" placeholder="เช่น 1-2345-67890-12-3"></div>
+          <div class="field"><label class="field-label">รหัสหลังบัตรประชาชน</label><input id="verifyNationalIdBack" placeholder="Laser code ด้านหลังบัตร"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label class="field-label">Gmail</label><input id="verifyGmail" type="email" placeholder="yourname@gmail.com"></div>
+          <div class="field"><label class="field-label">เบอร์โทรศัพท์</label><input id="verifyPhone" placeholder="+66 XX XXX XXXX"></div>
+        </div>
+        <div class="form-row full">
+          <div class="field">
+            <label class="field-label">อัปโหลดเอกสารยืนยันตัวตน</label>
+            <div class="upload-box" onclick="document.getElementById('verifyDocInput').click()" style="cursor:pointer;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+              <div class="up-title">อัปโหลดบัตรประชาชนหรือเอกสารยืนยันตัวตน</div>
+              <div class="up-sub">JPG, PNG หรือ PDF — ขนาดไม่เกิน 10MB ต่อไฟล์</div>
+            </div>
+            <input type="file" id="verifyDocInput" accept="image/*,.pdf" multiple style="display:none;" onchange="handleVerifyDocUpload(event)">
+            <div id="verifyDocList"></div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-outline" onclick="goPage('create')">ยกเลิก</button>
+          <button class="btn btn-primary" id="verifySubmitBtn" onclick="submitVerification()">ส่งเพื่อยืนยันตัวตน</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PAGE 10 — ADMIN DASHBOARD ============ -->
+    <section class="page hidden" id="page-admin-dashboard">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6M14 20c0-2.2 1.8-4 4-4"/></svg>ผู้ใช้ทั้งหมด</div>
+          <div class="stat-value" id="adminStatUsers">248</div>
+          <div class="stat-delta up">+12 เดือนนี้</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/></svg>TOR ทั้งหมด</div>
+          <div class="stat-value" id="adminStatTors">24</div>
+          <div class="stat-delta flat">3 ร่าง · 21 ประกาศแล้ว</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>รอยืนยันตัวตน</div>
+          <div class="stat-value" id="adminStatPending">0</div>
+          <div class="stat-delta warn">ต้องได้รับการตรวจสอบโดยผู้ดูแล</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10.3"/></svg>รายงานที่เปิดอยู่</div>
+          <div class="stat-value">3</div>
+          <div class="stat-delta warn">2 เรื่องร้องเรียนที่ยังไม่แก้ไข</div>
+        </div>
+      </div>
+      <div class="bottom-row">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">กิจกรรมล่าสุด</div>
+              <div class="panel-title-sub">เหตุการณ์ล่าสุดในแพลตฟอร์ม</div>
+            </div>
+            <button class="btn btn-outline" onclick="goPage('admin-logs')">ดูบันทึกทั้งหมด</button>
+          </div>
+          <div id="adminDashboardLogs"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">Pending actions</div>
+              <div class="panel-title-sub">Items requiring admin attention</div>
+            </div>
+          </div>
+          <div id="adminDashboardPending"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PAGE 11 — ADMIN USER MANAGEMENT ============ -->
+    <section class="page hidden" id="page-admin-users">
+      <div class="filter-bar">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          <input type="text" id="adminUserSearch" placeholder="ค้นหาผู้ใช้ตามชื่อหรืออีเมล..." oninput="renderAdminUsers()">
+        </div>
+        <select id="adminUserRole" onchange="renderAdminUsers()">
+          <option value="">ทุกบทบาท</option>
+          <option value="contractor">ผู้รับจ้าง</option>
+          <option value="owner">เจ้าของโครงการ</option>
+          <option value="admin">ผู้ดูแลระบบ</option>
+        </select>
+        <select id="adminUserStatus" onchange="renderAdminUsers()">
+          <option value="">ทุกสถานะ</option>
+          <option value="active">ใช้งานอยู่</option>
+          <option value="suspended">ระงับแล้ว</option>
+        </select>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">การจัดการผู้ใช้งาน</div>
+            <div class="panel-title-sub">จัดการบัญชีผู้รับจ้าง เจ้าของโครงการ และผู้ดูแลระบบ</div>
+          </div>
+        </div>
+        <div id="adminUsersTable"></div>
+      </div>
+    </section>
+
+    <!-- ============ PAGE 12 — ADMIN VERIFY IDENTITY ============ -->
+    <section class="page hidden" id="page-admin-verify">
+      <div class="info-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span><b>เฉพาะผู้ดูแลระบบเท่านั้น</b> ตรวจสอบคำขอยืนยันตัวตนของเจ้าของโครงการ ผู้ดูแลระบบเท่านั้นที่สามารถอนุมัติหรือปฏิเสธการยืนยันตัวตนได้ — เจ้าของโครงการไม่สามารถยืนยันตัวตนด้วยตนเอง</span>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">ยืนยันตัวตน</div>
+            <div class="panel-title-sub">อนุมัติหรือปฏิเสธคำขอยืนยันตัวตนจากเจ้าของโครงการ</div>
+          </div>
+        </div>
+        <div id="adminVerifyQueue"></div>
+      </div>
+      <div class="panel" style="margin-top:16px;">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">ประวัติการยืนยันตัวตน</div>
+            <div class="panel-title-sub">คำขอที่เคยตรวจสอบแล้ว</div>
+          </div>
+        </div>
+        <div id="adminVerifyHistory"></div>
+      </div>
+    </section>
+
+    <!-- ============ PAGE 13 — ADMIN SYSTEM STATISTICS ============ -->
+    <section class="page hidden" id="page-admin-stats">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">ผู้รับจ้างที่ลงทะเบียน</div>
+          <div class="stat-value">186</div>
+          <div class="stat-delta up">+8 สัปดาห์นี้</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">เจ้าของโครงการที่ลงทะเบียน</div>
+          <div class="stat-value">59</div>
+          <div class="stat-delta up">+3 สัปดาห์นี้</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">เจ้าของโครงการที่ยืนยันแล้ว</div>
+          <div class="stat-value">41</div>
+          <div class="stat-delta flat">อัตราการยืนยัน 69%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">จำนวนครั้งที่จับคู่ TOR</div>
+          <div class="stat-value">1,284</div>
+          <div class="stat-delta up">+142 สัปดาห์นี้</div>
+        </div>
+      </div>
+      <div class="chart-row">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">ปริมาณ TOR รายเดือน</div>
+              <div class="panel-title-sub">TOR ร่างเทียบกับ TOR ที่ประกาศแล้วในทั้งแพลตฟอร์ม</div>
+            </div>
+          </div>
+          <div id="adminStatsChart" style="height:220px;"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">สัดส่วนผู้ใช้งาน</div>
+              <div class="panel-title-sub">แยกตามบทบาทและสถานะการยืนยันตัวตน</div>
+            </div>
+          </div>
+          <div id="adminStatsBreakdown"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PAGE 14 — ADMIN TOR SOURCES ============ -->
+    <!-- <section class="page hidden" id="page-admin-sources">
+      <div class="info-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h10M4 17h14"/></svg>
+        <span><b>TOR Sources</b> manage where TOR data is collected from — agency feeds, project owner uploads, and external procurement portals.</span>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Configured TOR sources</div>
+            <div class="panel-title-sub">Monitor sync status and TOR ingestion volume</div>
+          </div>
+          <button class="btn btn-primary">Add source</button>
+        </div>
+        <div id="adminSourcesList"></div>
+      </div>
+    </section> -->
+
+    <!-- ============ PAGE 15 — ADMIN ACTIVITY LOGS ============ -->
+    <section class="page hidden" id="page-admin-logs">
+      <div class="filter-bar">
+        <select id="adminLogType" onchange="renderAdminLogs()">
+          <option value="">ประเภทกิจกรรมทั้งหมด</option>
+          <option value="user">ผู้ใช้</option>
+          <option value="tor">TOR</option>
+          <option value="system">ระบบ</option>
+          <option value="report">รายงาน</option>
+        </select>
+        <span class="sort-label" style="margin-left:0">ล่าสุดก่อน</span>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">บันทึกกิจกรรม</div>
+            <div class="panel-title-sub">ประวัติเหตุการณ์ในระบบและการดำเนินการของผู้ดูแล</div>
+          </div>
+        </div>
+        <div id="adminLogsList"></div>
+      </div>
+    </section>
+
+    <!-- ============ PAGE 16 — ADMIN REPORTS / COMPLAINTS ============ -->
+    <section class="page hidden" id="page-admin-reports">
+      <div class="filter-bar">
+        <select id="adminReportStatus" onchange="renderAdminReports()">
+          <option value="">ทุกสถานะ</option>
+          <option value="open">เปิดอยู่</option>
+          <option value="reviewing">อยู่ระหว่างตรวจสอบ</option>
+          <option value="resolved">แก้ไขแล้ว</option>
+        </select>
+        <select id="adminReportType" onchange="renderAdminReports()">
+          <option value="">ทุกประเภท</option>
+          <option value="complaint">ร้องเรียน</option>
+          <option value="report">รายงาน</option>
+          <option value="abuse">การละเมิด</option>
+        </select>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">รายงาน / ร้องเรียน</div>
+            <div class="panel-title-sub">ปัญหาที่ผู้ใช้ส่งมาและต้องได้รับการตรวจสอบโดยผู้ดูแลระบบ</div>
+          </div>
+        </div>
+        <div id="adminReportsList"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============ TOR DETAIL MODAL ============ -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this) closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
