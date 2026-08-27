@@ -2,24 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
+// import { useAuth } from "@/components/AuthProvider";
+import { useSession } from "next-auth/react";
+import { signIn } from "next-auth/react";
 
-const GOOGLE_DEMO_EMAIL = "contractor.demo@gmail.com";
+// const GOOGLE_DEMO_EMAIL = "contractor.demo@gmail.com";
 
 export default function LoginPage() {
-  const { user, ready, loginWithGmail } = useAuth();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const user = session?.user;
+  const ready = status !== "loading";
 
   useEffect(() => {
     if (ready && user) router.replace("/");
   }, [ready, user, router]);
 
-  function signInWithGoogle() {
+  async function signInWithGoogle() {
     setLoading(true);
     // Persist + set auth first; redirect via the effect below once `user` is set
     // (avoids racing router navigation against React state updates).
-    loginWithGmail(GOOGLE_DEMO_EMAIL);
+    await signIn("google", {
+      callbackUrl: "/",
+    });
   }
 
   if (!ready || user) {
