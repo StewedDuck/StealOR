@@ -1,6 +1,5 @@
 # Environment variables & secrets
 .env
-.env.*
 *.json
 !package.json
 !package-lock.json
