@@ -299,3 +299,48 @@
 .logout-button:hover {
   color: #fcfcfa;
 }
+
+/* Summary Card */
+.summary-card {
+  background: #fcfcfa;
+  border: 1px solid #dfe3e6;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.summary-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #26323d;
+  font-size: 14px;
+}
+
+.summary-icon {
+  color: #4b7db8;
+  display: flex;
+}
+
+.summary-value {
+  margin-top: 10px;
+  font-size: 32px;
+  font-weight: 600;
+  color: #26323d;
+}
+
+.summary-footer {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.summary-footer.success {
+  color: #6b8f71;
+}
+
+.summary-footer.warning {
+  color: #b4873c;
+}
+
+.summary-footer.normal {
+  color: #8a949d;
+}
