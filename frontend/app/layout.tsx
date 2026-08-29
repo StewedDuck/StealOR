@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AuthProvider } from "@/components/AuthProvider";
+import AuthProvider from "@/components/AuthProvider"
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,11 +7,9 @@ export const metadata: Metadata = {
   description: "ค้นหา TOR · กรุงเทพฯ",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout(
+  { children }: Readonly<{ children: React.ReactNode; }>)
+  {
   return (
     <html lang="th">
       <body>
