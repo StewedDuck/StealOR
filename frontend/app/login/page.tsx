@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-// import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/components/AuthProvider";
+import { isAdminGmail } from "@/lib/auth";
 import { useSession } from "next-auth/react";
 import { signIn } from "next-auth/react";
 
@@ -16,7 +17,13 @@ export default function LoginPage() {
   const ready = status !== "loading";
 
   useEffect(() => {
-    if (ready && user) router.replace("/");
+    if (!ready || !user) return;
+  
+    if (user.email && isAdminGmail(user.email)) {
+      router.replace("/admin/dashboard");
+    } else {
+      router.replace("/dashboard");
+    }
   }, [ready, user, router]);
 
   async function signInWithGoogle() {
@@ -24,7 +31,7 @@ export default function LoginPage() {
     // Persist + set auth first; redirect via the effect below once `user` is set
     // (avoids racing router navigation against React state updates).
     await signIn("google", {
-      callbackUrl: "/",
+      callbackUrl: "/login",
     });
   }
 

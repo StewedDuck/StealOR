@@ -70,11 +70,11 @@ export default function AdminDashboard() {
     useEffect(() => {
         if (!user) return;
 
-        if (user.accountRole !== "admin") {
-            router.replace("/dashboard");
-        }
-    }, [user, router]);
-
+        if (user.accountRole === "admin") {
+            router.replace("/admin/dashboard");
+          }
+        }, [user, router]);
+        
     // Don't show page while checking user
     if (!user || user.accountRole !== "admin") {
         return null;
@@ -83,16 +83,16 @@ export default function AdminDashboard() {
     return (
         <div className="admin-layout">
 
-            {/* ================= SIDEBAR ================= */}
+            {/* SIDEBAR */}
             <aside className="admin-sidebar">
                 <Sidebar />
             </aside>
 
 
-            {/* ================= MAIN ================= */}
+            {/* MAIN */}
             <main className="admin-main">
 
-                {/* ================= HEADER ================= */}
+                {/* HEADER */}
                 <header className="admin-header">
                     <div className="admin-header-content">
                         <h1>แดชบอร์ดผู้ดูแลระบบ</h1>
@@ -103,10 +103,10 @@ export default function AdminDashboard() {
                 </header>
 
 
-                {/* ================= CONTENT ================= */}
+                {/* CONTENT */}
                 <div className="admin-content">
 
-                    {/* ================= SUMMARY ================= */}
+                    {/* SUMMARY */}
                     <div className="admin-summary-grid">
 
                         <SummaryCard
