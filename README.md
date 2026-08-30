@@ -22,7 +22,7 @@ The platform aggregates TOR data from multiple public-sector sources into a unif
 * **AI-Powered Matching:** Intelligent extraction of TOR requirements and automated qualification match scoring.
 * **Role-Based Workflows:** Tailored dashboards for Contractors, Project Owners, and Admins.
 
-> 📖 **Looking for detailed feature specifications?** Check out the [System Wiki](./WIKI.md).
+> 📖 **Looking for detailed feature specifications?** Check out the [System Wiki]([./WIKI.md](https://github.com/StewedDuck/StealOR/wiki/WIKI)).
 
 ---
 
