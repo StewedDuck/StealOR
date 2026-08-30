@@ -73,25 +73,29 @@ export default function DashboardPage() {
                                     icon={<CircleCheckBig size={20} />}
                                     title="TORs ที่ตรงกัน"
                                     value="24"
-                                    footer="TORs ที่ตรงกับคุณสมบัติของคุณ"
+                                    footer="+4 TORs"
+                                    footerType="success"
                                 />
                                 <SummaryCard
                                     icon={<ClockPlus size={20} />}
                                     title="TORs มาใหม่วันนี้"
                                     value="12"
                                     footer="TORs ใหม่วันนี้"
+                                    footerType="normal"
                                 />
                                 <SummaryCard
                                     icon={<Clock size={20} />}
                                     title="TORs ใกล้ปิดรับ"
                                     value="5"
                                     footer="TORs ที่จะปิดภายใน 5 วัน"
+                                    footerType="warning"
                                 />
                                 <SummaryCard
                                     icon={<Coins size={20} />}
                                     title="มูลค่า TORs ที่ตรงกัน"
                                     value="฿18.5M"
                                     footer="มูลค่ารวมของ TORs ที่ตรงกัน"
+                                    footerType="normal"
                                 />
                             </section>
 

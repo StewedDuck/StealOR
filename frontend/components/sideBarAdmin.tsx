@@ -4,12 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
     LayoutDashboard,
-    Bookmark,
-    Search,
-    User,
-    FileText,
-    CircleCheckBig,
-    BellRing,
+    Users,
+    ShieldCheck,
+    RotateCcwClock,
+    Siren,
  } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -29,48 +27,32 @@ type MenuSection = {
 
 const menuItems: MenuSection[] = [
     {
-        label: "ภาครวม",
+        label: "ผู้ดูแลระบบ",
         items: [
             {
                 name: "แดชบอร์ด",
-                href: "/dashboard",
+                href: "/admin/dashboard",
                 icon: "LayoutDashboard",
             },
-        ],
-    },
-    {
-        label: "ค้นหา TOR",
-        items: [
             {
-                name: "ค้นหา TOR",
-                href: "/market",
-                icon: "Search",
+                name: "จัดการผู้ใช้งาน",
+                href: "/manageUser",
+                icon: "Users",
             },
             {
-                name: "TORs ที่ตรงกัน",
-                href: "/matching",
-                icon: "CircleCheckBig",
+                name: "ยืนยัดตัวตน",
+                href: "/verify_identity",
+                icon: "ShieldCheck",
             },
             {
-                name: "บันทึกไว้",
-                href: "/saved",
-                icon: "Bookmark",
-            },
-        ],
-    },
-    {
-        label: "การจัดการ",
-        items: [
-            {
-                name: "การแจ้งเตือน",
-                href: "/notifications",
-                icon: "BellRing",
-                badge : 24,
+                name: "บันทึกกิจกรรม",
+                href: "/activity",
+                icon: "RotateCcwClock",
             },
             {
-                name: "บัญชีของฉัน",
-                href: "/account",
-                icon: "User",
+                name: "รายงาน / ร้องเรียน",
+                href: "/issue",
+                icon: "Siren",
             },
         ],
     },
@@ -98,22 +80,6 @@ export default function sideBar () {
                 </div>
             </div>
 
-            {/* Role switch */}
-            <div className="role-switch">
-                <button 
-                    className="role-button active"
-                    onClick={() => router.push("/dashboard")}
-                >
-                    ผู้รับจ้าง
-                </button>
-                <button 
-                    className="role-button"
-                    onClick={() => router.push("/dashboard-projectOwn")}
-                >
-                    เจ้าของโครงการ
-                </button>
-            </div>
-
             {/* Navigation */}
             <nav className="sidebar-nav">
                 {menuItems.map((section) => (
@@ -132,12 +98,10 @@ export default function sideBar () {
                                 >
                                     <span className="nav-item-icon">
                                         {item.icon === "LayoutDashboard" && <LayoutDashboard size={20}/>}
-                                        {item.icon === "Search" && <Search size={20}/>}
-                                        {item.icon === "Bookmark" && <Bookmark size={20}/>}
-                                        {item.icon === "User" && <User size={20}/>}
-                                        {item.icon === "FileText" && <FileText size={20}/>}
-                                        {item.icon === "CircleCheckBig" && <CircleCheckBig size={20}/>}
-                                        {item.icon === "BellRing" && <BellRing size={20}/>}
+                                        {item.icon === "Users" && <Users size={20}/>}
+                                        {item.icon === "ShieldCheck" && <ShieldCheck size={20}/>}
+                                        {item.icon === "RotateCcwClock" && <RotateCcwClock size={20}/>}
+                                        {item.icon === "Siren" && <Siren size={20}/>}
                                     </span>
 
                                     <span className = "nav-item-name">
@@ -162,7 +126,7 @@ export default function sideBar () {
 
                 <div className="user-info">
                     <div className="user-name">Cool Dog</div>
-                    <div className="user-role">ผู้รับจ้าง</div>
+                    <div className="user-role">แอดมิน</div>
                 </div>
 
                 <button
