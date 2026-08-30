@@ -726,3 +726,165 @@ coverage/
 # License
 
 This project is intended for educational and research purposes.
+
+---
+
+# Docker Setup
+
+This repository contains one Git repository with two separate applications:
+
+* `frontend/` — Next.js 15 application (port 3000)
+* `backend/` — Node.js + Express application (port 5000)
+
+Docker Compose runs both applications together for local development.
+
+External services are **not** containerized:
+
+* MongoDB Atlas — cloud-hosted, connected via `MONGODB_URI`
+* Google Vertex AI — cloud-hosted, connected via GCP credentials
+
+---
+
+## Prerequisites
+
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+* MongoDB Atlas cluster configured with a valid connection string
+* Google Cloud OAuth 2.0 credentials (for NextAuth Google login)
+* `frontend/.env.local` file created from `frontend/.env.example` with real credentials filled in
+
+### Google OAuth Setup
+
+In Google Cloud Console:
+
+1. Go to **APIs & Services → Credentials → OAuth 2.0 Client IDs**
+2. Add the following as an **Authorized Redirect URI**:
+
+```
+http://localhost:3000/api/auth/callback/google
+```
+
+### Frontend Environment
+
+Copy the example file and fill in your credentials:
+
+```bash
+cp frontend/.env.example frontend/.env.local
+```
+
+Then edit `frontend/.env.local`:
+
+```env
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+NEXTAUTH_SECRET=generate-with-openssl-rand-base64-32
+NEXTAUTH_URL=http://localhost:3000
+```
+
+Generate `NEXTAUTH_SECRET`:
+
+```bash
+openssl rand -base64 32
+```
+
+### Backend Environment
+
+The `backend/.env` file already exists. Verify it contains a valid `MONGODB_URI`.
+
+---
+
+## Google Cloud Credentials (Vertex AI)
+
+If you are testing Vertex AI features:
+
+1. Download your GCP service account JSON key from Google Cloud Console
+2. Place it at:
+
+```
+backend/config/gcp-service-account.json
+```
+
+3. Uncomment the volume mount in `docker-compose.yml`:
+
+```yaml
+- ./backend/config/gcp-service-account.json:/app/config/gcp-service-account.json:ro
+```
+
+4. Update `GOOGLE_APPLICATION_CREDENTIALS` in `backend/.env`:
+
+```env
+GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-service-account.json
+```
+
+The JSON key file is excluded from Git by `.gitignore`.
+
+---
+
+## Docker Commands
+
+Build both images:
+
+```bash
+docker compose build
+```
+
+Start both services:
+
+```bash
+docker compose up
+```
+
+Build and start in one command:
+
+```bash
+docker compose up --build
+```
+
+Start in the background:
+
+```bash
+docker compose up -d
+```
+
+Stop and remove containers:
+
+```bash
+docker compose down
+```
+
+View live logs:
+
+```bash
+docker compose logs -f
+```
+
+View logs for a specific service:
+
+```bash
+docker compose logs -f frontend
+docker compose logs -f backend
+```
+
+---
+
+## Access the Application
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:5000 |
+| Backend Health | http://localhost:5000/health |
+
+---
+
+## Development Workflow
+
+Source code is bind-mounted into the containers, so changes are reflected without rebuilding:
+
+* Frontend — Next.js Turbopack hot reload is active
+* Backend — Node.js `--watch` mode restarts on file changes
+
+To rebuild after changing `package.json` or `Dockerfile`:
+
+```bash
+docker compose up --build
+```
