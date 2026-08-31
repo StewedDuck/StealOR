@@ -10,6 +10,10 @@ import {
     FileText,
     CircleCheckBig,
     BellRing,
+    Plus,
+    File,
+    ShieldCheck,
+    FileCheckCorner,
  } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -26,8 +30,8 @@ type MenuSection = {
     items: MenuItem[];
 }
 
-
-const menuItems: MenuSection[] = [
+// contractor section
+const contractorMenuItems: MenuSection[] = [
     {
         label: "ภาครวม",
         items: [
@@ -76,9 +80,111 @@ const menuItems: MenuSection[] = [
     },
 ];
 
+// project own section
+const projectOwnerMenuItems: MenuSection[] = [
+    {
+        label: "เจ้าของโครงการ",
+        items: [
+            {
+                name: "สร้าง TOR",
+                href: "/project_own/create_TOR",
+                icon: "Plus",
+            },
+            {
+                name: "TOR ของฉัน",
+                href: "/project_own/my_TOR",
+                icon: "FileCheckCorner",
+            },
+            {
+                name: "TOR ร่างของฉัน",
+                href: "/project_own/draft_TOR",
+                icon: "File",
+            },
+        ],
+    },
+
+    {
+        label: "บัญชีผู้ใช้",
+        items: [
+            {
+                name: "การยืนยันตัวตน",
+                href: "/project_own/verification",
+                icon: "ShieldCheck",
+            },
+        ],
+    },
+];
+
+function MenuIcon({
+    icon,
+}: {
+    icon: string;
+}) {
+    if (icon === "LayoutDashboard") {
+        return <LayoutDashboard size={20} />;
+    }
+
+    if (icon === "Search") {
+        return <Search size={20} />;
+    }
+
+    if (icon === "Bookmark") {
+        return <Bookmark size={20} />;
+    }
+
+    if (icon === "User") {
+        return <User size={20} />;
+    }
+
+    if (icon === "FileText") {
+        return <FileText size={20} />;
+    }
+
+    if (icon === "CircleCheckBig") {
+        return <CircleCheckBig size={20} />;
+    }
+
+    if (icon === "BellRing") {
+        return <BellRing size={20} />;
+    }
+
+    if (icon === "CircleCheckBig") {
+        return <CircleCheckBig size={20} />;
+    }
+
+    if (icon === "Plus") {
+        return <Plus size={20} />;
+    }
+
+    if (icon === "ShieldCheck") {
+        return <ShieldCheck size={20} />;
+    }
+    
+    if (icon === "FileCheckCorner") {
+        return <FileCheckCorner size={20} />;
+    }
+
+    if (icon === "File") {
+        return <File size={20} />;
+    }
+
+    return null;
+}
+
+
 export default function sideBar () {
     const pathname = usePathname();
     const router = useRouter();
+
+    const isProjectOwner =
+    pathname.startsWith("/project_own/create_TOR") ||
+    pathname.startsWith("/project_own/my-tor") ||
+    pathname.startsWith("/project_own/draft_TOR") ||
+    pathname.startsWith("/project_own/verification");
+
+    const menuItems = isProjectOwner
+    ? projectOwnerMenuItems
+    : contractorMenuItems;
 
     return (
         <aside className = "sidebar">
@@ -100,50 +206,65 @@ export default function sideBar () {
 
             {/* Role switch */}
             <div className="role-switch">
-                <button 
-                    className="role-button active"
+
+                <button
+                    type="button"
+                    className={`role-button ${
+                        !isProjectOwner ? "active" : ""
+                    }`}
                     onClick={() => router.push("/dashboard")}
                 >
                     ผู้รับจ้าง
                 </button>
-                <button 
-                    className="role-button"
-                    onClick={() => router.push("/dashboard-projectOwn")}
+
+
+                <button
+                    type="button"
+                    className={`role-button ${
+                        isProjectOwner ? "active" : ""
+                    }`}
+                    onClick={() => router.push("/project_own/create_TOR")}
                 >
                     เจ้าของโครงการ
                 </button>
+
             </div>
 
             {/* Navigation */}
             <nav className="sidebar-nav">
                 {menuItems.map((section) => (
-                    <div className="nav-section" key={section.label}>
+                    <div
+                        className="nav-section"
+                        key={section.label}
+                    >
                         <div className="nav-section-title">
                             {section.label}
                         </div>
-
                         {section.items.map((item) => {
-                            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+                            const isActive =
+                                pathname === item.href ||
+                                pathname.startsWith(
+                                    `${item.href}/`
+                                );
                             return (
                                 <Link
-                                    key = {item.name}
-                                    href = {item.href}
-                                    className = {`nav-item ${isActive ? "active" : ""}`}
+                                    key={item.name}
+                                    href={item.href}
+                                    className={`nav-item ${
+                                        isActive
+                                            ? "active"
+                                            : ""
+                                    }`}
                                 >
                                     <span className="nav-item-icon">
-                                        {item.icon === "LayoutDashboard" && <LayoutDashboard size={20}/>}
-                                        {item.icon === "Search" && <Search size={20}/>}
-                                        {item.icon === "Bookmark" && <Bookmark size={20}/>}
-                                        {item.icon === "User" && <User size={20}/>}
-                                        {item.icon === "FileText" && <FileText size={20}/>}
-                                        {item.icon === "CircleCheckBig" && <CircleCheckBig size={20}/>}
-                                        {item.icon === "BellRing" && <BellRing size={20}/>}
+                                        <MenuIcon
+                                            icon={item.icon}
+                                        />
                                     </span>
-
-                                    <span className = "nav-item-name">
+                                    <span className="nav-item-name">
                                         {item.name}
                                     </span>
-
                                     {item.badge !== undefined && (
                                         <span className="nav-item-badge">
                                             {item.badge}
@@ -162,7 +283,12 @@ export default function sideBar () {
 
                 <div className="user-info">
                     <div className="user-name">Cool Dog</div>
-                    <div className="user-role">ผู้รับจ้าง</div>
+                    <div className="user-role">
+                        {isProjectOwner
+                            ? "เจ้าของโครงการ"
+                            : "ผู้รับจ้าง"
+                        }
+                    </div>
                 </div>
 
                 <button
