@@ -37,7 +37,7 @@ const contractorMenuItems: MenuSection[] = [
         items: [
             {
                 name: "แดชบอร์ด",
-                href: "/dashboard",
+                href: "/contractor/dashboard",
                 icon: "LayoutDashboard",
             },
         ],
@@ -46,18 +46,18 @@ const contractorMenuItems: MenuSection[] = [
         label: "ค้นหา TOR",
         items: [
             {
-                name: "ค้นหา TOR",
-                href: "/market",
+                name: "TORs",
+                href: "/contractor/market",
                 icon: "Search",
             },
             {
                 name: "TORs ที่ตรงกัน",
-                href: "/matching",
+                href: "/contractor/matching",
                 icon: "CircleCheckBig",
             },
             {
                 name: "บันทึกไว้",
-                href: "/saved",
+                href: "/contractor/saved",
                 icon: "Bookmark",
             },
         ],
@@ -67,13 +67,13 @@ const contractorMenuItems: MenuSection[] = [
         items: [
             {
                 name: "การแจ้งเตือน",
-                href: "/notifications",
+                href: "/contractor/notifications",
                 icon: "BellRing",
                 badge : 24,
             },
             {
                 name: "บัญชีของฉัน",
-                href: "/account",
+                href: "/contractor/account",
                 icon: "User",
             },
         ],
@@ -91,14 +91,14 @@ const projectOwnerMenuItems: MenuSection[] = [
                 icon: "Plus",
             },
             {
-                name: "TOR ของฉัน",
-                href: "/project_own/my_TOR",
-                icon: "FileCheckCorner",
-            },
-            {
                 name: "TOR ร่างของฉัน",
                 href: "/project_own/draft_TOR",
                 icon: "File",
+            },
+            {
+                name: "TOR ของฉัน",
+                href: "/project_own/my_TOR",
+                icon: "FileCheckCorner",
             },
         ],
     },
@@ -178,8 +178,8 @@ export default function sideBar () {
 
     const isProjectOwner =
     pathname.startsWith("/project_own/create_TOR") ||
-    pathname.startsWith("/project_own/my-tor") ||
     pathname.startsWith("/project_own/draft_TOR") ||
+    pathname.startsWith("/project_own/my_TOR") ||
     pathname.startsWith("/project_own/verification");
 
     const menuItems = isProjectOwner
@@ -212,7 +212,7 @@ export default function sideBar () {
                     className={`role-button ${
                         !isProjectOwner ? "active" : ""
                     }`}
-                    onClick={() => router.push("/dashboard")}
+                    onClick={() => router.push("/contractor/dashboard")}
                 >
                     ผู้รับจ้าง
                 </button>
@@ -296,7 +296,7 @@ export default function sideBar () {
                     className="logout-button"
                     onClick={() =>
                         signOut({
-                            callbackUrl: "/login",
+                            callbackUrl: "/",
                         })
                     }
                 >

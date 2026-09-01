@@ -134,7 +134,7 @@ export default function sideBar () {
                     className="logout-button"
                     onClick={() =>
                         signOut({
-                            callbackUrl: "/login",
+                            callbackUrl: "/",
                         })
                     }
                 >
