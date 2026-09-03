@@ -54,7 +54,7 @@ services:
       - "3000:3000"
     env_file:
       # frontend/.env.local holds GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
-      # NEXTAUTH_SECRET. Copy from frontend/.env.example and fill in values.
+      # and AUTH_SECRET. Copy from frontend/.env.example and fill in values.
       - path: ./frontend/.env.local
         required: false
     environment:

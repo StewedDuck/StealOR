@@ -9,7 +9,6 @@ import {
     RotateCcwClock,
     Siren,
  } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 
 type MenuItem = {
@@ -58,9 +57,8 @@ const menuItems: MenuSection[] = [
     },
 ];
 
-export default function sideBar () {
+export default function SidebarAdmin () {
     const pathname = usePathname();
-    const router = useRouter();
 
     return (
         <aside className = "sidebar">

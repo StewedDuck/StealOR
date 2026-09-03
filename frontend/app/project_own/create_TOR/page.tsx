@@ -1,27 +1,23 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
 import Sidebar from "@/components/sideBar";
-import {
-    CircleCheckBig,
-    Clock,
-    BellRing,
-    TriangleAlert,
-} from "lucide-react";
+import TorForm from "@/components/projectOwner/TorForm";
+import { createTor } from "@/lib/torApi";
 import "./create_TOR.css";
 
 export default function CreateTOR() {
-    return (
-        <div className="createTOR_layout">
-            <Sidebar />
+    const router = useRouter();
 
-            <main className='createTOR-main-header'>
-                <div>
-                    <h1>project own page</h1>
+    return (
+        <div className="createTOR-layout">
+            <Sidebar />
+            <main className="createTOR-main">
+                <div className="createTOR-header">
+                    <div><p>เจ้าของโครงการ</p><h1>สร้าง TOR</h1><span>กรอกข้อมูลและบันทึกเป็นฉบับร่างเพื่อกลับมาแก้ไขภายหลัง</span></div>
                 </div>
+                <TorForm onSubmit={async (data) => { await createTor(data); router.push("/project_own/draft_TOR"); }} />
             </main>
         </div>
-    )
+    );
 }

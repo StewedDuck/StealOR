@@ -172,7 +172,7 @@ function MenuIcon({
 }
 
 
-export default function sideBar () {
+export default function Sidebar () {
     const pathname = usePathname();
     const router = useRouter();
 
