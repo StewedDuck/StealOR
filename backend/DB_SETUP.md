@@ -186,3 +186,39 @@ Install `dotenv` if it is not already installed:
 ```bash
 npm install dotenv
 ```
+
+## 10. For another user to connect to the same MongoDB Atlas project
+
+Join an Existing StealOR MongoDB Atlas Project
+
+If another team member has already created the MongoDB Atlas project and cluster, you do **not** need to create a new MongoDB project or database deployment.
+
+The project owner should first invite you to the existing MongoDB Atlas project using your MongoDB Atlas account email.
+
+### Step 1: Accept the Project Invitation
+
+1. Sign in to [MongoDB Atlas](https://www.mongodb.com/atlas).
+2. Accept the invitation to the **StealOR** project.
+3. Open the shared MongoDB Atlas project.
+
+### Step 2: Create Your Own Database User
+
+Inside the shared MongoDB Atlas project:
+
+1. Go to:
+
+   **Security → Database Access**
+
+2. Click **Add New Database User**.
+
+3. Choose:
+
+   **Authentication Method:** Password
+
+4. Create your own database username and password.
+
+   Example:
+
+   ```text
+   Username: friend1_dev
+   Password: your-own-secure-password
