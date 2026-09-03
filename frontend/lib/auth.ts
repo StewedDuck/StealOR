@@ -25,6 +25,7 @@ export const AUTH_STORAGE_KEY = "stealors_auth_user";
 export const ADMIN_GMAILS = [
   "admin@gmail.com",
   "stealors.admin@gmail.com",
+  "cooldogng@gmail.com"
 ];
 
 export function isAdminGmail(email: string): boolean {

@@ -1,0 +1,19 @@
+# Environment variables & secrets
+.env
+*.json
+!package.json
+!package-lock.json
+
+# Specifically ignore GCP service account key files
+*gcp-service-account*.json
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS metadata
+.DS_Store
+Thumbs.db

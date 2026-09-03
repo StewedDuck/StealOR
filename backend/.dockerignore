@@ -1,0 +1,13 @@
+node_modules
+.env
+*.log
+npm-debug.log*
+
+# GCP service account key files (never bake into image)
+src/config/*.json
+config/*.json
+*gcp-service-account*.json
+
+# OS metadata
+.DS_Store
+Thumbs.db

@@ -1,0 +1,20 @@
+.form { display: grid; gap: 18px; }
+.section { background: #fcfcfa; border: 1px solid #e2e5e8; border-radius: 12px; padding: 24px; }
+.sectionHeading { display: flex; gap: 14px; align-items: flex-start; padding-bottom: 18px; margin-bottom: 20px; border-bottom: 1px solid #edf0f2; }
+.sectionHeading > span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: #e5edf5; color: #4b7db8; font: 600 12px var(--font-mono); }
+.sectionHeading h2 { margin: 0; font: 600 17px var(--font-display); }
+.sectionHeading p { margin: 3px 0 0; color: var(--text-mid); font-size: 12px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.grid label, .requirement label { display: grid; gap: 7px; color: var(--text-mid); font-size: 12px; font-weight: 600; }
+.grid label b { color: var(--danger); }.full { grid-column: 1 / -1; }
+.form input, .form textarea { width: 100%; box-sizing: border-box; border: 1px solid #ccd3d9; border-radius: 8px; background: #fff; color: var(--text-dark); padding: 10px 12px; font: inherit; outline: none; }
+.form input:focus, .form textarea:focus { border-color: var(--slate); box-shadow: 0 0 0 3px rgba(75,125,184,.12); }.form textarea { resize: vertical; line-height: 1.55; }
+.list { display: grid; gap: 10px; }.listRow { display: grid; grid-template-columns: 28px 1fr 36px; align-items: center; gap: 8px; }.listRow > span { color: var(--text-soft); font: 500 11px var(--font-mono); text-align: center; }
+.listRow button, .requirement > button { border: 0; background: transparent; color: var(--text-soft); cursor: pointer; padding: 8px; }.listRow button:hover, .requirement > button:hover { color: var(--danger); }
+.addButton { justify-self: start; display: inline-flex; align-items: center; gap: 6px; border: 1px dashed #aab6c0; border-radius: 7px; background: transparent; color: var(--slate); padding: 8px 12px; cursor: pointer; font-weight: 600; }
+.requirement { display: grid; grid-template-columns: minmax(220px,1fr) 95px 120px 36px; gap: 12px; align-items: end; padding: 12px; border-radius: 9px; background: var(--paper); }
+.checkbox { display: flex !important; flex-direction: row; align-items: center; min-height: 40px; font-weight: 500 !important; }.checkbox input { width: auto; }
+.actions { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 20px; border: 1px solid #d8dee3; border-radius: 10px; background: rgba(252,252,250,.96); box-shadow: 0 -5px 20px rgba(31,41,51,.06); }.actions > span { color: var(--text-mid); font-size: 12px; }
+.saveButton { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 8px; background: var(--ink); color: #fff; padding: 11px 18px; cursor: pointer; font-weight: 600; }.saveButton:disabled { opacity: .6; cursor: wait; }
+.error { border: 1px solid #e3b8b1; border-radius: 8px; background: var(--danger-bg); color: var(--danger); padding: 12px 14px; font-size: 13px; }
+@media (max-width: 780px) { .grid { grid-template-columns: 1fr; }.full { grid-column: auto; }.requirement { grid-template-columns: 1fr; }.requirement > button { justify-self: end; } }

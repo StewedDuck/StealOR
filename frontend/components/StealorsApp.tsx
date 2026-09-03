@@ -104,7 +104,7 @@ export default function StealorsApp() {
   useEffect(() => {
     if (!ready) return;
     if (!user) {
-      router.replace("/login");
+      router.replace("/");
     }
   }, [ready, user, router]);
 
@@ -116,7 +116,7 @@ export default function StealorsApp() {
       email: user.email ?? "",
     };
     window.__stealorsLogout = () => {
-      signOut({ callbackUrl: "/login" });
+      signOut({ callbackUrl: "/" });
     };
 
     let cancelled = false;

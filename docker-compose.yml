@@ -1,0 +1,75 @@
+# =============================================================================
+# StealOR — Docker Compose (Development)
+# =============================================================================
+#
+# Services:
+#   frontend  — Next.js 15 (port 3000)
+#   backend   — Node.js + Express (port 5000)
+#
+# External services (NOT containerized):
+#   MongoDB Atlas  — cloud-hosted, connection via MONGODB_URI in backend/.env
+#   Vertex AI      — cloud-hosted, credentials via GOOGLE_APPLICATION_CREDENTIALS
+#
+# Prerequisites:
+#   1. Copy frontend/.env.example → frontend/.env.local and fill in credentials
+#   2. Ensure backend/.env has a valid MONGODB_URI
+#   3. (Optional) Place GCP service account JSON and uncomment the volume below
+#
+# =============================================================================
+
+services:
+
+  # ─── Backend (Node.js + Express) ───────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./backend/.env
+    volumes:
+      # Bind-mount source code for live reload (node --watch)
+      - ./backend/src:/app/src
+      # ── GCP service account key (read-only) ──────────────────────────────
+      # Uncomment the line below once you have placed the JSON key file at
+      # backend/config/gcp-service-account.json
+      # Also update GOOGLE_APPLICATION_CREDENTIALS in backend/.env to:
+      #   GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-service-account.json
+      # - ./backend/config/gcp-service-account.json:/app/config/gcp-service-account.json:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ─── Frontend (Next.js 15) ─────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      # frontend/.env.local holds GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+      # and AUTH_SECRET. Copy from frontend/.env.example and fill in values.
+      - path: ./frontend/.env.local
+        required: false
+    environment:
+      # NEXTAUTH_URL must match the URL the browser uses to reach the app.
+      # For local Docker development this is always http://localhost:3000.
+      - NEXTAUTH_URL=http://localhost:3000
+    volumes:
+      # Bind-mount source code so edits are reflected without rebuild
+      - ./frontend:/app
+      # Preserve the container's node_modules — prevents the host bind mount
+      # from shadowing the node_modules installed inside the image
+      - /app/node_modules
+      # Preserve Next.js build cache inside the container
+      - /app/.next
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

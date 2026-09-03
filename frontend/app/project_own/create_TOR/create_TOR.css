@@ -1,0 +1,7 @@
+.createTOR-layout { min-height: 100vh; background: var(--paper); }
+.createTOR-main { min-width: 0; margin-left: 260px; padding: 36px 44px 60px; }
+.createTOR-header { margin-bottom: 24px; }
+.createTOR-header p { margin: 0 0 7px; color: var(--slate); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.createTOR-header h1 { margin: 0; color: var(--ink); font: 600 28px var(--font-display); }
+.createTOR-header span { display: block; margin-top: 6px; color: var(--text-mid); font-size: 13px; }
+@media (max-width: 900px) { .createTOR-main { padding: 28px 24px 50px; } }

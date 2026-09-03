@@ -1,0 +1,13 @@
+node_modules
+.next
+.env*
+*.log
+npm-debug.log*
+
+# TypeScript build cache
+*.tsbuildinfo
+next-env.d.ts
+
+# OS metadata
+.DS_Store
+Thumbs.db

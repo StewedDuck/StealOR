@@ -21,3 +21,7 @@ out/
 # IDE
 .vscode/
 .idea/
+
+# Google Cloud — service account key files (never commit credentials)
+*gcp-service-account*.json
+*.serviceaccount.json
