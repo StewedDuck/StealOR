@@ -14,6 +14,7 @@ import {
     File,
     ShieldCheck,
     FileCheckCorner,
+    MessageCircleDashed,
  } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -49,6 +50,11 @@ const contractorMenuItems: MenuSection[] = [
                 name: "TORs",
                 href: "/contractor/market",
                 icon: "Search",
+            },
+            {
+                name: "TORs ฉบับร่าง",
+                href: "/contractor/draft",
+                icon: "MessageCircleDashed",
             },
             {
                 name: "TORs ที่ตรงกัน",
@@ -126,6 +132,10 @@ function MenuIcon({
 
     if (icon === "Search") {
         return <Search size={20} />;
+    }
+
+    if (icon === "MessageCircleDashed") {
+        return <MessageCircleDashed size={20} />;
     }
 
     if (icon === "Bookmark") {
