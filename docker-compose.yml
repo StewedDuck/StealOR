@@ -24,19 +24,17 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     ports:
       - "5000:5000"
     env_file:
       - ./backend/.env
+    environment:
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
     volumes:
-      # Bind-mount source code for live reload (node --watch)
       - ./backend/src:/app/src
-      # ── GCP service account key (read-only) ──────────────────────────────
-      # Uncomment the line below once you have placed the JSON key file at
-      # backend/config/gcp-service-account.json
-      # Also update GOOGLE_APPLICATION_CREDENTIALS in backend/.env to:
-      #   GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-service-account.json
-      # - ./backend/config/gcp-service-account.json:/app/config/gcp-service-account.json:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
