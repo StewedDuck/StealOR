@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Plus, Save, Trash2 } from "lucide-react";
+import { useToast } from "@/components/toast/ToastProvider";
 import type { TorFormData } from "@/types/tor";
 import styles from "./TorForm.module.css";
 
@@ -33,6 +34,7 @@ export function toTorFormData(data: TorFormData): TorFormData {
 }
 
 export default function TorForm({ initialData = emptyTorForm, submitLabel = "บันทึกร่าง", onSubmit }: TorFormProps) {
+  const { showToast } = useToast();
   const [form, setForm] = useState<TorFormData>(() => toTorFormData(initialData));
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
@@ -56,7 +58,9 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
     try {
       await onSubmit(cleanedData);
     } catch (submissionError) {
-      setError(submissionError instanceof Error ? submissionError.message : "ไม่สามารถบันทึก TOR ได้");
+      const message = submissionError instanceof Error ? submissionError.message : "ไม่สามารถบันทึก TOR ได้";
+      setError(message);
+      showToast(message, "error");
     } finally {
       setIsSaving(false);
     }
