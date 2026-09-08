@@ -19,6 +19,7 @@ import {
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 
+
 type MenuItem = {
     name: string;
     href: string;
@@ -299,9 +300,7 @@ export default function Sidebar () {
 
              {/* User */}
              <div className="sidebar-user">
-                <div className="user-avatar">
-                    {initials}
-                </div>
+                <div className="user-avatar">{initials}</div>
 
                 <div className="user-info">
                     <div className="user-name">{userName}</div>

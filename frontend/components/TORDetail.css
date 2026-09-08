@@ -1,0 +1,273 @@
+.tor-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 24px;
+    background: rgba(31, 41, 51, 0.55);
+}
+
+/* TOR Detail Modal */
+.tor-modal {
+    color: #26323D;
+    box-shadow: 0 20px 60px rgba(31, 41, 51, 0.2);
+}
+    
+.tor-modal-header {
+    position: relative;
+    padding: 28px 32px 22px;
+    border-bottom: 1px solid #E2E5E8;
+    background: linear-gradient(
+        to right,
+        #1F2933 0%,
+        #2d4358 80%,
+        #224976 100%
+    );
+}
+
+.tor-modal-header h2 {
+    margin: 0;
+    padding-right: 40px;
+    color: #f5f5f5;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.tor-modal {
+    position: relative;
+    z-index: 10000;
+
+    width: 100%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
+
+    background: #FCFCFA;
+    border-radius: 16px;
+    color: #26323D;
+    box-shadow: 0 20px 60px rgba(31, 41, 51, 0.2);
+}
+    
+.tor-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+    
+.tor-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #EEF1F3;
+    color: #687580;
+    font-size: 11px;
+    font-weight: 600;
+}
+    
+.tor-status.draft {
+    background: #E8EDF2;
+    color: #4B657D;
+}
+    
+.tor-modal-header h2 {
+    margin: 0;
+    padding-right: 40px;
+    color: #26323D;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+    
+.tor-modal-header p {
+    margin: 7px 0 0;
+    color: #7A858E;
+    font-size: 13px;
+}
+    
+.tor-modal-close {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    
+    width: 36px;
+    height: 36px;
+    
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #687580;
+    
+    cursor: pointer;
+}
+
+.tor-modal-close:hover {
+    background: #F0F2F3;
+    color: #26323D;
+}
+    
+    
+/* Basic information */   
+.tor-info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 20px 32px;
+    background: #F7F7F4;
+}
+    
+.tor-info-card {
+    padding: 14px 16px;
+    background: #FCFCFA;
+    border: 1px solid #E2E5E8;
+    border-radius: 10px;
+}
+    
+.tor-info-card span {
+    display: block;
+    margin-bottom: 6px;
+    color: #89939B;
+    font-size: 11px;
+}
+    
+.tor-info-card strong {
+    display: block;
+    color: #26323D;
+    font-size: 14px;
+    font-weight: 700;
+}
+    
+    
+/* Body */   
+.tor-modal-body {
+    padding: 26px 32px;
+}
+    
+.tor-section {
+    margin-bottom: 28px;
+}
+    
+.tor-section:last-child {
+    margin-bottom: 0;
+}
+    
+.tor-section h3 {
+    margin: 0 0 10px;
+    color: #26323D;
+    font-size: 15px;
+    font-weight: 700;
+}
+    
+.tor-section p {
+    margin: 0;
+    color: #59656F;
+    font-size: 13px;
+    line-height: 1.7;
+}
+    
+.tor-section ul {
+    margin: 0;
+    padding-left: 20px;
+}
+    
+.tor-section li {
+    margin-bottom: 7px;
+    color: #59656F;
+    font-size: 13px;
+    line-height: 1.6;
+}
+    
+    
+/* Requirements */  
+.qualification-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+    
+.qualification-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    
+    background: #F7F7F4;
+    border: 1px solid #E5E7E9;
+    border-radius: 9px;
+}
+    
+.qualification-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #6B8F71;
+}
+    
+.qualification-name {
+    flex: 1;
+    min-width: 0;
+}
+    
+.qualification-name span {
+    color: #26323D;
+    font-size: 13px;
+    line-height: 1.4;
+}
+    
+.qualification-status {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: #EAF1EB;
+    color: #5F7F65;
+    font-size: 10px;
+    font-weight: 600;
+}
+    
+    
+/* Footer */   
+.tor-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 16px 32px 24px;
+    border-top: 1px solid #E2E5E8;
+}
+    
+.tor-close-button {
+    min-width: 90px;
+    height: 38px;
+    
+    border: 1px solid #CBD3D9;
+    border-radius: 8px;
+    
+    background: #FCFCFA;
+    color: #26323D;
+    
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+    
+.tor-close-button:hover {
+    background: #F1F3F4;
+}
+
+.tor-title-name { 
+    color: #d1d9e2; 
+    font-size: 10px; 
+    font-weight: 700; 
+    margin-bottom: 9px; 
+}
+  
