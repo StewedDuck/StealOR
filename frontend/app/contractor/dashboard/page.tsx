@@ -14,6 +14,7 @@ import MatchRateTrend from "@/components/MatchRateTrend";
 import QualificationGapChart from "@/components/QualificationGapChart";
 import { useState } from "react";
 import TorDetailModal from "@/components/TorDetailModal";
+import { useSession } from "next-auth/react";
 
 type Tor = {
     title: string;
@@ -32,6 +33,16 @@ type Tor = {
 
 export default function DashboardPage() {
     const [selectedTor, setSelectedTor] = useState<Tor | null>(null);
+    const { data: session } = useSession();
+
+    const userName = session?.user?.name ?? "ผู้ใช้";
+    const initials = userName
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    ;
 
     return (
         <>
@@ -58,7 +69,7 @@ export default function DashboardPage() {
                             </button>
 
                             <div className='user-avater'>
-                                CD
+                                {initials}
                             </div>
                         </div>
                     </header>

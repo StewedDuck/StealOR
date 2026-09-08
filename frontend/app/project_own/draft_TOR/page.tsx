@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/sideBar";
+import { useToast } from "@/components/toast/ToastProvider";
 import { FilePenLine, Plus, Search, Trash2 } from "lucide-react";
 import { deleteTor, getDraftTors } from "@/lib/torApi";
 import type { Tor } from "@/types/tor";
@@ -10,6 +11,7 @@ import "./draft_TOR.css";
 
 export default function DraftTOR() {
     const router = useRouter();
+    const { showToast } = useToast();
     const [tors, setTors] = useState<Tor[]>([]);
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(true);
@@ -26,14 +28,16 @@ export default function DraftTOR() {
     }, [query, tors]);
 
     async function handleDelete(tor: Tor) {
-        if (!window.confirm(`ต้องการลบร่าง “${tor.projectName}” หรือไม่?`)) return;
         setDeletingId(tor._id);
         setError("");
         try {
             await deleteTor(tor._id);
             setTors((current) => current.filter((item) => item._id !== tor._id));
+            showToast("ลบ TOR ฉบับร่างสำเร็จ");
         } catch (err) {
-            setError(err instanceof Error ? err.message : "ลบ TOR ไม่สำเร็จ");
+            const message = err instanceof Error ? err.message : "ลบ TOR ไม่สำเร็จ";
+            setError(message);
+            showToast(message, "error");
         } finally {
             setDeletingId("");
         }
