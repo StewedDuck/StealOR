@@ -14,6 +14,7 @@ out/
 # Environment variables
 .env
 .env.local
+.env.*.local
 .env.development.local
 .env.test.local
 .env.production.local
@@ -24,4 +25,4 @@ out/
 
 # Google Cloud — service account key files (never commit credentials)
 *gcp-service-account*.json
-*.serviceaccount.json
+*.serviceaccount.json

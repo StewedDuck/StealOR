@@ -1,47 +1,48 @@
-.draft_layout { 
+/* .draft_layout { 
     min-height: 100vh; 
     background: var(--paper); 
+} */
+
+.draft-main {
+    flex: 1;
+    min-width: 0;
+    padding: 20px 30px 50px;
+    margin-left: 20px;
 }
 
 .draft-main-header {
     flex: 1;
-    min-width: 0;
-    margin-left: 260px;
-    padding: 36px 44px 60px;
+    min-width: 0;  
+    margin-left: 250px;
 }
 
-.draft-header { 
-    margin-bottom: 20px; 
+.draft-header {
+    width: 100%;
+    height: 110px;
+
+    background: #FCFCFA;
+
+    display: flex;
+    align-items: center;
+
+    padding: 0 38px;
+    box-sizing: border-box;
+
+    border-bottom: 1px solid #E1E4E6;
 }
 
-.draft-header p {
-    margin: 0 0 7px; 
-    color: var(--slate); 
-    font-size: 11px; 
-    font-weight: 700; 
-    letter-spacing: .08em; 
-    text-transform: uppercase; 
-}
-
-.draft-header h1 { 
-    margin: 0; 
-    font: 600 28px var(--font-display); 
-    color: var(--text-dark); 
-}
-
-.draft-header span { 
-    display: block; 
-    margin-top: 6px; 
-    color: var(--text-mid); 
-    font-size: 13px; 
+.draft-header-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .draft-banner {
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    background: var(--warn-bg);
-    color: var(--warn);
+    background: #2f4356;
+    color: #d7dadd;
     border-radius: 10px;
     padding: 14px 16px;
     margin-bottom: 20px;
@@ -55,7 +56,7 @@
 }
 
 .draft-banner b { 
-    color: var(--text-dark); 
+    color: #d7dadd; 
 }
 
 .draft-toolbar { 
@@ -136,8 +137,8 @@
     display: inline-block; 
     padding: 3px 8px; 
     border-radius: 20px; 
-    background: var(--warn-bg); 
-    color: var(--warn); 
+    background: #c0c6cda1; 
+    color: #6b7987; 
     font-size: 10px; 
     font-weight: 700; 
     margin-bottom: 9px; 
@@ -188,6 +189,8 @@
 
 .draft-card-footer { 
     margin-top: 16px; 
+    display: flex;
+    gap: 10px;
 }
 
 .draft-card-footer button {
@@ -213,6 +216,187 @@
 @media (max-width: 800px) {
     .draft-main-header { padding: 28px 24px; margin-left: 0; }
     .draft-grid { grid-template-columns: 1fr; }
+}
+
+/* Draft TOR - List Layout */
+.draft-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+}
+
+.draft-list-card {
+    width: 100%;
+    min-height: 130px;
+    box-sizing: border-box;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    background: #FCFCFA;
+    border: 1px solid #E1E4E6;
+    border-radius: 12px;
+
+    padding: 18px 20px;
+
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.draft-list-card:hover {
+    border-color: #C7D0D8;
+    box-shadow: 0 3px 10px rgba(31, 41, 51, 0.06);
+}
+
+/* Content */
+.draft-list-content {
+    flex: 1;
+    min-width: 0;
+    padding-right: 24px;
+}
+
+.draft-list-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 7px;
+}
+
+.draft-card-badge {
+    display: inline-flex;
+    align-items: center;
+
+    width: fit-content;
+
+    padding: 4px 9px;
+
+    border-radius: 999px;
+
+    background: #EEF1F3;
+    color: #66727D;
+
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.draft-tor-id {
+    color: #9AA4AD;
+    font-size: 12px;
+}
+
+
+/* หน่วยงาน */
+
+.draft-list-agency {
+    margin: 0 0 2px;
+
+    color: #687580;
+
+    font-size: 13px;
+    font-weight: 500;
+}
+
+
+/* ชื่อโครงการ */
+
+.draft-list-title {
+    margin: 0;
+
+    color: #26323D;
+
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+
+/* Description */
+
+.draft-list-desc {
+    margin: 4px 0 0;
+
+    color: #7A858E;
+
+    font-size: 13px;
+    line-height: 1.4;
+
+    max-width: 760px;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+/* Meta */
+
+.draft-list-meta {
+    display: flex;
+    align-items: center;
+
+    gap: 28px;
+
+    margin-top: 12px;
+}
+
+.draft-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.draft-meta-item span {
+    color: #89939B;
+    font-size: 12px;
+}
+
+.draft-meta-item strong {
+    color: #26323D;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+
+/* Buttons */
+
+.draft-list-actions {
+    width: 155px;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 8px;
+
+    flex-shrink: 0;
+}
+
+.draft-list-actions button {
+    width: 100%;
+    height: 38px;
+
+    border: 1px solid #CBD3D9;
+    border-radius: 8px;
+
+    background: #FCFCFA;
+
+    color: #26323D;
+
+    font-size: 13px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease;
+}
+
+.draft-list-actions button:hover {
+    background: #F3F5F6;
+    border-color: #AEB8C0;
 }
 
 /* Detail modal */
@@ -339,4 +523,162 @@
 .draft-req-tag.mandatory { 
     color: var(--danger); 
     background: var(--danger-bg); 
+}
+
+/* Review Modal */
+.review-modal {
+    position: relative;
+    width: 560px;
+    max-width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: #FCFCFA;
+    border-radius: 16px;
+    padding: 28px;
+    box-sizing: border-box;
+}
+
+.review-modal h2 {
+    margin: 0 0 6px;
+    color: #26323D;
+    font-size: 22px;
+}
+
+.review-modal-sub {
+    margin: 0 0 22px;
+    color: #6B7280;
+    font-size: 14px;
+}
+
+/* กล่องแสดงความคิดเห็น */
+.review-list {
+    margin-bottom: 18px;
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.review-list h3 {
+    margin: 0 0 10px;
+    font-size: 16px;
+    color: #26323D;
+}
+
+.no-review {
+    margin: 0;
+    padding: 16px;
+    background: #F5F5F2;
+    border-radius: 10px;
+    color: #8A9198;
+    font-size: 14px;
+    text-align: center;
+}
+
+/* แต่ละความคิดเห็น */
+.review-item {
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: #F5F5F2;
+    border-radius: 10px;
+}
+
+.review-item strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+    color: #26323D;
+}
+
+.review-item p {
+    margin: 0;
+    color: #4B5563;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* ช่องเขียนความคิดเห็น */
+.review-modal textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #D9DDE1;
+    border-radius: 10px;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 14px;
+    color: #26323D;
+    background: #FFFFFF;
+    outline: none;
+}
+
+.review-modal textarea:focus {
+    border-color: #4B7DB8;
+}
+
+/* ปุ่ม */
+.review-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.review-cancel,
+.review-submit {
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.review-cancel {
+    background: #E9ECEF;
+    color: #26323D;
+}
+
+.review-submit {
+    background: #4B7DB8;
+    color: white;
+}
+
+.review-submit:hover {
+    opacity: 0.9;
+}
+
+.review-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 5px;
+}
+
+.review-item-header strong {
+    margin: 0;
+}
+
+.review-item-header span {
+    color: #8A949D;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.review-item p {
+    margin: 0;
+    color: #4B5563;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* กดปุ่ม */
+.draft-list-actions {
+    position: relative;
+    z-index: 2;
+}
+
+.draft-list-actions button {
+    position: relative;
+    z-index: 3;
+    pointer-events: auto;
 }

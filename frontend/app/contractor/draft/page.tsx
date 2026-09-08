@@ -11,6 +11,7 @@ import {
     X,
 } from "lucide-react";
 import "./draft.css";
+import TorDetailModal from "@/components/TORDetail";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", { dateStyle: "medium" });
 
@@ -25,12 +26,30 @@ function formatDate(value: string | null) {
     return dateFormatter.format(date);
 }
 
+function formatReviewDate(value: string) {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return "ไม่ระบุวันที่";
+    }
+
+    return new Intl.DateTimeFormat("th-TH", {
+        dateStyle: "medium",
+        timeStyle: "short",
+    }).format(date);
+}
+
 export default function ContractorDraftTOR() {
     const [tors, setTors] = useState<Tor[]>([]);
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [activeTor, setActiveTor] = useState<Tor | null>(null);
+    const [reviewTor, setReviewTor] = useState<Tor | null>(null);
+    const [reviewText, setReviewText] = useState("");
+    const [reviews, setReviews] = useState<
+        { text: string; createdAt: string }[]
+    >([]);
 
     useEffect(() => {
         getDraftTors()
@@ -53,191 +72,231 @@ export default function ContractorDraftTOR() {
 
             <main className="draft-main-header">
                 <header className="draft-header">
-                    <p>ผู้รับจ้าง</p>
-                    <h1>TOR ฉบับร่าง</h1>
-                    <span>อ่านและติดตาม TOR ที่เจ้าของโครงการกำลังจัดทำ ก่อนเปิดรับสมัครจริง</span>
+                    <div className="draft-header-content">
+                        <h1>TOR ฉบับร่าง</h1>
+                        <p>อ่านและติดตาม TOR ที่เจ้าของโครงการกำลังจัดทำ ก่อนเปิดรับสมัครจริง</p>
+                    </div>
                 </header>
 
-                <div className="draft-banner">
-                    <TriangleAlert size={18} />
-                    <span>
-                        <b>TOR ร่างยังไม่เปิดรับสมัคร </b> 
-                        รายการด้านล่างเป็นฉบับร่างที่เจ้าของโครงการยังจัดทำอยู่ กรุณาอ่านข้อกำหนดล่วงหน้า (เจ้าของโครงการอาจแก้ไขก่อนประกาศจริง)
-                    </span>
-                </div>
+                <header className="draft-main">
 
-                <div className="draft-toolbar">
-                    <Search size={17} />
-                    <input
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="ค้นหาชื่อโครงการ"
-                    />
-                    <span>{visibleTors.length} รายการ</span>
-                </div>
-
-                {error && <div className="draft-error">
-                    {error}
-                </div>}
-
-                {loading ? (
-                    <div className="draft-state">
-                        กำลังโหลดข้อมูล...
+                    <div className="draft-banner">
+                        <TriangleAlert size={18} />
+                        <span>
+                            <b>TOR ร่างยังไม่เปิดรับสมัคร </b> 
+                            รายการด้านล่างเป็นฉบับร่างที่เจ้าของโครงการยังจัดทำอยู่ กรุณาอ่านข้อกำหนดล่วงหน้า (เจ้าของโครงการอาจแก้ไขก่อนประกาศจริง)
+                        </span>
                     </div>
-                ) : visibleTors.length === 0 ? (
-                    <div className="draft-state">
-                        <FileText size={36} />
-                        <h2>
-                            {query 
-                                ? "ไม่พบ TOR ที่ค้นหา" 
-                                : "ยังไม่มี TOR ฉบับร่างในตอนนี้"
-                            }
-                        </h2>
-                        <p>
-                            {query 
-                                ? "ลองใช้คำค้นหาอื่น" 
-                                : "เมื่อเจ้าของโครงการสร้าง TOR ฉบับร่าง จะมาแสดงที่นี่"
-                            }
-                        </p>
+
+                    <div className="draft-toolbar">
+                        <Search size={17} />
+                        <input
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="ค้นหาชื่อโครงการ"
+                        />
+                        <span>{visibleTors.length} รายการ</span>
                     </div>
-                ) : (
-                    <div className="draft-grid">
-                        {visibleTors.map((tor) => (
-                            <article className="draft-card" key={tor._id}>
-                                <span className="draft-card-badge">
-                                    ฉบับร่าง; ยังไม่เปิดรับสมัคร
-                                </span>
 
-                                <h2>
-                                    {tor.projectName}
-                                </h2>
+                    {error && <div className="draft-error">
+                        {error}
+                    </div>}
 
-                                <p className="draft-card-agency">
-                                    {tor.agencyName}
-                                </p>
+                    {loading ? (
+                        <div className="draft-state">
+                            กำลังโหลดข้อมูล...
+                        </div>
+                    ) : visibleTors.length === 0 ? (
+                        <div className="draft-state">
+                            <FileText size={36} />
+                            <h2>
+                                {query 
+                                    ? "ไม่พบ TOR ที่ค้นหา" 
+                                    : "ยังไม่มี TOR ฉบับร่างในตอนนี้"
+                                }
+                            </h2>
+                            <p>
+                                {query 
+                                    ? "ลองใช้คำค้นหาอื่น" 
+                                    : "เมื่อเจ้าของโครงการสร้าง TOR ฉบับร่าง จะมาแสดงที่นี่"
+                                }
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="draft-list">
+                            {visibleTors.map((tor) => (
+                                <article className="draft-list-card" key={tor._id}>
 
-                                {tor.description && <p className="draft-card-desc">
-                                    {tor.description}
-                                </p>}
+                                    {/* ข้อมูล TOR */}
+                                    <div className="draft-list-content">
 
-                                <div className="draft-card-meta">
-                                    <span>
-                                        งบประมาณ
-                                        <b>{formatBudget(tor.budget)}</b>
-                                    </span>
+                                        <div className="draft-list-top">
+                                            <span className="draft-card-badge">
+                                                ฉบับร่าง · ยังไม่เปิดรับสมัคร
+                                            </span>
 
-                                    <span>
-                                        กำหนดส่ง
-                                        <b>{formatDate(tor.submissionDeadline)}</b>
-                                    </span>
+                                            <span className="draft-tor-id">
+                                                TOR-{tor._id.slice(-8)}
+                                            </span>
+                                        </div>
 
-                                    <span>
-                                        คุณสมบัติ
-                                        <b>{tor.requirements.length} ข้อ</b>
-                                    </span>
+                                        <p className="draft-list-agency">
+                                            {tor.agencyName}
+                                        </p>
 
-                                </div>
-                                <div className="draft-card-footer">
-                                    <button onClick={() => setActiveTor(tor)}>
-                                        ดูรายละเอียด
-                                    </button>
-                                </div>
-                            </article>
-                        ))}
-                    </div>
-                )}
+                                        <h2 className="draft-list-title">
+                                            {tor.projectName}
+                                        </h2>
+
+                                        {tor.description && (
+                                            <p className="draft-list-desc">
+                                                {tor.description}
+                                            </p>
+                                        )}
+
+                                        <div className="draft-list-meta">
+
+                                            <div className="draft-meta-item">
+                                                <span>งบประมาณ</span>
+                                                <strong>
+                                                    {formatBudget(tor.budget)}
+                                                </strong>
+                                            </div>
+
+                                            <div className="draft-meta-item">
+                                                <span>กำหนดส่ง</span>
+                                                <strong>
+                                                    {formatDate(tor.submissionDeadline)}
+                                                </strong>
+                                            </div>
+
+                                            <div className="draft-meta-item">
+                                                <span>คุณสมบัติ</span>
+                                                <strong>
+                                                    {tor.requirements.length} ข้อ
+                                                </strong>
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                    {/* ปุ่ม */}
+                                    <div className="draft-list-actions">
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveTor(tor)}
+                                        >
+                                            ดูรายละเอียด
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setReviewTor(tor)}
+                                        >
+                                            รีวิว
+                                        </button>
+
+                                    </div>
+
+                                </article>
+                            ))}
+                        </div>
+                    )}
+                </header>
             </main>
 
             {activeTor && (
-                <div className="draft-modal-overlay" onClick={() => setActiveTor(null)}>
-                    <div className="draft-modal" onClick={(e) => e.stopPropagation()}>
-                        <button className="draft-modal-close" onClick={() => setActiveTor(null)}>
+                <TorDetailModal
+                    tor={activeTor}
+                    onClose={() => setActiveTor(null)}
+                />
+            )}
+
+            {reviewTor && (
+                <div
+                    className="draft-modal-overlay"
+                    onClick={() => setReviewTor(null)}
+                >
+                    <div
+                        className="review-modal"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            className="draft-modal-close"
+                            onClick={() => setReviewTor(null)}
+                        >
                             <X size={20} />
                         </button>
 
-                        <h2>
-                            {activeTor.projectName}
-                        </h2>
+                        <h2>เขียนความคิดเห็น</h2>
 
-                        <p className="draft-modal-sub">
-                            {activeTor.agencyName} · ฉบับร่าง
+                        <p className="review-modal-sub">
+                            {reviewTor.projectName}
                         </p>
 
-                        <div className="draft-modal-grid">
-                            <div className="draft-modal-info">
-                                <span>งบประมาณ</span>
-                                <strong>{formatBudget(activeTor.budget)}</strong>
-                            </div>
+                        <div className="review-list">
+                            <h3>ความคิดเห็น</h3>
 
-                            <div className="draft-modal-info">
-                                <span>กำหนดส่ง</span>
-                                <strong>{formatDate(activeTor.submissionDeadline)}</strong>
-                            </div>
+                            {reviews.length === 0 ? (
+                                <p className="no-review">
+                                    ยังไม่มีความคิดเห็น
+                                </p>
+                            ) : (
+                                reviews.map((review, index) => (
+                                    <div className="review-item" key={index}>
+                                        <div className="review-item-header">
+                                            <strong>คุณ</strong>
 
-                            <div className="draft-modal-info">
-                                <span>ผู้ติดต่อ</span>
-                                <strong>{activeTor.contactName || "ไม่ระบุ"}</strong>
-                            </div>
+                                            <span>
+                                                {formatReviewDate(review.createdAt)}
+                                            </span>
+                                        </div>
+
+                                        <p>{review.text}</p>
+                                    </div>
+                                ))
+                            )}
                         </div>
 
-                        {activeTor.description && (
-                            <section className="draft-modal-section">
-                                <h3>รายละเอียดโครงการ</h3>
-                                <p>{activeTor.description}</p>
-                            </section>
-                        )}
+                        <textarea
+                            value={reviewText}
+                            onChange={(e) => setReviewText(e.target.value)}
+                            placeholder="เขียนความคิดเห็นของคุณ..."
+                            rows={5}
+                        />
 
-                        {activeTor.objectives.length > 0 && (
-                            <section className="draft-modal-section">
-                                <h3>วัตถุประสงค์</h3>
-                                <ul>
-                                    {activeTor.objectives.map((item, i) => (
-                                        <li key={i}>{item}</li>
-                                    ))}
-                                </ul>
-                            </section>
-                        )}
+                        <div className="review-modal-actions">
+                            <button
+                                className="review-cancel"
+                                onClick={() => {
+                                    setReviewText("");
+                                    setReviewTor(null);
+                                }}
+                            >
+                                ยกเลิก
+                            </button>
 
-                        {activeTor.scopeOfWork.length > 0 && (
-                            <section className="draft-modal-section">
-                                <h3>ขอบเขตงาน</h3>
-                                <ul>
-                                    {activeTor.scopeOfWork.map((item, i) => (
-                                        <li key={i}>{item}</li>
-                                    ))}
-                                </ul>
-                            </section>
-                        )}
+                            <button
+                                className="review-submit"
+                                onClick={() => {
+                                    if (!reviewText.trim()) return;
 
-                        {activeTor.requirements.length > 0 && (
-                            <section className="draft-modal-section">
-                                <h3>คุณสมบัติที่ต้องการ</h3>
-                                {activeTor.requirements.map((req, i) => (
-                                    <div className="draft-req-item" key={i}>
-                                        <span>{req.description}</span>
-                                        <span className={`draft-req-tag ${req.mandatory ? "mandatory" : ""}`}>
-                                            {req.mandatory 
-                                                ? "บังคับ" 
-                                                : `น้ำหนัก ${req.weight}%`
-                                            }
-                                        </span>
-                                    </div>
-                                ))}
-                            </section>
-                        )}
-
-                        {activeTor.contactEmail && (
-                            <section className="draft-modal-section">
-                                <h3>ติดต่อ</h3>
-                                <p>
-                                    {activeTor.contactName 
-                                        ? `${activeTor.contactName} · ` 
-                                        : ""}{activeTor.contactEmail
-                                    }
-                                </p>
-
-                            </section>
-                        )}
+                                    setReviews((prev) => [
+                                        ...prev,
+                                        {
+                                            text: reviewText.trim(),
+                                            createdAt: new Date().toISOString(),
+                                        },
+                                    ]);
+                                    
+                                    setReviewText("");
+                                }}
+                            >
+                                ส่งความคิดเห็น
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
