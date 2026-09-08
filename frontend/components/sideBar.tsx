@@ -17,7 +17,7 @@ import {
     MessageCircleDashed,
  } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 
 type MenuItem = {
     name: string;
@@ -185,6 +185,16 @@ function MenuIcon({
 export default function Sidebar () {
     const pathname = usePathname();
     const router = useRouter();
+    const { data: session } = useSession();
+
+    const userName = session?.user?.name ?? "ผู้ใช้";
+    const initials = userName
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    ;
 
     const isProjectOwner =
     pathname.startsWith("/project_own/create_TOR") ||
@@ -289,10 +299,12 @@ export default function Sidebar () {
 
              {/* User */}
              <div className="sidebar-user">
-                <div className="user-avatar">CD</div>
+                <div className="user-avatar">
+                    {initials}
+                </div>
 
                 <div className="user-info">
-                    <div className="user-name">Cool Dog</div>
+                    <div className="user-name">{userName}</div>
                     <div className="user-role">
                         {isProjectOwner
                             ? "เจ้าของโครงการ"
