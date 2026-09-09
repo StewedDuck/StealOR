@@ -1,11 +1,11 @@
 "use client";
 
 import { X, CheckCircle2 } from "lucide-react";
-import type { Tor } from "@/types/tor";
+import type { Tor, MarketTorDetail } from "@/types/tor";
 import "./TORDetail.css"
 
 type TorDetailModalProps = {
-    tor: Tor;
+    tor: Tor | MarketTorDetail;
     onClose: () => void;
 };
 
@@ -50,11 +50,15 @@ export default function TorDetailModal({
 
                     <div className="tor-status-row">
                         <span className="tor-status draft">
-                            ฉบับร่าง
+                            {"source" in tor && tor.source === "government"
+                                ? "Government"
+                                : "ฉบับร่าง"}
                         </span>
 
                         <span className="tor-status">
-                            ยังไม่เปิดรับสมัคร
+                            {"source" in tor && tor.source === "government"
+                                ? tor.status
+                                : "ยังไม่เปิดรับสมัคร"}
                         </span>
                     </div>
 

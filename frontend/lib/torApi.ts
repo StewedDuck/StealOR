@@ -1,4 +1,4 @@
-import type { Tor, TorFormData } from "@/types/tor";
+import type { MarketTor, MarketTorDetail, Tor, TorFormData } from "@/types/tor";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
@@ -39,3 +39,15 @@ export const deleteTor = (id: string) => request<{ id: string }>(
   `/api/tors/${encodeURIComponent(id)}`,
   { method: "DELETE" }
 );
+
+export async function getMarketTors(): Promise<MarketTor[]> {
+  return request<MarketTor[]>("/api/tors/market");
+}
+
+export async function getMarketTorById(
+  projectId: string
+): Promise<MarketTorDetail> {
+  return request<MarketTorDetail>(
+    `/api/tors/market/${encodeURIComponent(projectId)}`
+  );
+}

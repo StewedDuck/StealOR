@@ -24,9 +24,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
+    # dns:
+    #   - 1.1.1.1
+    #   - 8.8.8.8
     ports:
       - "5000:5000"
     env_file:
