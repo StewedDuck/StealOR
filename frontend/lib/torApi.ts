@@ -51,3 +51,83 @@ export async function getMarketTorById(
     `/api/tors/market/${encodeURIComponent(projectId)}`
   );
 }
+
+export type BookmarkMatch = {
+  percent?: number;
+  matchedRequirements?: string[];
+  unmatchedRequirements?: string[];
+};
+
+export type SavedTor = {
+  bookmarkId: string;
+
+  source: "government" | "internal";
+
+  projectId?: string;
+  torId?: string;
+
+  projectName: string;
+  agencyName: string;
+
+  budget: number | null;
+  deadline?: string | null;
+
+  status: string;
+  description?: string;
+
+  objectives?: string[];
+  scopeOfWork?: string[];
+
+  requirements?: {
+    description: string;
+    weight: number;
+    mandatory: boolean;
+  }[];
+
+  createdAt: string;
+  updatedAt: string;
+
+  savedFrom: "market" | "matching";
+
+  match?: BookmarkMatch | null;
+
+  savedAt: string;
+};
+
+export async function createBookmark(
+  userId: string,
+  projectId: string
+) {
+  return request("/api/bookmarks", {
+    method: "POST",
+    body: JSON.stringify({
+      userId,
+      source: "government",
+      projectId,
+      savedFrom: "market",
+      match: null,
+    }),
+  });
+}
+
+export async function getBookmarks(
+  userId: string
+): Promise<SavedTor[]> {
+  return request<SavedTor[]>(
+    `/api/bookmarks?userId=${encodeURIComponent(userId)}`
+  );
+}
+
+export async function deleteBookmark(
+  userId: string,
+  projectId: string
+) {
+  return request<{ projectId: string }>(
+    `/api/bookmarks/${encodeURIComponent(
+      userId
+    )}/${encodeURIComponent(projectId)}`,
+    {
+      method: "DELETE",
+    }
+  );
+}

@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 
 // Import Routes
 const torRoutes = require("./routes/torRoutes");
+const bookmarkRoutes = require("./routes/bookmarkRoutes");
 const govSpendingRoutes = require("./routes/govSpendingRoutes");
 
 const app = express();
@@ -16,6 +17,7 @@ app.use(express.json());
 
 // Register API Endpoints
 app.use("/api/tors", torRoutes);
+app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/govspending", govSpendingRoutes);
 
 // Health check

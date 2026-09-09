@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/sideBar";
-import { getMarketTors, getMarketTorById } from "@/lib/torApi";
+import {
+    getMarketTors,
+    getMarketTorById,
+    getBookmarks,
+    createBookmark,
+    deleteBookmark,
+} from "@/lib/torApi";
+
 import type {
     MarketTor,
     MarketTorDetail,
@@ -149,197 +156,274 @@ function getStatusClass(status: string) {
 }
 
 export default function TorMarketPage() {
-  const [tors, setTors] = useState<MarketTor[]>([]);
-  const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] =
-    useState<TypeFilter>("all");
-  const [timeFilter, setTimeFilter] =
-    useState<TimeFilter>("all");
-  const [sortOption, setSortOption] =
-    useState<SortOption>("name-asc");
-  const [budgetFilter, setBudgetFilter] =
-    useState("all");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+    const [tors, setTors] = useState<MarketTor[]>([]);
+    const [query, setQuery] = useState("");
+    const [typeFilter, setTypeFilter] =
+        useState<TypeFilter>("all");
+    const [timeFilter, setTimeFilter] =
+        useState<TimeFilter>("all");
+    const [sortOption, setSortOption] =
+        useState<SortOption>("name-asc");
+    const [budgetFilter, setBudgetFilter] =
+        useState("all");
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
-  const [activeTor, setActiveTor] = useState<MarketTorDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState("");
+    const [activeTor, setActiveTor] = useState<MarketTorDetail | null>(null);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [detailError, setDetailError] = useState("");
+    const [savedProjectIds, setSavedProjectIds] = useState<string[]>([]);
+    const [bookmarkLoading, setBookmarkLoading] = useState<string | null>(null);
 
-  const { data: session } = useSession();
-  const userName = session?.user?.name ?? "ผู้ใช้";
-  const initials = userName
-      .split(" ")
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2)
-  ;
+    const { data: session } = useSession();
+    const userName = session?.user?.name ?? "ผู้ใช้";
+    const initials = userName
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    ;
 
-  useEffect(() => {
-    getMarketTors()
-      .then(setTors)
-      .catch((err) => {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "โหลด TOR Market ไม่สำเร็จ"
-        );
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, []);
-
-  const filteredTors = useMemo(() => {
-    let result = [...tors];
-
-    // Search
-    const keyword = query
-      .trim()
-      .toLocaleLowerCase("th");
-
-    if (keyword) {
-      result = result.filter((tor) =>
-        `${tor.projectName} ${tor.agencyName} ${tor.projectId ?? ""}`
-          .toLocaleLowerCase("th")
-          .includes(keyword)
-      );
-    }
-
-    // Type
-    if (typeFilter !== "all") {
-      result = result.filter(
-        (tor) => tor.source === typeFilter
-      );
-    }
-
-    // Time
-    if (timeFilter === "new") {
-      result = result.filter((tor) =>
-        isToday(tor.createdAt)
-      );
-    }
-
-    if (timeFilter === "closing") {
-      result = result.filter((tor) =>
-        isAlmostClosing(tor.deadline)
-      );
-    }
-
-    // Budget
-    if (budgetFilter !== "all") {
-      result = result.filter((tor) => {
-        const budget = tor.budget ?? 0;
-
-        if (budgetFilter === "under1m") {
-          return budget < 1_000_000;
-        }
-
-        if (budgetFilter === "1m-10m") {
-          return (
-            budget >= 1_000_000 &&
-            budget <= 10_000_000
-          );
-        }
-
-        if (budgetFilter === "10m-100m") {
-          return (
-            budget > 10_000_000 &&
-            budget <= 100_000_000
-          );
-        }
-
-        if (budgetFilter === "over100m") {
-          return budget > 100_000_000;
-        }
-
-        return true;
-      });
-    }
-
-    // Sort
-    result.sort((a, b) => {
-      switch (sortOption) {
-        case "name-asc":
-          return a.projectName.localeCompare(
-            b.projectName,
-            "th"
-          );
-
-        case "name-desc":
-          return b.projectName.localeCompare(
-            a.projectName,
-            "th"
-          );
-
-        case "newest":
-          return (
-            new Date(b.createdAt).getTime() -
-            new Date(a.createdAt).getTime()
-          );
-
-        case "oldest":
-          return (
-            new Date(a.createdAt).getTime() -
-            new Date(b.createdAt).getTime()
-          );
-
-        default:
-          return 0;
-      }
-    });
-
-    return result;
-  }, [
-    tors,
-    query,
-    typeFilter,
-    timeFilter,
-    budgetFilter,
-    sortOption,
-  ]);
-
-  function resetFilters() {
-    setQuery("");
-    setTypeFilter("all");
-    setTimeFilter("all");
-    setBudgetFilter("all");
-    setSortOption("name-asc");
-  }
-
-async function handleViewDetails(tor: MarketTor) {
-    console.log("CLICK:", tor);
-
-    if (!tor.projectId) {
-        console.log("NO PROJECT ID");
-        setDetailError("ไม่พบรหัสโครงการ");
-        return;
-    }
-
-    try {
-        setDetailLoading(true);
-        setDetailError("");
-
-        console.log("PROJECT ID:", tor.projectId);
-
-        const detail = await getMarketTorById(tor.projectId);
-
-        console.log("DETAIL:", detail);
-
-        setActiveTor(detail);
-    } catch (err) {
-        console.error("DETAIL ERROR:", err);
-
-        setDetailError(
+    useEffect(() => {
+        getMarketTors()
+        .then(setTors)
+        .catch((err) => {
+            setError(
             err instanceof Error
                 ? err.message
-                : "โหลดรายละเอียด TOR ไม่สำเร็จ"
-        );
-    } finally {
-        setDetailLoading(false);
+                : "โหลด TOR Market ไม่สำเร็จ"
+            );
+        })
+        .finally(() => {
+            setLoading(false);
+        });
+    }, []);
+
+    useEffect(() => {
+        const userId = session?.user?.email;
+    
+        if (!userId) return;
+    
+        getBookmarks(userId)
+            .then((bookmarks) => {
+                setSavedProjectIds(
+                    bookmarks
+                        .filter(
+                            (bookmark) =>
+                                bookmark.source === "government" &&
+                                bookmark.projectId
+                        )
+                        .map((bookmark) => bookmark.projectId!)
+                );
+            })
+            .catch((err) => {
+                console.error("Load bookmarks error:", err);
+            });
+    }, [session?.user?.email]);
+
+    const filteredTors = useMemo(() => {
+        let result = [...tors];
+
+        // Search
+        const keyword = query
+            .trim()
+            .toLocaleLowerCase("th");
+
+        if (keyword) {
+            result = result.filter((tor) =>
+                `${tor.projectName} ${tor.agencyName} ${tor.projectId ?? ""}`
+                .toLocaleLowerCase("th")
+                .includes(keyword)
+            );
+        }
+
+        // Type
+        if (typeFilter !== "all") {
+            result = result.filter(
+                (tor) => tor.source === typeFilter
+            );
+        }
+
+        // Time
+        if (timeFilter === "new") {
+            result = result.filter((tor) =>
+                isToday(tor.createdAt)
+            );
+        }
+
+        if (timeFilter === "closing") {
+            result = result.filter((tor) =>
+                isAlmostClosing(tor.deadline)
+            );
+        }
+
+        // Budget
+        if (budgetFilter !== "all") {
+            result = result.filter((tor) => {
+                const budget = tor.budget ?? 0;
+
+                if (budgetFilter === "under1m") {
+                return budget < 1_000_000;
+                }
+
+                if (budgetFilter === "1m-10m") {
+                return (
+                    budget >= 1_000_000 &&
+                    budget <= 10_000_000
+                );
+                }
+
+                if (budgetFilter === "10m-100m") {
+                return (
+                    budget > 10_000_000 &&
+                    budget <= 100_000_000
+                );
+                }
+
+                if (budgetFilter === "over100m") {
+                return budget > 100_000_000;
+                }
+
+                return true;
+            });
+        }
+
+        // Sort
+        result.sort((a, b) => {
+            switch (sortOption) {
+                case "name-asc":
+                return a.projectName.localeCompare(
+                    b.projectName,
+                    "th"
+                );
+
+                case "name-desc":
+                return b.projectName.localeCompare(
+                    a.projectName,
+                    "th"
+                );
+
+                case "newest":
+                return (
+                    new Date(b.createdAt).getTime() -
+                    new Date(a.createdAt).getTime()
+                );
+
+                case "oldest":
+                return (
+                    new Date(a.createdAt).getTime() -
+                    new Date(b.createdAt).getTime()
+                );
+
+                default:
+                return 0;
+            }
+        });
+
+        return result;
+    }, [
+        tors,
+        query,
+        typeFilter,
+        timeFilter,
+        budgetFilter,
+        sortOption,
+    ]);
+
+    function resetFilters() {
+        setQuery("");
+        setTypeFilter("all");
+        setTimeFilter("all");
+        setBudgetFilter("all");
+        setSortOption("name-asc");
     }
-}
+
+    async function handleViewDetails(tor: MarketTor) {
+        console.log("CLICK:", tor);
+
+        if (!tor.projectId) {
+            console.log("NO PROJECT ID");
+            setDetailError("ไม่พบรหัสโครงการ");
+            return;
+        }
+
+        try {
+            setDetailLoading(true);
+            setDetailError("");
+
+            console.log("PROJECT ID:", tor.projectId);
+
+            const detail = await getMarketTorById(tor.projectId);
+
+            console.log("DETAIL:", detail);
+
+            setActiveTor(detail);
+        } catch (err) {
+            console.error("DETAIL ERROR:", err);
+
+            setDetailError(
+                err instanceof Error
+                    ? err.message
+                    : "โหลดรายละเอียด TOR ไม่สำเร็จ"
+            );
+        } finally {
+            setDetailLoading(false);
+        }
+    }
+
+    async function handleBookmark(tor: MarketTor) {
+        if (!tor.projectId) {
+        return;
+        }
+  
+        const userId = session?.user?.email;
+  
+        if (!userId) {
+        setDetailError("กรุณาเข้าสู่ระบบก่อนบันทึก TOR");
+        return;
+        }
+  
+        const isSaved = savedProjectIds.includes(
+        tor.projectId
+        );
+  
+        try {
+            setBookmarkLoading(tor.projectId);
+            setDetailError("");
+    
+            if (isSaved) {
+                await deleteBookmark(
+                    userId,
+                    tor.projectId
+                );
+        
+                setSavedProjectIds((prev) =>
+                    prev.filter(
+                        (id) => id !== tor.projectId
+                    )
+                );
+            } else {
+                await createBookmark(
+                    userId,
+                    tor.projectId
+                );
+        
+                setSavedProjectIds((prev) => [
+                    ...prev,
+                    tor.projectId!,
+                ]);
+            }
+        } catch (err) {
+            setDetailError(
+                err instanceof Error
+                ? err.message
+                : "บันทึก TOR ไม่สำเร็จ"
+            );
+        } finally {
+            setBookmarkLoading(null);
+        }
+    }
 
   return (
     <div className="market-page">
@@ -552,167 +636,185 @@ async function handleViewDetails(tor: MarketTor) {
               const almostClosing =
                 isAlmostClosing(tor.deadline);
 
-              return (
+            return (
                 <article
                   key={tor.id}
                   className="market-card"
                 >
-                  {/* Left / Content */}
-                  <div className="market-card-content">
+                    {/* Left / Content */}
+                    <div className="market-card-content">
 
-                    <div className="market-card-top">
-                      <span className="market-badge source">
-                        {getSourceLabel(tor.source)}
-                      </span>
+                        <div className="market-card-top">
+                            <span className="market-badge source">
+                                {getSourceLabel(tor.source)}
+                            </span>
 
-                      <span
-                        className={`market-badge ${getStatusClass(
-                          tor.status
-                        )}`}
-                      >
-                        {tor.status || "เปิดรับ"}
-                      </span>
+                            <span
+                                className={`market-badge ${getStatusClass(
+                                tor.status
+                                )}`}
+                            >
+                                {tor.status || "เปิดรับ"}
+                            </span>
 
-                      {tor.projectId && (
-                        <span className="market-tor-id">
-                          TOR-{tor.projectId}
-                        </span>
-                      )}
-                    </div>
-
-                    <h2 className="market-card-title">
-                      {tor.projectName}
-                    </h2>
-
-                    <div className="market-agency">
-                      <Building2 size={15} />
-                      <span>
-                        {tor.agencyName ||
-                          "ไม่ระบุหน่วยงาน"}
-                      </span>
-                    </div>
-
-                    <div className="market-card-meta">
-
-                      <div className="market-meta-item">
-                        <span className="meta-icon">
-                          ฿
-                        </span>
-
-                        <strong>
-                          {formatBudget(tor.budget)}
-                        </strong>
-                      </div>
-
-                      <div className="market-meta-item">
-                        <Tag size={15} />
-
-                        <span>
-                          Software Project
-                        </span>
-                      </div>
-
-                      {tor.deadline && (
-                        <div className="market-meta-item">
-                          <CalendarDays size={15} />
-
-                          <span>
-                            ปิดรับ{" "}
-                            <strong>
-                              {formatDate(
-                                tor.deadline
-                              )}
-                            </strong>
-                          </span>
+                            {tor.projectId && (
+                                <span className="market-tor-id">
+                                TOR-{tor.projectId}
+                                </span>
+                            )}
                         </div>
-                      )}
 
-                      {almostClosing &&
-                        daysLeft !== null && (
-                          <span className="closing-badge">
-                            {daysLeft === 0
-                              ? "ปิดวันนี้"
-                              : `${daysLeft} วันคงเหลือ`}
-                          </span>
+                        <h2 className="market-card-title">
+                            {tor.projectName}
+                        </h2>
+
+                        <div className="market-agency">
+                            <Building2 size={15} />
+                            <span>
+                                {tor.agencyName ||
+                                "ไม่ระบุหน่วยงาน"}
+                            </span>
+                        </div>
+
+                        <div className="market-card-meta">
+
+                            <div className="market-meta-item">
+                                <span className="meta-icon">
+                                ฿
+                                </span>
+
+                                <strong>
+                                {formatBudget(tor.budget)}
+                                </strong>
+                            </div>
+
+                            <div className="market-meta-item">
+                                <Tag size={15} />
+
+                                <span>
+                                Software Project
+                                </span>
+                            </div>
+
+                            <div className="market-meta-item">
+                                <CalendarDays size={15} />
+
+                                <span>
+                                    ปิดรับ{" "}
+                                    <strong>
+                                    {formatDate(tor.deadline)}
+                                    </strong>
+                                </span>
+                            </div>
+
+                            {almostClosing &&
+                                daysLeft !== null && (
+                                    <span className="closing-badge">
+                                        {daysLeft === 0
+                                        ? "ปิดวันนี้"
+                                        : `${daysLeft} วันคงเหลือ`}
+                                    </span>
+                                )
+                            }
+                        </div>
+
+                        {tor.description && (
+                            <p className="market-card-description">
+                                {tor.description}
+                            </p>
                         )}
                     </div>
 
-                    {tor.description && (
-                      <p className="market-card-description">
-                        {tor.description}
-                      </p>
-                    )}
-                  </div>
+                    {/* Match */}
+                    <div className="market-match">
+                        {typeof tor.matchPercent === "number" && (
+                            <div className="market-match">
+                                <div className="match-circle">
+                                <svg viewBox="0 0 100 100">
+                                    <circle
+                                    className="match-track"
+                                    cx="50"
+                                    cy="50"
+                                    r="40"
+                                    />
 
-                  {/* Match */}
-                  <div className="market-match">
-                    {typeof tor.matchPercent === "number" && (
-                        <div className="market-match">
-                            <div className="match-circle">
-                            <svg viewBox="0 0 100 100">
-                                <circle
-                                className="match-track"
-                                cx="50"
-                                cy="50"
-                                r="40"
-                                />
+                                    <circle
+                                    className="match-progress"
+                                    cx="50"
+                                    cy="50"
+                                    r="40"
+                                    style={{
+                                        strokeDashoffset:
+                                        251 - (251 * tor.matchPercent) / 100,
+                                    }}
+                                    />
+                                </svg>
 
-                                <circle
-                                className="match-progress"
-                                cx="50"
-                                cy="50"
-                                r="40"
-                                style={{
-                                    strokeDashoffset:
-                                    251 - (251 * tor.matchPercent) / 100,
-                                }}
-                                />
-                            </svg>
+                                <span>{tor.matchPercent}%</span>
+                                </div>
 
-                            <span>{tor.matchPercent}%</span>
+                                <small>ความตรงกัน</small>
                             </div>
+                        )}
+                    </div>
 
-                            <small>ความตรงกัน</small>
-                        </div>
-                    )}
-                  </div>
+                    {/* Actions */}
+                    <div className="market-card-actions">
+                        <button
+                            type="button"
+                            className="market-action-button"
+                            onClick={() => handleViewDetails(tor)}
+                        >
+                            ดูรายละเอียด
+                        </button>
 
-                  {/* Actions */}
-                  <div className="market-card-actions">
+                        <button
+                            type="button"
+                            className={`market-action-button ${
+                                savedProjectIds.includes(tor.projectId ?? "")
+                                ? "saved"
+                                : ""
+                            }`}
+                            onClick={() => handleBookmark(tor)}
+                            disabled={bookmarkLoading === tor.projectId}
+                            >
+                            <Bookmark
+                                size={15}
+                                fill={
+                                savedProjectIds.includes(
+                                    tor.projectId ?? ""
+                                )
+                                    ? "currentColor"
+                                    : "none"
+                                }
+                            />
 
-                    <button
-                      type="button"
-                      className="market-action-button"
-                      onClick={() => handleViewDetails(tor)}
-                    >
-                      ดูรายละเอียด
-                    </button>
+                            {bookmarkLoading === tor.projectId
+                                ? "กำลังบันทึก..."
+                                : savedProjectIds.includes(
+                                    tor.projectId ?? ""
+                                )
+                                ? "บันทึกแล้ว"
+                                : "บันทึก"}
+                        </button>
 
-                    <button
-                      type="button"
-                      className="market-action-button"
-                    >
-                      <Bookmark size={15} />
-                      บันทึก
-                    </button>
+                        <button
+                            type="button"
+                            className="market-action-button primary"
+                        >
+                            <Phone size={15} />
+                            ติดต่อเจ้าของโครงการ
+                        </button>
 
-                    <button
-                      type="button"
-                      className="market-action-button primary"
-                    >
-                      <Phone size={15} />
-                      ติดต่อเจ้าของโครงการ
-                    </button>
+                        <button
+                            type="button"
+                            className="market-action-button"
+                        >
+                            <ExternalLink size={15} />
+                            ไปยังหน้า TOR
+                        </button>
 
-                    <button
-                      type="button"
-                      className="market-action-button"
-                    >
-                      <ExternalLink size={15} />
-                      ไปยังหน้า TOR
-                    </button>
-
-                  </div>
+                    </div>
                 </article>
               );
             })}

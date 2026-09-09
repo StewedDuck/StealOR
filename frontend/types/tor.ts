@@ -71,3 +71,32 @@ export type MarketTorDetail = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type SavedTor = {
+  bookmarkId: string;
+  source: "government" | "internal";
+  projectId?: string;
+  torId?: string;
+  projectName: string;
+  agencyName: string;
+  budget: number | null;
+  deadline?: string | null;
+  status: string;
+  description?: string;
+  objectives?: string[];
+  scopeOfWork?: string[];
+  requirements?: {
+    description: string;
+    weight: number;
+    mandatory: boolean;
+  }[];
+  createdAt: string;
+  updatedAt: string;
+  savedFrom: "market" | "matching";
+  match?: {
+    percent?: number;
+    matchedRequirements?: string[];
+    unmatchedRequirements?: string[];
+  } | null;
+  savedAt: string;
+};
