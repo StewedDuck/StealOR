@@ -7,6 +7,7 @@ const mongoose = require("mongoose");
 const torRoutes = require("./routes/torRoutes");
 const bookmarkRoutes = require("./routes/bookmarkRoutes");
 const govSpendingRoutes = require("./routes/govSpendingRoutes");
+const govProjectRoutes = require("./routes/govProjectRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use("/api/tors", torRoutes);
 app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/govspending", govSpendingRoutes);
+app.use("/api/gov-projects", govProjectRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
