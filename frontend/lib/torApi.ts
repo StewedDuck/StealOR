@@ -131,3 +131,51 @@ export async function deleteBookmark(
     }
   );
 }
+
+export type Comment = {
+  _id: string;
+  userId: string;
+  userName: string;
+  projectId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function getComments(
+  projectId: string
+): Promise<Comment[]> {
+  return request<Comment[]>(
+    `/api/comments/${encodeURIComponent(projectId)}`
+  );
+}
+
+export async function createComment(
+  userId: string,
+  userName: string,
+  projectId: string,
+  content: string
+): Promise<Comment> {
+  return request<Comment>("/api/comments", {
+    method: "POST",
+    body: JSON.stringify({
+      userId,
+      userName,
+      projectId,
+      content,
+    }),
+  });
+}
+
+export async function deleteComment(
+  commentId: string,
+  userId: string
+) {
+    return request<{ commentId: string }>(
+      `/api/comments/${encodeURIComponent(commentId)}`,
+      {
+        method: "DELETE",
+        body: JSON.stringify({ userId }),
+      }
+    );
+}
