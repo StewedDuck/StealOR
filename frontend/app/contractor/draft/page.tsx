@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/sideBar";
-import { getDraftTors } from "@/lib/torApi";
+import {
+    getDraftTors,
+    getComments,
+    createComment,
+    deleteComment,
+} from "@/lib/torApi";
 import type { Tor } from "@/types/tor";
 import {
     FileText,
@@ -12,6 +17,8 @@ import {
 } from "lucide-react";
 import "./draft.css";
 import TorDetailModal from "@/components/TORDetail";
+import { useSession } from "next-auth/react";
+import type { Comment } from "@/lib/torApi";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", { dateStyle: "medium" });
 
@@ -47,9 +54,11 @@ export default function ContractorDraftTOR() {
     const [activeTor, setActiveTor] = useState<Tor | null>(null);
     const [reviewTor, setReviewTor] = useState<Tor | null>(null);
     const [reviewText, setReviewText] = useState("");
-    const [reviews, setReviews] = useState<
-        { text: string; createdAt: string }[]
-    >([]);
+    const [reviews, setReviews] = useState<Comment[]>([]);
+    const [reviewLoading, setReviewLoading] = useState(false);
+    const [reviewError, setReviewError] = useState("");
+
+    const { data: session } = useSession();
 
     useEffect(() => {
         getDraftTors()
@@ -57,6 +66,27 @@ export default function ContractorDraftTOR() {
             .catch((err) => setError(err instanceof Error ? err.message : "โหลดรายการไม่สำเร็จ"))
             .finally(() => setLoading(false));
     }, []);
+
+    useEffect(() => {
+        if (!reviewTor) return;
+    
+        setReviewLoading(true);
+        setReviewError("");
+    
+        getComments(reviewTor._id)
+            .then(setReviews)
+            .catch((error) => {
+                console.error("Load comments error:", error);
+                setReviewError(
+                    error instanceof Error
+                        ? error.message
+                        : "ไม่สามารถโหลดความคิดเห็นได้"
+                );
+            })
+            .finally(() => {
+                setReviewLoading(false);
+            });
+    }, [reviewTor]);
 
     const visibleTors = useMemo(() => {
         const keyword = query.trim().toLocaleLowerCase("th");
@@ -239,26 +269,73 @@ export default function ContractorDraftTOR() {
                         <div className="review-list">
                             <h3>ความคิดเห็น</h3>
 
-                            {reviews.length === 0 ? (
+                            {reviewLoading ? (
+                                <p className="no-review">
+                                    กำลังโหลดความคิดเห็น...
+                                </p>
+                            ) : reviews.length === 0 ? (
                                 <p className="no-review">
                                     ยังไม่มีความคิดเห็น
                                 </p>
                             ) : (
-                                reviews.map((review, index) => (
-                                    <div className="review-item" key={index}>
+                                reviews.map((review) => (
+                                    <div
+                                        className="review-item"
+                                        key={review._id}
+                                    >
                                         <div className="review-item-header">
-                                            <strong>คุณ</strong>
+                                            <strong>
+                                                {review.userName}
+                                            </strong>
 
                                             <span>
-                                                {formatReviewDate(review.createdAt)}
+                                                {formatReviewDate(
+                                                    review.createdAt
+                                                )}
                                             </span>
                                         </div>
 
-                                        <p>{review.text}</p>
+                                        <p>{review.content}</p>
+
+                                        {session?.user?.email === review.userId && (
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    try {
+                                                        await deleteComment(
+                                                            review._id,
+                                                            review.userId
+                                                        );
+
+                                                        setReviews((prev) =>
+                                                            prev.filter(
+                                                                (item) =>
+                                                                    item._id !==
+                                                                    review._id
+                                                            )
+                                                        );
+                                                    } catch (error) {
+                                                        setReviewError(
+                                                            error instanceof Error
+                                                                ? error.message
+                                                                : "ไม่สามารถลบความคิดเห็นได้"
+                                                        );
+                                                    }
+                                                }}
+                                            >
+                                                ลบ
+                                            </button>
+                                        )}
                                     </div>
                                 ))
                             )}
                         </div>
+
+                        {reviewError && (
+                            <p className="review-error">
+                                {reviewError}
+                            </p>
+                        )}
 
                         <textarea
                             value={reviewText}
@@ -280,18 +357,48 @@ export default function ContractorDraftTOR() {
 
                             <button
                                 className="review-submit"
-                                onClick={() => {
+                                onClick={async () => {
+                                    const userId = session?.user?.email;
+                                    const userName =
+                                        session?.user?.name ||
+                                        session?.user?.email ||
+                                        "";
+
+                                    if (!userId || !reviewTor) {
+                                        setReviewError("กรุณาเข้าสู่ระบบก่อนแสดงความคิดเห็น");
+                                        return;
+                                    }
+
                                     if (!reviewText.trim()) return;
 
-                                    setReviews((prev) => [
-                                        ...prev,
-                                        {
-                                            text: reviewText.trim(),
-                                            createdAt: new Date().toISOString(),
-                                        },
-                                    ]);
-                                    
-                                    setReviewText("");
+                                    try {
+                                        setReviewLoading(true);
+                                        setReviewError("");
+
+                                        const newComment = await createComment(
+                                            userId,
+                                            userName,
+                                            reviewTor._id,
+                                            reviewText
+                                        );
+
+                                        setReviews((prev) => [
+                                            newComment,
+                                            ...prev,
+                                        ]);
+
+                                        setReviewText("");
+                                    } catch (error) {
+                                        console.error("Create comment error:", error);
+
+                                        setReviewError(
+                                            error instanceof Error
+                                                ? error.message
+                                                : "ไม่สามารถเพิ่มความคิดเห็นได้"
+                                        );
+                                    } finally {
+                                        setReviewLoading(false);
+                                    }
                                 }}
                             >
                                 ส่งความคิดเห็น

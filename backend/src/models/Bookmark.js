@@ -24,7 +24,7 @@ const bookmarkSchema = new mongoose.Schema(
         savedFrom: {
             type: String,
             enum: ["market", "matching"],
-            require: true,
+            required: true,
             default: "market",
         },
         match: {

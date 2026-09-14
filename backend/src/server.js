@@ -8,6 +8,7 @@ const torRoutes = require("./routes/torRoutes");
 const bookmarkRoutes = require("./routes/bookmarkRoutes");
 const govSpendingRoutes = require("./routes/govSpendingRoutes");
 const govProjectRoutes = require("./routes/govProjectRoutes");
+const commentRoutes = require("./routes/commentRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,6 +22,7 @@ app.use("/api/tors", torRoutes);
 app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/govspending", govSpendingRoutes);
 app.use("/api/gov-projects", govProjectRoutes);
+app.use("/api/comments", commentRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
