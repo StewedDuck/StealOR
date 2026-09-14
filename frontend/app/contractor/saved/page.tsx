@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 
 import Sidebar from "@/components/sideBar";
 import TorDetailModal from "@/components/TORDetail";
+import { useToast } from "@/components/toast/ToastProvider";
 
 import {
   getBookmarks,
@@ -133,6 +134,7 @@ function getStatusClass(status: string) {
 
 export default function SavedPage() {
   const { data: session } = useSession();
+  const { showToast } = useToast();
 
   const userId =
     session?.user?.email ?? null;
@@ -239,6 +241,7 @@ export default function SavedPage() {
     tor: SavedTor
   ) {
     if (!userId || !tor.projectId) {
+      showToast("ยกเลิกการบันทึก TOR ไม่สำเร็จ", "error");
       return;
     }
 
@@ -255,15 +258,16 @@ export default function SavedPage() {
         prev.filter(
           (item) =>
             item.bookmarkId !==
-            tor.bookmarkId
+          tor.bookmarkId
         )
       );
+      showToast("ยกเลิกการบันทึก TOR แล้ว");
     } catch (err) {
-      setError(
-        err instanceof Error
+      const message = err instanceof Error
           ? err.message
-          : "ยกเลิกการบันทึก TOR ไม่สำเร็จ"
-      );
+          : "ยกเลิกการบันทึก TOR ไม่สำเร็จ";
+      setError(message);
+      showToast(message, "error");
     } finally {
       setRemovingId(null);
     }

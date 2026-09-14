@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/sideBar";
+import { useToast } from "@/components/toast/ToastProvider";
 import {
     getDraftTors,
     getComments,
@@ -59,6 +60,7 @@ export default function ContractorDraftTOR() {
     const [reviewError, setReviewError] = useState("");
 
     const { data: session } = useSession();
+    const { showToast } = useToast();
 
     useEffect(() => {
         getDraftTors()
@@ -314,12 +316,13 @@ export default function ContractorDraftTOR() {
                                                                     review._id
                                                             )
                                                         );
+                                                        showToast("ลบความคิดเห็นสำเร็จ");
                                                     } catch (error) {
-                                                        setReviewError(
-                                                            error instanceof Error
-                                                                ? error.message
-                                                                : "ไม่สามารถลบความคิดเห็นได้"
-                                                        );
+                                                        const message = error instanceof Error
+                                                            ? error.message
+                                                            : "ไม่สามารถลบความคิดเห็นได้";
+                                                        setReviewError(message);
+                                                        showToast(message, "error");
                                                     }
                                                 }}
                                             >
@@ -365,7 +368,9 @@ export default function ContractorDraftTOR() {
                                         "";
 
                                     if (!userId || !reviewTor) {
-                                        setReviewError("กรุณาเข้าสู่ระบบก่อนแสดงความคิดเห็น");
+                                        const message = "กรุณาเข้าสู่ระบบก่อนแสดงความคิดเห็น";
+                                        setReviewError(message);
+                                        showToast(message, "error");
                                         return;
                                     }
 
@@ -388,14 +393,15 @@ export default function ContractorDraftTOR() {
                                         ]);
 
                                         setReviewText("");
+                                        showToast("ส่งความคิดเห็นสำเร็จ");
                                     } catch (error) {
                                         console.error("Create comment error:", error);
 
-                                        setReviewError(
-                                            error instanceof Error
-                                                ? error.message
-                                                : "ไม่สามารถเพิ่มความคิดเห็นได้"
-                                        );
+                                        const message = error instanceof Error
+                                            ? error.message
+                                            : "ไม่สามารถเพิ่มความคิดเห็นได้";
+                                        setReviewError(message);
+                                        showToast(message, "error");
                                     } finally {
                                         setReviewLoading(false);
                                     }

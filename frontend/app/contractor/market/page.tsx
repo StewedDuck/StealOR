@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/sideBar";
+import { useToast } from "@/components/toast/ToastProvider";
 import {
     getMarketTors,
     getMarketTorById,
@@ -176,6 +177,7 @@ export default function TorMarketPage() {
     const [bookmarkLoading, setBookmarkLoading] = useState<string | null>(null);
 
     const { data: session } = useSession();
+    const { showToast } = useToast();
     const userName = session?.user?.name ?? "ผู้ใช้";
     const initials = userName
         .split(" ")
@@ -380,7 +382,7 @@ export default function TorMarketPage() {
         const userId = session?.user?.email;
   
         if (!userId) {
-        setDetailError("กรุณาเข้าสู่ระบบก่อนบันทึก TOR");
+        showToast("กรุณาเข้าสู่ระบบก่อนบันทึก TOR", "error");
         return;
         }
   
@@ -403,6 +405,7 @@ export default function TorMarketPage() {
                         (id) => id !== tor.projectId
                     )
                 );
+                showToast("ยกเลิกการบันทึก TOR แล้ว");
             } else {
                 await createBookmark(
                     userId,
@@ -413,13 +416,13 @@ export default function TorMarketPage() {
                     ...prev,
                     tor.projectId!,
                 ]);
+                showToast("บันทึก TOR แล้ว");
             }
         } catch (err) {
-            setDetailError(
-                err instanceof Error
+            const message = err instanceof Error
                 ? err.message
-                : "บันทึก TOR ไม่สำเร็จ"
-            );
+                : "บันทึก TOR ไม่สำเร็จ";
+            showToast(message, "error");
         } finally {
             setBookmarkLoading(null);
         }
