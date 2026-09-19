@@ -20,7 +20,7 @@ async function createBookmark(req, res) {
             });
         }
 
-        if (source === "goverment" && !projectId) {
+        if (source === "government" && !projectId) {
             return res.status(400).json({
                 success: false,
                 error: "Project id is required"
