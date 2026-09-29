@@ -8,6 +8,9 @@ import {
     getComments,
     createComment,
     deleteComment,
+    getBookmarks,
+    createInternalBookmark,
+    deleteInternalBookmark,
 } from "@/lib/torApi";
 import type { Tor } from "@/types/tor";
 import {
@@ -15,6 +18,7 @@ import {
     Search,
     TriangleAlert,
     X,
+    Bookmark,
 } from "lucide-react";
 import "./draft.css";
 import TorDetailModal from "@/components/TORDetail";
@@ -58,9 +62,33 @@ export default function ContractorDraftTOR() {
     const [reviews, setReviews] = useState<Comment[]>([]);
     const [reviewLoading, setReviewLoading] = useState(false);
     const [reviewError, setReviewError] = useState("");
+    const [savedTorIds, setSavedTorIds] = useState<string[]>([]);
+    const [bookmarkLoading, setBookmarkLoading] = useState<string | null>(null);
 
     const { data: session } = useSession();
     const { showToast } = useToast();
+
+    useEffect(() => {
+        const userId = session?.user?.email;
+    
+        if (!userId) return;
+    
+        getBookmarks(userId)
+            .then((bookmarks) => {
+                setSavedTorIds(
+                    bookmarks
+                        .filter(
+                            (bookmark) =>
+                                bookmark.source === "internal" &&
+                                bookmark.torId
+                        )
+                        .map((bookmark) => bookmark.torId!)
+                );
+            })
+            .catch((err) => {
+                console.error("Load draft bookmarks error:", err);
+            });
+    }, [session?.user?.email]);
 
     useEffect(() => {
         getDraftTors()
@@ -97,6 +125,55 @@ export default function ContractorDraftTOR() {
             `${tor.projectName} ${tor.agencyName}`.toLocaleLowerCase("th").includes(keyword)
         );
     }, [query, tors]);
+
+    async function handleBookmark(tor: Tor) {
+        const userId = session?.user?.email;
+    
+        if (!userId) {
+            showToast("กรุณาเข้าสู่ระบบก่อนบันทึก TOR", "error");
+            return;
+        }
+    
+        const isSaved = savedTorIds.includes(tor._id);
+    
+        try {
+            setBookmarkLoading(tor._id);
+    
+            if (isSaved) {
+                await deleteInternalBookmark(
+                    userId,
+                    tor._id
+                );
+    
+                setSavedTorIds((prev) =>
+                    prev.filter((id) => id !== tor._id)
+                );
+    
+                showToast("ยกเลิกการบันทึก TOR แล้ว");
+            } else {
+                await createInternalBookmark(
+                    userId,
+                    tor._id
+                );
+    
+                setSavedTorIds((prev) => [
+                    ...prev,
+                    tor._id,
+                ]);
+    
+                showToast("บันทึก TOR แล้ว");
+            }
+        } catch (err) {
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : "บันทึก TOR ไม่สำเร็จ";
+    
+            showToast(message, "error");
+        } finally {
+            setBookmarkLoading(null);
+        }
+    }
 
     return (
         <div className="draft_layout">
@@ -221,6 +298,28 @@ export default function ContractorDraftTOR() {
                                             onClick={() => setActiveTor(tor)}
                                         >
                                             ดูรายละเอียด
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="draft-action-button"
+                                            onClick={() => handleBookmark(tor)}
+                                            disabled={bookmarkLoading === tor._id}
+                                        >
+                                            <Bookmark
+                                                size={15}
+                                                fill={
+                                                    savedTorIds.includes(tor._id)
+                                                        ? "currentColor"
+                                                        : "none"
+                                                }
+                                            />
+
+                                            {bookmarkLoading === tor._id
+                                                ? "กำลังบันทึก..."
+                                                : savedTorIds.includes(tor._id)
+                                                ? "บันทึกแล้ว"
+                                                : "บันทึก"}
                                         </button>
 
                                         <button

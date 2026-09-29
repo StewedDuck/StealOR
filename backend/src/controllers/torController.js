@@ -1,5 +1,10 @@
 const mongoose = require("mongoose");
 const Tor = require("../models/Tor");
+const Bookmark = require("../models/Bookmark");
+const User = require("../models/User");
+
+const { draftUpdated } = require("../email/Contractor");
+const { sendEmail } = require("../email/Mailer");
 
 const DEMO_OWNER_ID = "demo-project-owner";
 const EDITABLE_FIELDS = [
@@ -78,6 +83,55 @@ async function getTorById(req, res) {
   }
 }
 
+async function notifyDraftUpdated(tor) {
+  const bookmarks = await Bookmark.find({
+    source: "internal",
+    torId: tor._id.toString(),
+  }).lean();
+
+  console.log(
+    `Found ${bookmarks.length} bookmarks for updated TOR ${tor._id}`
+  );
+
+  for (const bookmark of bookmarks) {
+    try {
+      const user = await User.findOne({
+        email: bookmark.userId
+          .trim()
+          .toLowerCase(),
+      }).lean();
+
+      if (!user) {
+        console.log(
+          `User not found: ${bookmark.userId}`
+        );
+        continue;
+      }
+
+      const email = draftUpdated({
+        name: user.name,
+        torTitle: tor.projectName,
+        torUrl: `${process.env.APP_URL}/contractor/saved`,
+      });
+
+      await sendEmail({
+        to: user.email,
+        subject: email.subject,
+        text: email.text,
+      });
+
+      console.log(
+        `Draft updated email sent to ${user.email}: ${tor.projectName}`
+      );
+    } catch (error) {
+      console.error(
+        `Draft updated email failed for ${bookmark.userId}:`,
+        error.message
+      );
+    }
+  }
+}
+
 async function updateTor(req, res) {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -88,8 +142,19 @@ async function updateTor(req, res) {
       { $set: prepareTorData(req.body) },
       { new: true, runValidators: true }
     );
-    if (!tor) return res.status(404).json({ success: false, error: "Draft TOR not found" });
-    return res.json({ success: true, data: tor, message: "TOR draft updated successfully" });
+    if (!tor) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Draft TOR not found" 
+      })
+    };
+    await notifyDraftUpdated(tor);
+
+    return res.json({ 
+      success: true, 
+      data: tor, 
+      message: "TOR draft updated successfully" 
+    });
   } catch (error) {
     return handleError(res, error);
   }

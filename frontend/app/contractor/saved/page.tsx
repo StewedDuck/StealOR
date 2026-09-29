@@ -10,7 +10,9 @@ import { useToast } from "@/components/toast/ToastProvider";
 import {
   getBookmarks,
   deleteBookmark,
+  deleteInternalBookmark,
   getMarketTorById,
+  getTorById,
 } from "@/lib/torApi";
 
 import type {
@@ -27,10 +29,12 @@ import {
   ExternalLink,
   Phone,
   Tag,
+  ChevronDown,
 } from "lucide-react";
 
 import "./saved.css";
 
+type StatusFilter = "all" | "draft" | "published";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
   day: "2-digit",
@@ -150,33 +154,21 @@ export default function SavedPage() {
     .slice(0, 2);
 
 
-  const [savedTors, setSavedTors] =
-    useState<SavedTor[]>([]);
+  const [savedTors, setSavedTors] = useState<SavedTor[]>([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [error, setError] =
-    useState("");
+  const [error, setError] = useState("");
 
-  const [query, setQuery] =
-    useState("");
+  const [query, setQuery] = useState("");
 
-  const [removingId, setRemovingId] =
-    useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
-  const [activeTorDetail, setActiveTorDetail] =
-    useState<MarketTorDetail | null>(null);
+  const [activeTorDetail, setActiveTorDetail] = useState<MarketTorDetail | null>(null);
 
-  const [detailLoading, setDetailLoading] =
-    useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
 
-
-  /*
-   * =========================
-   * LOAD SAVED TORS
-   * =========================
-   */
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   useEffect(() => {
     if (!userId) {
@@ -203,69 +195,97 @@ export default function SavedPage() {
       });
   }, [userId]);
 
-
-  /*
-   * =========================
-   * SEARCH
-   * =========================
-   */
-
   const filteredTors = useMemo(() => {
-    const keyword =
-      query
-        .trim()
-        .toLocaleLowerCase("th");
-
-    if (!keyword) {
-      return savedTors;
+    let result = [...savedTors];
+  
+    // SEARCH
+    const keyword = query
+      .trim()
+      .toLocaleLowerCase("th");
+  
+    if (keyword) {
+      result = result.filter((tor) =>
+        `${tor.projectName}
+         ${tor.agencyName}
+         ${tor.projectId ?? ""}
+         ${tor.torId ?? ""}`
+          .toLocaleLowerCase("th")
+          .includes(keyword)
+      );
     }
-
-    return savedTors.filter((tor) =>
-      `${tor.projectName}
-       ${tor.agencyName}
-       ${tor.projectId ?? ""}
-       ${tor.torId ?? ""}`
-        .toLocaleLowerCase("th")
-        .includes(keyword)
-    );
-  }, [savedTors, query]);
-
-
-  /*
-   * =========================
-   * REMOVE BOOKMARK
-   * =========================
-   */
+  
+    // STATUS FILTER
+    if (statusFilter !== "all") {
+      result = result.filter((tor) => {
+        if (statusFilter === "draft") {
+          return tor.source === "internal";
+        }
+  
+        if (statusFilter === "published") {
+          return tor.source === "government";
+        }
+  
+        return true;
+      });
+    }
+  
+    return result;
+  }, [savedTors, query, statusFilter]);
 
   async function handleRemoveBookmark(
     tor: SavedTor
   ) {
-    if (!userId || !tor.projectId) {
-      showToast("ยกเลิกการบันทึก TOR ไม่สำเร็จ", "error");
+    if (!userId) {
+      showToast(
+        "กรุณาเข้าสู่ระบบก่อนยกเลิกการบันทึก",
+        "error"
+      );
       return;
     }
-
+  
     try {
       setRemovingId(tor.bookmarkId);
       setError("");
-
-      await deleteBookmark(
-        userId,
-        tor.projectId
-      );
-
+  
+      // Government TOR
+      if (tor.source === "government") {
+        if (!tor.projectId) {
+          throw new Error("ไม่พบรหัสโครงการ");
+        }
+  
+        await deleteBookmark(
+          userId,
+          tor.projectId
+        );
+      }
+  
+      // Internal / Draft TOR
+      else {
+        if (!tor.torId) {
+          throw new Error("ไม่พบรหัส TOR");
+        }
+  
+        await deleteInternalBookmark(
+          userId,
+          tor.torId
+        );
+      }
+  
+      // เอาออกจากหน้า Saved ทันที
       setSavedTors((prev) =>
         prev.filter(
           (item) =>
-            item.bookmarkId !==
-          tor.bookmarkId
+            item.bookmarkId !== tor.bookmarkId
         )
       );
+  
       showToast("ยกเลิกการบันทึก TOR แล้ว");
     } catch (err) {
-      const message = err instanceof Error
+      const message =
+        err instanceof Error
           ? err.message
           : "ยกเลิกการบันทึก TOR ไม่สำเร็จ";
+  
       setError(message);
       showToast(message, "error");
     } finally {
@@ -273,30 +293,70 @@ export default function SavedPage() {
     }
   }
 
-
-  /*
-   * =========================
-   * VIEW DETAIL
-   * =========================
-   */
-
-  async function handleViewSavedTor(
-    tor: SavedTor
-  ) {
-    if (!tor.projectId) {
-      setError("ไม่พบรหัสโครงการ");
-      return;
-    }
-
+  async function handleViewSavedTor(tor: SavedTor) {
     try {
       setDetailLoading(true);
       setError("");
-
-      const detail =
-        await getMarketTorById(
+  
+      // GOVERNMENT TOR
+      if (tor.source === "government") {
+        if (!tor.projectId) {
+          throw new Error("ไม่พบรหัสโครงการ");
+        }
+  
+        const detail = await getMarketTorById(
           tor.projectId
         );
-
+  
+        setActiveTorDetail(detail);
+        return;
+      }
+  
+      // INTERNAL / DRAFT TOR
+      if (!tor.torId) {
+        throw new Error("ไม่พบรหัส TOR");
+      }
+  
+      const internalTor = await getTorById(
+        tor.torId
+      );
+  
+      const detail: MarketTorDetail = {
+        id: internalTor._id,
+        source: "internal",
+  
+        projectName: internalTor.projectName,
+        agencyName: internalTor.agencyName,
+  
+        budget: internalTor.budget,
+  
+        submissionDeadline:
+          internalTor.submissionDeadline || null,
+  
+        contactName:
+          internalTor.contactName || "",
+  
+        contactEmail:
+          internalTor.contactEmail || "",
+  
+        description:
+          internalTor.description || "",
+  
+        objectives:
+          internalTor.objectives || [],
+  
+        scopeOfWork:
+          internalTor.scopeOfWork || [],
+  
+        requirements:
+          internalTor.requirements || [],
+  
+        status: internalTor.status,
+  
+        createdAt: internalTor.createdAt,
+        updatedAt: internalTor.updatedAt,
+      };
+  
       setActiveTorDetail(detail);
     } catch (err) {
       setError(
@@ -315,13 +375,7 @@ export default function SavedPage() {
 
       <Sidebar />
 
-
       <main className="saved-main">
-
-        {/* =========================
-            HEADER
-        ========================= */}
-
         <header className="saved-header">
 
           <div>
@@ -351,13 +405,7 @@ export default function SavedPage() {
 
         </header>
 
-
-
         <div className="saved-content">
-
-          {/* =========================
-              SEARCH
-          ========================= */}
 
           <section className="saved-toolbar">
 
@@ -378,13 +426,23 @@ export default function SavedPage() {
 
             </div>
 
+            <div className="saved-filter-select">
+              <select
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(
+                    event.target.value as StatusFilter
+                  )
+                }
+              >
+                <option value="all">สถานะทั้งหมด</option>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+              </select>
+
+              <ChevronDown size={15} />
+            </div>
           </section>
-
-
-
-          {/* =========================
-              RESULT COUNT
-          ========================= */}
 
           <div className="saved-result-count">
 
@@ -400,33 +458,17 @@ export default function SavedPage() {
 
           </div>
 
-
-
-          {/* =========================
-              LOADING
-          ========================= */}
-
           {loading && (
             <div className="saved-message">
               กำลังโหลด TOR ที่บันทึก...
             </div>
           )}
 
-          {/* =========================
-              ERROR
-          ========================= */}
-
           {!loading && error && (
             <div className="saved-message error">
               {error}
             </div>
           )}
-
-
-
-          {/* =========================
-              EMPTY
-          ========================= */}
 
           {!loading &&
             !error &&
@@ -452,11 +494,6 @@ export default function SavedPage() {
 
               </div>
             )}
-
-
-          {/* =========================
-              TOR LIST
-          ========================= */}
 
           {!loading &&
             filteredTors.length > 0 && (
@@ -487,10 +524,6 @@ export default function SavedPage() {
                       key={tor.bookmarkId}
                       className="saved-card"
                     >
-
-                      {/* =====================
-                          CONTENT
-                      ===================== */}
 
                       <div className="saved-card-content">
 
@@ -608,10 +641,6 @@ export default function SavedPage() {
                         )}
                       </div>
 
-                      {/* =====================
-                          MATCH
-                      ===================== */}
-
                       <div className="saved-match">
                         {typeof matchPercent ===
                           "number" ? (
@@ -676,7 +705,7 @@ export default function SavedPage() {
 
                             <button
                                 type="button"
-                                className="saved-action-button saved"
+                                className="saved-action-button"
                                 onClick={() =>
                                     handleRemoveBookmark(
                                     tor
@@ -724,12 +753,6 @@ export default function SavedPage() {
         </div>
 
       </main>
-
-
-
-      {/* =========================
-          DETAIL MODAL
-      ========================= */}
 
       {detailLoading && (
         <div className="saved-loading-overlay">

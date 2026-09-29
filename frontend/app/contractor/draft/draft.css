@@ -682,3 +682,57 @@
     z-index: 3;
     pointer-events: auto;
 }
+
+.draft-bookmark-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.draft-card-actions {
+    display: flex;
+    flex-direction: column;
+  
+    gap: 6px;
+  
+    justify-content: center;
+}
+  
+.draft-action-button {
+    width: 100%;
+    min-height: 36px;
+  
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  
+    gap: 6px;
+  
+    padding: 0 10px;
+  
+    border: 1px solid #ccd4da;
+    border-radius: 7px;
+  
+    background: #fcfcfa;
+  
+    color: #35424e;
+  
+    font-size: 11px;
+    font-weight: 600;
+  
+    cursor: pointer;
+}
+  
+.draft-action-button:hover {
+    background: #f0f3f4;
+}
+  
+.draft-action-button.primary {
+    background: #1f2933;
+    border-color: #1f2933;
+  
+    color: #ffffff;
+}
+  
+.draft-action-button.primary:hover {
+    background: #263642;
+}

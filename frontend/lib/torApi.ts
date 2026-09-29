@@ -110,6 +110,22 @@ export async function createBookmark(
   });
 }
 
+export async function createInternalBookmark(
+  userId: string,
+  torId: string
+) {
+  return request("/api/bookmarks", {
+    method: "POST",
+    body: JSON.stringify({
+      userId,
+      source: "internal",
+      torId,
+      savedFrom: "market",
+      match: null,
+    }),
+  });
+}
+
 export async function getBookmarks(
   userId: string
 ): Promise<SavedTor[]> {
@@ -126,6 +142,18 @@ export async function deleteBookmark(
     `/api/bookmarks/${encodeURIComponent(
       userId
     )}/${encodeURIComponent(projectId)}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+export async function deleteInternalBookmark(
+  userId: string,
+  torId: string
+) {
+  return request<{ torId: string }>(
+    `/api/bookmarks/internal/${encodeURIComponent(userId)}/${encodeURIComponent(torId)}`,
     {
       method: "DELETE",
     }
