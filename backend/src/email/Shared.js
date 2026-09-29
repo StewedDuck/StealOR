@@ -6,7 +6,7 @@ const formatDate = (date) =>
 const contractorFooter = () => [
     "",
     "---",
-    `จัดการการแจ้งเตือน: ${appUrl()}/settings/notifications`,
+    "นี่คืออีเมลอัตโนมัติจากระบบ sTealORs",
 ];
 
 module.exports = { appUrl, formatDate, contractorFooter };
