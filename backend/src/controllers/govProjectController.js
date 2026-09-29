@@ -3,6 +3,12 @@ const {
   getPriceEstimateDocument,
   validateProjectId,
 } = require("../services/egp/egpDocumentService");
+const {
+  enrichAndSaveProjects,
+} = require("../services/govProjectBatchImportService");
+const {
+  getLocalFilteredProjects,
+} = require("../services/localProjectProvider");
 
 function errorMessage(error) {
   return String(error?.message || "Document enrichment failed").slice(0, 500);
@@ -78,4 +84,22 @@ async function enrichProject(req, res) {
   }
 }
 
-module.exports = { enrichProject };
+async function importEnrichedProjects(_req, res) {
+  try {
+    const projects = await getLocalFilteredProjects();
+    const summary = await enrichAndSaveProjects(projects);
+
+    return res.status(200).json({
+      success: true,
+      data: summary,
+    });
+  } catch (error) {
+    console.error("Government project batch import error:", error);
+    return res.status(500).json({
+      success: false,
+      error: errorMessage(error),
+    });
+  }
+}
+
+module.exports = { enrichProject, importEnrichedProjects };
