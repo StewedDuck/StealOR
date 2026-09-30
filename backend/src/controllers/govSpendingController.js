@@ -3,7 +3,7 @@ const getGovSpendingData = async (req, res) => {
     endpoint = "egp-contract", 
     year = 2568, 
     keyword, 
-    dept_code, 
+    dept_code = 3100001, 
     limit = 100, 
     offset = 0 
   } = req.query;
