@@ -11,6 +11,7 @@ import {
     getBookmarks,
     createInternalBookmark,
     deleteInternalBookmark,
+    getUserProfile,
 } from "@/lib/torApi";
 import type { Tor } from "@/types/tor";
 import {
@@ -18,6 +19,7 @@ import {
     Search,
     TriangleAlert,
     X,
+    BellRing,
     Bookmark,
 } from "lucide-react";
 import "./draft.css";
@@ -175,19 +177,61 @@ export default function ContractorDraftTOR() {
         }
     }
 
+    const [displayName, setDisplayName] = useState("");
+    
+    useEffect(() => {
+        const email = session?.user?.email;
+      
+        if (!email) return;
+      
+        getUserProfile(email)
+            .then((profile) => {
+                setDisplayName(profile.name);
+            })
+            .catch((error) => {
+                console.error(
+                    "Failed to load dashboard profile:",
+                    error
+                );
+      
+                  setDisplayName(session?.user?.name ?? "");
+            }
+        );
+    }, [session?.user?.email, session?.user?.name]);
+      
+    const userName = displayName || session?.user?.name || "ผู้ใช้";
+    
+    const initials = userName
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    ;
+
     return (
         <div className="draft_layout">
             <Sidebar />
 
-            <main className="draft-main-header">
+            <main className="draft-main">
                 <header className="draft-header">
                     <div className="draft-header-content">
                         <h1>TOR ฉบับร่าง</h1>
                         <p>อ่านและติดตาม TOR ที่เจ้าของโครงการกำลังจัดทำ ก่อนเปิดรับสมัครจริง</p>
                     </div>
+
+                    <div className="profile-header-actions">
+                        <button className="notification-button">
+                        <BellRing size={16}/>
+                        </button>
+
+                        <div className="profile-circle">
+                            {initials}
+                        </div>
+                    </div>
                 </header>
 
-                <header className="draft-main">
+                <div className="draft-content">
 
                     <div className="draft-banner">
                         <TriangleAlert size={18} />
@@ -335,7 +379,7 @@ export default function ContractorDraftTOR() {
                             ))}
                         </div>
                     )}
-                </header>
+                </div>
             </main>
 
             {activeTor && (

@@ -207,3 +207,59 @@ export async function deleteComment(
       }
     );
 }
+
+export type UserProfile = {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+
+  phone: string;
+  company: string;
+  profileSummary: string;
+  experienceYears: number;
+  experienceSummary: string;
+  skills: string[];
+
+  accountRole:
+    | "contractor"
+    | "project_owner"
+    | "admin";
+
+  verificationStatus:
+    | "not_required"
+    | "pending"
+    | "approved"
+    | "rejected";
+};
+
+export async function getUserProfile(
+  email: string
+): Promise<UserProfile> {
+  return request<UserProfile>(
+    `/api/users/profile/${encodeURIComponent(email)}`
+  );
+}
+
+export type UpdateUserProfileData = {
+  name: string;
+  phone: string;
+  company: string;
+  profileSummary: string;
+  experienceYears: number;
+  experienceSummary: string;
+  skills: string[];
+};
+
+export async function updateUserProfile(
+  email: string,
+  data: UpdateUserProfileData
+): Promise<UserProfile> {
+  return request<UserProfile>(
+    `/api/users/profile/${encodeURIComponent(email)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }
+  );
+}

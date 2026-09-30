@@ -21,6 +21,42 @@ const userSchema = new mongoose.Schema(
             default: null,
         },
 
+        phone: {
+            type: String,
+            default: "",
+            trim: true,
+        },
+        
+        company: {
+            type: String,
+            default: "",
+            trim: true,
+        },
+        
+        profileSummary: {
+            type: String,
+            default: "",
+            trim: true,
+            maxlength: 200,
+        },
+        
+        experienceYears: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        
+        experienceSummary: {
+            type: String,
+            default: "",
+            trim: true,
+        },
+        
+        skills: {
+            type: [String],
+            default: [],
+        },
+
         accountRole: {
             type: String,
             enum: [

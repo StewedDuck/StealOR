@@ -18,6 +18,8 @@ import {
  } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { getUserProfile } from "@/lib/torApi";
 
 
 type MenuItem = {
@@ -187,8 +189,8 @@ export default function Sidebar () {
     const pathname = usePathname();
     const router = useRouter();
     const { data: session } = useSession();
-
-    const userName = session?.user?.name ?? "ผู้ใช้";
+    const [displayName, setDisplayName] = useState("");
+    const userName = displayName || session?.user?.name || "ผู้ใช้";
     const initials = userName
         .split(" ")
         .map((w) => w[0])
@@ -206,6 +208,22 @@ export default function Sidebar () {
     const menuItems = isProjectOwner
     ? projectOwnerMenuItems
     : contractorMenuItems;
+
+    useEffect(() => {
+        const email = session?.user?.email;
+      
+        if (!email) return;
+      
+        getUserProfile(email)
+          .then((profile) => {
+            setDisplayName(profile.name);
+          })
+          .catch((error) => {
+            console.error("Failed to load sidebar profile:", error);
+      
+            setDisplayName(session?.user?.name ?? "");
+          });
+    }, [session?.user?.email, session?.user?.name]);
 
     return (
         <aside className = "sidebar">

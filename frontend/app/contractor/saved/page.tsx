@@ -13,11 +13,16 @@ import {
   deleteInternalBookmark,
   getMarketTorById,
   getTorById,
+  getComments,
+  createComment,
+  deleteComment,
+  type Comment,
 } from "@/lib/torApi";
 
 import type {
   SavedTor,
   MarketTorDetail,
+  Tor,
 } from "@/types/tor";
 
 import {
@@ -30,9 +35,10 @@ import {
   Phone,
   Tag,
   ChevronDown,
+  X,
 } from "lucide-react";
-
 import "./saved.css";
+import { getUserProfile } from "@/lib/torApi";
 
 type StatusFilter = "all" | "draft" | "published";
 
@@ -78,6 +84,18 @@ function formatDate(value?: string | null) {
   return dateFormatter.format(date);
 }
 
+function formatReviewDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "ไม่ระบุวันที่";
+  }
+
+  return new Intl.DateTimeFormat("th-TH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
 
 function getDaysUntil(value?: string | null) {
   if (!value) {
@@ -140,11 +158,32 @@ export default function SavedPage() {
   const { data: session } = useSession();
   const { showToast } = useToast();
 
-  const userId =
-    session?.user?.email ?? null;
+  const userId = session?.user?.email ?? null;
+
+  const [displayName, setDisplayName] = useState("");
+  useEffect(() => {
+    const email = session?.user?.email;
+
+    if (!email) return;
+
+    getUserProfile(email)
+        .then((profile) => {
+            setDisplayName(profile.name);
+        })
+        .catch((error) => {
+            console.error(
+                "Failed to load dashboard profile:",
+                error
+            );
+
+            setDisplayName(session?.user?.name ?? "");
+        });
+  }, [session?.user?.email, session?.user?.name]);
 
   const userName =
-    session?.user?.name ?? "ผู้ใช้";
+    displayName ||
+    session?.user?.name ||
+    "ผู้ใช้";
 
   const initials = userName
     .split(" ")
@@ -170,6 +209,16 @@ export default function SavedPage() {
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
+  const [reviewTor, setReviewTor] = useState<Tor | null>(null);
+
+  const [reviewText, setReviewText] = useState("");
+
+  const [reviews, setReviews] =  useState<Comment[]>([]);
+
+  const [reviewLoading, setReviewLoading] = useState(false);
+
+  const [reviewError, setReviewError] = useState("");
+
   useEffect(() => {
     if (!userId) {
       setLoading(false);
@@ -194,6 +243,28 @@ export default function SavedPage() {
         setLoading(false);
       });
   }, [userId]);
+
+  useEffect(() => {
+    if (!reviewTor) return;
+  
+    setReviewLoading(true);
+    setReviewError("");
+  
+    getComments(reviewTor._id)
+      .then(setReviews)
+      .catch((error) => {
+        console.error("Load comments error:", error);
+  
+        setReviewError(
+          error instanceof Error
+            ? error.message
+            : "ไม่สามารถโหลดความคิดเห็นได้"
+        );
+      })
+      .finally(() => {
+        setReviewLoading(false);
+      });
+  }, [reviewTor]);
 
   const filteredTors = useMemo(() => {
     let result = [...savedTors];
@@ -369,6 +440,37 @@ export default function SavedPage() {
     }
   }
 
+  async function handleOpenReview(tor: SavedTor) {
+    console.log("1. Review clicked:", tor);
+    console.log("2. torId:", tor.torId);
+  
+    if (!tor.torId) {
+      console.log("❌ NO torId");
+      showToast("ไม่พบรหัส TOR", "error");
+      return;
+    }
+  
+    try {
+      console.log("3. Calling getTorById...");
+  
+      const internalTor = await getTorById(tor.torId);
+  
+      console.log("4. TOR loaded:", internalTor);
+  
+      setReviewTor(internalTor);
+  
+      console.log("5. setReviewTor called");
+    } catch (error) {
+      console.error("❌ Load TOR for review error:", error);
+  
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "ไม่สามารถเปิด Review ได้",
+        "error"
+      );
+    }
+  }
 
   return (
     <div className="saved-page">
@@ -379,10 +481,10 @@ export default function SavedPage() {
         <header className="saved-header">
 
           <div>
-            <h1>Saved</h1>
+            <h1>ดูภายหลัง</h1>
 
             <p>
-              TORs you have saved from the market or matches
+            TOR ที่คุณบันทึกไว้จากตลาดหรือรายการที่ตรงกัน
             </p>
           </div>
 
@@ -689,59 +791,57 @@ export default function SavedPage() {
                       </div>
 
                       {/* ACTIONS */}
-
                       <div className="saved-card-actions">
+                        <button
+                          type="button"
+                          className="saved-action-button"
+                          onClick={() => handleViewSavedTor(tor)}
+                        >
+                          ดูรายละเอียด
+                        </button>
+
+                        <button
+                          type="button"
+                          className="saved-action-button"
+                          onClick={() => handleRemoveBookmark(tor)}
+                          disabled={removingId === tor.bookmarkId}
+                        >
+                          <Bookmark size={14} fill="currentColor" />
+
+                          {removingId === tor.bookmarkId
+                            ? "กำลังยกเลิก..."
+                            : "บันทึกแล้ว"}
+                        </button>
+
+                        {tor.source === "internal" && tor.status.toLowerCase() === "draft" ?(
+                          <button
+                            type="button"
+                            className="saved-action-button"
+                            onClick={() => handleOpenReview(tor)}
+                          >
+                            รีวิว
+                          </button>
+                        ) : (
+                          <>
                             <button
-                                type="button"
-                                className="saved-action-button"
-                                onClick={() =>
-                                    handleViewSavedTor(
-                                    tor
-                                    )
-                                }
+                              type="button"
+                              className="saved-action-button primary"
+                              // onClick={() => handleContactOwner(tor)}
                             >
-                                ดูรายละเอียด
+                              <Phone size={14} />
+                              ติดต่อเจ้าของโครงการ
                             </button>
 
                             <button
-                                type="button"
-                                className="saved-action-button"
-                                onClick={() =>
-                                    handleRemoveBookmark(
-                                    tor
-                                    )
-                                }
-                                disabled={
-                                    removingId ===
-                                    tor.bookmarkId
-                                }
+                              type="button"
+                              className="saved-action-button"
+                              // onClick={() => handleGoToTor(tor)}
                             >
-                                <Bookmark size={15} fill="currentColor" />
-                                {removingId ===
-                                    tor.bookmarkId
-                                        ? "กำลังยกเลิก..."
-                                        : "บันทึกแล้ว"
-                                }
+                              <ExternalLink size={14} />
+                              ไปยังหน้า TOR
                             </button>
-
-                            <button
-                                type="button"
-                                className="saved-action-button primary"
-                            >
-                                <Phone size={15} />
-                                ติดต่อเจ้าของโครงการ
-                            </button>
-
-
-
-                            <button
-                                type="button"
-                                className="saved-action-button"
-                            >
-                                <ExternalLink size={15} />
-                                ไปยังหน้า TOR
-                            </button>
-
+                          </>
+                        )}
                       </div>
                     </article>
                   );
@@ -770,6 +870,207 @@ export default function SavedPage() {
             setActiveTorDetail(null)
           }
         />
+      )}
+
+      {reviewTor && (
+        <div
+          className="draft-modal-overlay"
+          onClick={() => {
+            setReviewTor(null);
+            setReviews([]);
+            setReviewText("");
+            setReviewError("");
+          }}
+        >
+          <div
+            className="review-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="draft-modal-close"
+              onClick={() => setReviewTor(null)}
+            >
+              <X size={20} />
+            </button>
+
+            <h2>เขียนความคิดเห็น</h2>
+
+            <p className="review-modal-sub">
+              {reviewTor.projectName}
+            </p>
+
+            <div className="review-list">
+              <h3>ความคิดเห็น</h3>
+
+              {reviewLoading ? (
+                <p className="no-review">
+                  กำลังโหลดความคิดเห็น...
+                </p>
+              ) : reviews.length === 0 ? (
+                <p className="no-review">
+                  ยังไม่มีความคิดเห็น
+                </p>
+              ) : (
+                reviews.map((review) => (
+                  <div
+                    className="review-item"
+                    key={review._id}
+                  >
+                    <div className="review-item-header">
+                      <strong>
+                        {review.userName}
+                      </strong>
+
+                      <span>
+                        {formatReviewDate(
+                          review.createdAt
+                        )}
+                      </span>
+                    </div>
+
+                    <p>{review.content}</p>
+
+                    {session?.user?.email ===
+                      review.userId && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await deleteComment(
+                              review._id,
+                              review.userId
+                            );
+
+                            setReviews((prev) =>
+                              prev.filter(
+                                (item) =>
+                                  item._id !==
+                                  review._id
+                              )
+                            );
+
+                            showToast(
+                              "ลบความคิดเห็นสำเร็จ"
+                            );
+                          } catch (error) {
+                            const message =
+                              error instanceof Error
+                                ? error.message
+                                : "ไม่สามารถลบความคิดเห็นได้";
+
+                            setReviewError(message);
+
+                            showToast(
+                              message,
+                              "error"
+                            );
+                          }
+                        }}
+                      >
+                        ลบ
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {reviewError && (
+              <p className="review-error">
+                {reviewError}
+              </p>
+            )}
+
+            <textarea
+              value={reviewText}
+              onChange={(e) =>
+                setReviewText(e.target.value)
+              }
+              placeholder="เขียนความคิดเห็นของคุณ..."
+              rows={5}
+            />
+
+            <div className="review-modal-actions">
+              <button
+                type="button"
+                className="review-cancel"
+                onClick={() => {
+                  setReviewText("");
+                  setReviewTor(null);
+                }}
+              >
+                ยกเลิก
+              </button>
+
+              <button
+                type="button"
+                className="review-submit"
+                disabled={reviewLoading}
+                onClick={async () => {
+                  const userId =
+                    session?.user?.email;
+
+                  const userName =
+                    session?.user?.name ||
+                    session?.user?.email ||
+                    "";
+
+                    if (!userId || !reviewTor) {
+                    const message =
+                      "กรุณาเข้าสู่ระบบก่อนแสดงความคิดเห็น";
+
+                    setReviewError(message);
+                    showToast(message, "error");
+                    return;
+                  }
+
+                  if (!reviewText.trim()) return;
+
+                  try {
+                    setReviewLoading(true);
+                    setReviewError("");
+
+                    const newComment = await createComment(
+                      userId,
+                      userName,
+                      reviewTor._id,
+                      reviewText
+                    );
+
+                    setReviews((prev) => [
+                      newComment,
+                      ...prev,
+                    ]);
+
+                    setReviewText("");
+
+                    showToast(
+                      "ส่งความคิดเห็นสำเร็จ"
+                    );
+                  } catch (error) {
+                    console.error(
+                      "Create comment error:",
+                      error
+                    );
+
+                    const message =
+                      error instanceof Error
+                        ? error.message
+                        : "ไม่สามารถเพิ่มความคิดเห็นได้";
+
+                    setReviewError(message);
+                    showToast(message, "error");
+                  } finally {
+                    setReviewLoading(false);
+                  }
+                }}
+              >
+                ส่งความคิดเห็น
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

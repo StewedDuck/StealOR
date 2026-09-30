@@ -14,7 +14,8 @@ import {
 import type {
     MarketTor,
     MarketTorDetail,
-} from "@/types/tor";import { useSession } from "next-auth/react";
+} from "@/types/tor";
+import { useSession } from "next-auth/react";
 import TorDetailModal from "@/components/TORDetail";
 
 import{
@@ -30,6 +31,7 @@ import{
     Phone
 } from 'lucide-react'
 import "./market.css";
+import { getUserProfile } from "@/lib/torApi";
 
 
 type TypeFilter = "all" | "government" | "internal";
@@ -178,7 +180,32 @@ export default function TorMarketPage() {
 
     const { data: session } = useSession();
     const { showToast } = useToast();
-    const userName = session?.user?.name ?? "ผู้ใช้";
+    const [displayName, setDisplayName] = useState("");
+
+    useEffect(() => {
+      const email = session?.user?.email;
+  
+      if (!email) return;
+  
+      getUserProfile(email)
+          .then((profile) => {
+              setDisplayName(profile.name);
+          })
+          .catch((error) => {
+              console.error(
+                  "Failed to load dashboard profile:",
+                  error
+              );
+  
+              setDisplayName(session?.user?.name ?? "");
+          });
+    }, [session?.user?.email, session?.user?.name]);
+  
+    const userName =
+        displayName ||
+        session?.user?.name ||
+        "ผู้ใช้";
+
     const initials = userName
         .split(" ")
         .map((w) => w[0])

@@ -19,7 +19,7 @@
     "express": "^5.2.1",
     "mongodb": "^7.6.0",
     "mongoose": "^9.9.4",
-    "nodemailer": "^10.0.12",
+    "nodemailer": "^10.0.13",
     "pdf-parse": "^1.1.4",
     "unzipper": "^0.12.3"
   }
