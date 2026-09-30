@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   validateProjectId,
   getPriceEstimateMetadata,
+  downloadLegacyZip,
   downloadZip,
 } = require("../src/services/egp/egpClient");
 
@@ -74,7 +75,72 @@ test("getPriceEstimateMetadata uses the project-service fallback", async () => {
   });
 });
 
-test("getPriceEstimateMetadata reports unavailable after both lookups", async () => {
+test("getPriceEstimateMetadata uses the legacy green-book fallback", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options) => {
+    requests.push({ url, options });
+
+    if (requests.length === 1) {
+      return new Response(
+        JSON.stringify({ response: { responseCode: "0" }, data: null }),
+        { status: 200 }
+      );
+    }
+    if (requests.length === 2) {
+      return new Response(
+        JSON.stringify({ response: { responseCode: "0" }, data: [] }),
+        { status: 200 }
+      );
+    }
+    if (requests.length === 3) {
+      assert.equal(options.method, "POST");
+      assert.ok(JSON.parse(options.body).key);
+      return new Response(JSON.stringify({ data: "announcement-token" }), {
+        status: 200,
+      });
+    }
+    if (requests.length === 4) {
+      assert.equal(options.headers["X-Announcement-Token"], "announcement-token");
+      return new Response(
+        JSON.stringify({
+          data: { methodId: "22", announceType: "W0", isSect7: false },
+        }),
+        { status: 200 }
+      );
+    }
+
+    assert.equal(url.pathname.endsWith("/greenBook"), true);
+    return new Response(
+      JSON.stringify({
+        data: {
+          greenBookAnnouncementTypeLinkDto: [
+            {
+              announceType: "BOQ",
+              priceBuildName:
+                "pricebuild_310000110000034_65117172803.zip",
+            },
+          ],
+        },
+      }),
+      { status: 200 }
+    );
+  };
+
+  const result = await getPriceEstimateMetadata("65117172803", {
+    fetchImpl,
+    projectServiceApiKey: "test-project-service-key",
+  });
+
+  assert.equal(requests.length, 5);
+  assert.deepEqual(result, {
+    projectId: "65117172803",
+    fileId: null,
+    fileName: "pricebuild_310000110000034_65117172803.zip",
+    downloadMethod: "legacy_filename",
+  });
+});
+
+test("getPriceEstimateMetadata reports unavailable after all lookups", async () => {
   const fetchImpl = async () =>
     new Response(
       JSON.stringify({ response: { responseCode: "0" }, data: [] }),
@@ -94,4 +160,27 @@ test("getPriceEstimateMetadata reports unavailable after both lookups", async ()
 test("downloadZip rejects a response that is not a ZIP", async () => {
   const fetchImpl = async () => new Response("not a zip", { status: 200 });
   await assert.rejects(() => downloadZip("abc123", { fetchImpl }), /not a valid ZIP/);
+});
+
+test("downloadLegacyZip uses the fixed official host and validated filename", async () => {
+  const zip = Buffer.from("PK\u0003\u0004legacy-zip");
+  let requestedUrl;
+  const fetchImpl = async (url) => {
+    requestedUrl = url;
+    return new Response(zip, { status: 200 });
+  };
+
+  const result = await downloadLegacyZip(
+    "65117172803",
+    "pricebuild_310000110000034_65117172803.zip",
+    { fetchImpl }
+  );
+
+  assert.equal(requestedUrl.hostname, "process3.gprocurement.go.th");
+  assert.equal(
+    requestedUrl.pathname,
+    "/egp2procmainWeb/FPRO9965AttachServ"
+  );
+  assert.equal(requestedUrl.searchParams.get("projectId"), "65117172803");
+  assert.deepEqual(result, zip);
 });

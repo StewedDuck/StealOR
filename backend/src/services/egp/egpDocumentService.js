@@ -6,11 +6,23 @@ const {
   validateProjectId,
   getPriceEstimateMetadata,
   downloadZip,
+  downloadLegacyZip,
 } = require("./egpClient");
 
 const MAX_PDF_COUNT = 20;
 const MAX_TOTAL_PDF_BYTES = 100 * 1024 * 1024;
 const MAX_EXTRACTED_TEXT_CHARS = 2_000_000;
+
+async function downloadPriceEstimateArchive(metadata, dependencies) {
+  if (metadata.downloadMethod === "legacy_filename") {
+    return downloadLegacyZip(
+      metadata.projectId,
+      metadata.fileName,
+      dependencies
+    );
+  }
+  return downloadZip(metadata.fileId, dependencies);
+}
 
 class DocumentExtractionError extends Error {
   constructor(message, statusCode = 422, details = {}) {
@@ -106,7 +118,7 @@ async function getPriceEstimateDocument(projectId, dependencies = {}) {
 
   let zipBuffer;
   try {
-    zipBuffer = await downloadZip(metadata.fileId, dependencies);
+    zipBuffer = await downloadPriceEstimateArchive(metadata, dependencies);
   } catch (error) {
     error.documentMetadata = documentMetadata;
     throw error;
@@ -152,7 +164,7 @@ async function getPriceEstimateArchive(
     : await getPriceEstimateMetadata(safeProjectId, dependencies);
 
   // Return the untouched ZIP. Text extraction and OCR are intentionally skipped.
-  const zipBuffer = await downloadZip(metadata.fileId, dependencies);
+  const zipBuffer = await downloadPriceEstimateArchive(metadata, dependencies);
   return {
     projectId: safeProjectId,
     fileId: metadata.fileId,
