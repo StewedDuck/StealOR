@@ -135,10 +135,37 @@ async function getPriceEstimateDocument(projectId, dependencies = {}) {
   };
 }
 
+async function getPriceEstimateArchive(
+  projectId,
+  knownMetadata = {},
+  dependencies = {}
+) {
+  const safeProjectId = validateProjectId(projectId);
+
+  // Reuse MongoDB metadata when available; otherwise ask e-GP for the file ID.
+  const metadata = knownMetadata.fileId
+    ? {
+        projectId: safeProjectId,
+        fileId: knownMetadata.fileId,
+        fileName: knownMetadata.fileName || `${safeProjectId}.zip`,
+      }
+    : await getPriceEstimateMetadata(safeProjectId, dependencies);
+
+  // Return the untouched ZIP. Text extraction and OCR are intentionally skipped.
+  const zipBuffer = await downloadZip(metadata.fileId, dependencies);
+  return {
+    projectId: safeProjectId,
+    fileId: metadata.fileId,
+    fileName: metadata.fileName,
+    zipBuffer,
+  };
+}
+
 module.exports = {
   DocumentExtractionError,
   validateProjectId,
   isSafeArchivePath,
   extractPdfTextFromZip,
+  getPriceEstimateArchive,
   getPriceEstimateDocument,
 };

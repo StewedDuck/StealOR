@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   extractPdfTextFromZip,
+  getPriceEstimateArchive,
   getPriceEstimateDocument,
   isSafeArchivePath,
 } = require("../src/services/egp/egpDocumentService");
@@ -80,4 +81,67 @@ test("getPriceEstimateDocument preserves metadata when a PDF needs OCR", async (
       return true;
     }
   );
+});
+
+test("getPriceEstimateArchive downloads with stored MongoDB metadata", async () => {
+  const requestedUrls = [];
+  const fetchImpl = async (url) => {
+    requestedUrls.push(url);
+    return new Response(ZIP_WITH_ONE_PDF, {
+      status: 200,
+      headers: { "content-type": "application/zip" },
+    });
+  };
+
+  const result = await getPriceEstimateArchive(
+    "67079622362",
+    {
+      fileId: "stored-file-id",
+      fileName: "pricebuild_67079622362.zip",
+    },
+    { fetchImpl }
+  );
+
+  assert.equal(requestedUrls.length, 1);
+  assert.equal(
+    requestedUrls[0].pathname,
+    "/egp-upload-service/v1/downloadFileTest"
+  );
+  assert.equal(requestedUrls[0].searchParams.get("fileId"), "stored-file-id");
+  assert.equal(result.fileName, "pricebuild_67079622362.zip");
+  assert.deepEqual(result.zipBuffer, ZIP_WITH_ONE_PDF);
+});
+
+test("getPriceEstimateArchive looks up metadata when MongoDB has none", async () => {
+  let requestCount = 0;
+  const fetchImpl = async () => {
+    requestCount += 1;
+    if (requestCount === 1) {
+      return new Response(
+        JSON.stringify({
+          response: { responseCode: "0" },
+          data: {
+            zipFileId: "looked-up-file-id",
+            zipFileName: "looked-up.zip",
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
+
+    return new Response(ZIP_WITH_ONE_PDF, {
+      status: 200,
+      headers: { "content-type": "application/zip" },
+    });
+  };
+
+  const result = await getPriceEstimateArchive(
+    "67079622362",
+    {},
+    { fetchImpl }
+  );
+
+  assert.equal(requestCount, 2);
+  assert.equal(result.fileId, "looked-up-file-id");
+  assert.equal(result.fileName, "looked-up.zip");
 });

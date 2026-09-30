@@ -1,5 +1,6 @@
 const GovProject = require("../models/GovProject");
 const {
+  getPriceEstimateArchive,
   getPriceEstimateDocument,
   validateProjectId,
 } = require("../services/egp/egpDocumentService");
@@ -115,4 +116,54 @@ async function importEnrichedProjects(req, res) {
   }
 }
 
-module.exports = { enrichProject, importEnrichedProjects };
+function safeDownloadName(fileName, projectId) {
+  const normalized = String(fileName || "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .pop()
+    .replace(/[^A-Za-z0-9._-]/g, "_");
+  return normalized.toLowerCase().endsWith(".zip")
+    ? normalized
+    : `price-estimate-${projectId}.zip`;
+}
+
+async function downloadOriginalDocument(req, res) {
+  try {
+    const projectId = validateProjectId(req.params.projectId);
+    const project = await GovProject.findOne({ project_id: projectId });
+    if (!project) {
+      return res.status(404).json({ success: false, error: "Project not found" });
+    }
+
+    const extraction = project.documentExtraction || {};
+    const archive = await getPriceEstimateArchive(projectId, {
+      fileId: extraction.sourceFileId,
+      fileName: extraction.sourceDocument,
+    });
+    const fileName = safeDownloadName(archive.fileName, projectId);
+
+    // These headers make the frontend/browser download the response as a ZIP file.
+    res.set({
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Content-Length": String(archive.zipBuffer.length),
+      "Cache-Control": "private, no-store",
+    });
+    return res.send(archive.zipBuffer);
+  } catch (error) {
+    const statusCode = Number(error.statusCode) || 500;
+    if (statusCode >= 500) {
+      console.error("Government document download error:", error);
+    }
+    return res.status(statusCode).json({
+      success: false,
+      error: errorMessage(error),
+    });
+  }
+}
+
+module.exports = {
+  downloadOriginalDocument,
+  enrichProject,
+  importEnrichedProjects,
+};
