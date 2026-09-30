@@ -658,24 +658,6 @@ export default function SavedPage() {
                           <button
                             type="button"
                             className="saved-action-button primary"
-                            // onClick={() => handleContactOwner(tor)}
-                          >
-                            <Phone size={14} />
-                            ติดต่อเจ้าของโครงการ
-                          </button>
-
-                          <button
-                            type="button"
-                            className="saved-action-button"
-                            // onClick={() => handleGoToTor(tor)}
-                          >
-                            <ExternalLink size={14} />
-                            ไปยังหน้า TOR
-                          </button>
-
-                          <button
-                            type="button"
-                            className="saved-action-button primary"
                           >
                             <Phone size={15} />
                             ติดต่อเจ้าของโครงการ
