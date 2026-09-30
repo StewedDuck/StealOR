@@ -1,6 +1,10 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 @import "./mockup.css";
 
+:root {
+  --sidebar-width: 260px;
+}
+
 .login-shell {
   min-height: 100vh;
   display: flex;
@@ -73,7 +77,7 @@
 /* Sidebar */
 
 .sidebar {
-  width: 260px;
+  width: var(--sidebar-width);
   height: 100vh;
   position: fixed;
   left: 0;

@@ -1,11 +1,17 @@
 const mongoose = require("mongoose");
 const Tor = require("../models/Tor");
+const Bookmark = require("../models/Bookmark");
+const User = require("../models/User");
+
+const { draftUpdated } = require("../email/Contractor");
+const { sendEmail } = require("../email/Mailer");
 
 const DEMO_OWNER_ID = "demo-project-owner";
 const EDITABLE_FIELDS = [
   "projectName", "agencyName", "description", "objectives", "scopeOfWork",
   "requirements", "budget", "submissionDeadline", "contactName", "contactEmail",
 ];
+const GovProject = require("../models/GovProject");
 
 function prepareTorData(body) {
   const data = {};
@@ -77,6 +83,55 @@ async function getTorById(req, res) {
   }
 }
 
+async function notifyDraftUpdated(tor) {
+  const bookmarks = await Bookmark.find({
+    source: "internal",
+    torId: tor._id.toString(),
+  }).lean();
+
+  console.log(
+    `Found ${bookmarks.length} bookmarks for updated TOR ${tor._id}`
+  );
+
+  for (const bookmark of bookmarks) {
+    try {
+      const user = await User.findOne({
+        email: bookmark.userId
+          .trim()
+          .toLowerCase(),
+      }).lean();
+
+      if (!user) {
+        console.log(
+          `User not found: ${bookmark.userId}`
+        );
+        continue;
+      }
+
+      const email = draftUpdated({
+        name: user.name,
+        torTitle: tor.projectName,
+        torUrl: `${process.env.APP_URL}/contractor/saved`,
+      });
+
+      await sendEmail({
+        to: user.email,
+        subject: email.subject,
+        text: email.text,
+      });
+
+      console.log(
+        `Draft updated email sent to ${user.email}: ${tor.projectName}`
+      );
+    } catch (error) {
+      console.error(
+        `Draft updated email failed for ${bookmark.userId}:`,
+        error.message
+      );
+    }
+  }
+}
+
 async function updateTor(req, res) {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -87,8 +142,19 @@ async function updateTor(req, res) {
       { $set: prepareTorData(req.body) },
       { new: true, runValidators: true }
     );
-    if (!tor) return res.status(404).json({ success: false, error: "Draft TOR not found" });
-    return res.json({ success: true, data: tor, message: "TOR draft updated successfully" });
+    if (!tor) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Draft TOR not found" 
+      })
+    };
+    await notifyDraftUpdated(tor);
+
+    return res.json({ 
+      success: true, 
+      data: tor, 
+      message: "TOR draft updated successfully" 
+    });
   } catch (error) {
     return handleError(res, error);
   }
@@ -111,4 +177,163 @@ async function deleteTor(req, res) {
   }
 }
 
-module.exports = { createTor, getTors, getTorById, updateTor, deleteTor };
+async function getMarketTors(req, res) {
+  try {
+    const governmentTors = await GovProject.find({
+      contract_status: {
+        $not: /ยกเลิก|สิ้นสุด/,
+      },
+    }).sort({ updatedAt: -1});
+
+    const data = governmentTors.map((project) => ({
+      id: project._id.toString(),
+      source: "government",
+
+      projectId: project.project_id,
+      projectName: project.project_name,
+      agencyName: project.dept_name,
+
+      budget:
+        project.sum_price_agree ||
+        project.budget_amount ||
+        0,
+
+      status: project.contract_status || "Active",
+
+      winnerName: project.winner_name || null,
+      winnerTin: project.winner_tin || null,
+
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+    }));
+
+    return res.json({
+      success: true,
+      total: data.length,
+      data,
+    });
+  } catch (error) {
+    console.error("TOR Market API error:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to retrieve TOR Market",
+    });
+  }
+}
+
+async function getMarketTorDetail(req, res) {
+  try {
+    const project = await GovProject.findOne({
+      project_id: req.params.projectId,
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: "Government TOR not found",
+      });
+    }
+
+    const raw = project.raw_data || {};
+
+    const data = {
+      id: project._id.toString(),
+      source: "government",
+
+      projectId: project.project_id,
+
+      projectName:
+        project.project_name ||
+        raw.project_name ||
+        "ไม่ระบุชื่อโครงการ",
+
+      agencyName:
+        project.dept_name ||
+        raw.dept_name ||
+        "ไม่ระบุหน่วยงาน",
+
+      budget:
+        project.sum_price_agree ||
+        project.budget_amount ||
+        0,
+
+      submissionDeadline:
+        raw.submission_deadline ||
+        raw.deadline ||
+        raw.project_end_date ||
+        null,
+
+      contactName:
+        raw.contact_name ||
+        raw.contact_person ||
+        "",
+
+      contactEmail:
+        raw.contact_email ||
+        "",
+
+      description:
+        raw.project_description ||
+        raw.description ||
+        "",
+
+      objectives: Array.isArray(raw.objectives)
+        ? raw.objectives
+        : [],
+
+      scopeOfWork: Array.isArray(raw.scope_of_work)
+        ? raw.scope_of_work
+        : [],
+
+      requirements: Array.isArray(raw.requirements)
+        ? raw.requirements.map((item) => ({
+            description:
+              typeof item === "string"
+                ? item
+                : item.description || "",
+            weight:
+              typeof item === "object"
+                ? Number(item.weight) || 0
+                : 0,
+            mandatory:
+              typeof item === "object"
+                ? Boolean(item.mandatory)
+                : false,
+          }))
+        : [],
+
+      status:
+        project.contract_status ||
+        raw.contract_status ||
+        "Active",
+
+      winnerName:
+        project.winner_name ||
+        raw.winner_name ||
+        null,
+
+      winnerTin:
+        project.winner_tin ||
+        raw.winner_tin ||
+        null,
+
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+    };
+
+    return res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    console.error("TOR Market Detail API error:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to retrieve TOR detail",
+    });
+  }
+}
+
+module.exports = { createTor, getTors, getTorById, updateTor, deleteTor, getMarketTors, getMarketTorDetail };

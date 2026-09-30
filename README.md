@@ -103,6 +103,22 @@ External services are **not** containerized:
 * MongoDB Atlas — cloud-hosted, connected via `MONGODB_URI`
 * Google Vertex AI — cloud-hosted, connected via GCP credentials
 
+### Government document enrichment
+
+The backend can enrich one MongoDB `GovProject` by downloading its official
+e-GP price-document archive, extracting text from contained PDFs, and saving
+the document information and text under `documentExtraction`:
+
+```http
+POST /api/gov-projects/:projectId/enrich
+```
+
+The project must already exist in MongoDB. This endpoint does not use Vertex AI.
+Image-only scanned PDFs are recorded as failed with a clear no-text message;
+OCR is intentionally deferred to a later milestone. This initial source is
+stored as `sourceDocumentType: "price_estimate"`; the service does not claim
+that a price document contains every field from the complete TOR.
+
 ---
 
 ## Prerequisites

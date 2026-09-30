@@ -8,8 +8,8 @@ import {
     ShieldCheck,
     RotateCcwClock,
     Siren,
- } from "lucide-react";
-import { signOut } from "next-auth/react";
+} from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 
 type MenuItem = {
     name: string;
@@ -59,6 +59,16 @@ const menuItems: MenuSection[] = [
 
 export default function SidebarAdmin () {
     const pathname = usePathname();
+        const { data: session } = useSession();
+    
+        const userName = session?.user?.name ?? "ผู้ใช้";
+        const initials = userName
+            .split(" ")
+            .map((w) => w[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2)
+        ;
 
     return (
         <aside className = "sidebar">
@@ -120,10 +130,12 @@ export default function SidebarAdmin () {
 
              {/* User */}
              <div className="sidebar-user">
-                <div className="user-avatar">CD</div>
+                <div className="user-avatar">
+                    {initials}
+                </div>
 
                 <div className="user-info">
-                    <div className="user-name">Cool Dog</div>
+                    <div className="user-name">{userName}</div>
                     <div className="user-role">แอดมิน</div>
                 </div>
 

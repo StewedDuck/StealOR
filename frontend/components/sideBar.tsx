@@ -14,9 +14,13 @@ import {
     File,
     ShieldCheck,
     FileCheckCorner,
+    MessageCircleDashed,
  } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { getUserProfile } from "@/lib/torApi";
+
 
 type MenuItem = {
     name: string;
@@ -49,6 +53,11 @@ const contractorMenuItems: MenuSection[] = [
                 name: "TORs",
                 href: "/contractor/market",
                 icon: "Search",
+            },
+            {
+                name: "TORs ฉบับร่าง",
+                href: "/contractor/draft",
+                icon: "MessageCircleDashed",
             },
             {
                 name: "TORs ที่ตรงกัน",
@@ -128,6 +137,10 @@ function MenuIcon({
         return <Search size={20} />;
     }
 
+    if (icon === "MessageCircleDashed") {
+        return <MessageCircleDashed size={20} />;
+    }
+
     if (icon === "Bookmark") {
         return <Bookmark size={20} />;
     }
@@ -175,6 +188,16 @@ function MenuIcon({
 export default function Sidebar () {
     const pathname = usePathname();
     const router = useRouter();
+    const { data: session } = useSession();
+    const [displayName, setDisplayName] = useState("");
+    const userName = displayName || session?.user?.name || "ผู้ใช้";
+    const initials = userName
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    ;
 
     const isProjectOwner =
     pathname.startsWith("/project_own/create_TOR") ||
@@ -185,6 +208,22 @@ export default function Sidebar () {
     const menuItems = isProjectOwner
     ? projectOwnerMenuItems
     : contractorMenuItems;
+
+    useEffect(() => {
+        const email = session?.user?.email;
+      
+        if (!email) return;
+      
+        getUserProfile(email)
+          .then((profile) => {
+            setDisplayName(profile.name);
+          })
+          .catch((error) => {
+            console.error("Failed to load sidebar profile:", error);
+      
+            setDisplayName(session?.user?.name ?? "");
+          });
+    }, [session?.user?.email, session?.user?.name]);
 
     return (
         <aside className = "sidebar">
@@ -279,10 +318,10 @@ export default function Sidebar () {
 
              {/* User */}
              <div className="sidebar-user">
-                <div className="user-avatar">CD</div>
+                <div className="user-avatar">{initials}</div>
 
                 <div className="user-info">
-                    <div className="user-name">Cool Dog</div>
+                    <div className="user-name">{userName}</div>
                     <div className="user-role">
                         {isProjectOwner
                             ? "เจ้าของโครงการ"

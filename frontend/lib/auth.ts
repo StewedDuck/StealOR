@@ -8,9 +8,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     }),
   ],
+  callbacks: {
+    async signIn({ user }) {
+      try {
+        const response = await fetch (
+          `${process.env.INTERNAL_API_URL ?? "http://localhost:5000"}/api/users/sync`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              name: user.name,
+              email: user.email,
+              image: user.image,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          console.error("Failed to sync user with backend:", response.statusText);
+          return false;
+        }
+
+        return true;
+      } catch (error) {
+        console.error("User sync error:", error);
+        return false;
+      }
+    },
+  },
 });
 
-export type AccountRole = "contractor" | "admin";
+export type AccountRole = "contractor" | "project_owner" | "admin";
 
 export type AuthUser = {
   email: string;
