@@ -3,6 +3,14 @@ import type { MarketTor, MarketTorDetail, Tor, TorFormData } from "@/types/tor";
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
+export function getEgpAnnouncementUrl(projectId: string) {
+  return `https://process5.gprocurement.go.th/egp-agpc01-web/announcement?keywordSearch=${encodeURIComponent(projectId)}`;
+}
+
+export function getGovProjectDocumentDownloadUrl(projectId: string) {
+  return `${API_URL}/api/gov-projects/${encodeURIComponent(projectId)}/document/download`;
+}
+
 type ApiResponse<T> = { success: boolean; data: T; message?: string; error?: string };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

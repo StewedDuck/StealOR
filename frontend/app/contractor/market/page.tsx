@@ -9,6 +9,8 @@ import {
     getBookmarks,
     createBookmark,
     deleteBookmark,
+    getEgpAnnouncementUrl,
+    getGovProjectDocumentDownloadUrl,
 } from "@/lib/torApi";
 
 import type {
@@ -26,6 +28,7 @@ import{
     BellRing,
     CalendarDays,
     Bookmark,
+    Download,
     ExternalLink,
     Phone
 } from 'lucide-react'
@@ -809,13 +812,39 @@ export default function TorMarketPage() {
                             ติดต่อเจ้าของโครงการ
                         </button>
 
-                        <button
-                            type="button"
-                            className="market-action-button"
-                        >
-                            <ExternalLink size={15} />
-                            ไปยังหน้า TOR
-                        </button>
+                        {tor.source === "government" && tor.projectId && (
+                            <>
+                                <button
+                                    type="button"
+                                    className="market-action-button"
+                                    onClick={() =>
+                                        window.open(
+                                            getEgpAnnouncementUrl(tor.projectId!),
+                                            "_blank",
+                                            "noopener,noreferrer"
+                                        )
+                                    }
+                                >
+                                    <ExternalLink size={15} />
+                                    ไปยังหน้า TOR
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="market-action-button"
+                                    onClick={() =>
+                                        window.location.assign(
+                                            getGovProjectDocumentDownloadUrl(
+                                                tor.projectId!
+                                            )
+                                        )
+                                    }
+                                >
+                                    <Download size={15} />
+                                    ดาวน์โหลดเอกสาร
+                                </button>
+                            </>
+                        )}
 
                     </div>
                 </article>
