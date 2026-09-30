@@ -8,6 +8,10 @@ import {
     getComments,
     createComment,
     deleteComment,
+    getBookmarks,
+    createInternalBookmark,
+    deleteInternalBookmark,
+    getUserProfile,
 } from "@/lib/torApi";
 import type { Tor } from "@/types/tor";
 import {
@@ -15,6 +19,8 @@ import {
     Search,
     TriangleAlert,
     X,
+    BellRing,
+    Bookmark,
 } from "lucide-react";
 import "./draft.css";
 import TorDetailModal from "@/components/TORDetail";
@@ -58,9 +64,33 @@ export default function ContractorDraftTOR() {
     const [reviews, setReviews] = useState<Comment[]>([]);
     const [reviewLoading, setReviewLoading] = useState(false);
     const [reviewError, setReviewError] = useState("");
+    const [savedTorIds, setSavedTorIds] = useState<string[]>([]);
+    const [bookmarkLoading, setBookmarkLoading] = useState<string | null>(null);
 
     const { data: session } = useSession();
     const { showToast } = useToast();
+
+    useEffect(() => {
+        const userId = session?.user?.email;
+    
+        if (!userId) return;
+    
+        getBookmarks(userId)
+            .then((bookmarks) => {
+                setSavedTorIds(
+                    bookmarks
+                        .filter(
+                            (bookmark) =>
+                                bookmark.source === "internal" &&
+                                bookmark.torId
+                        )
+                        .map((bookmark) => bookmark.torId!)
+                );
+            })
+            .catch((err) => {
+                console.error("Load draft bookmarks error:", err);
+            });
+    }, [session?.user?.email]);
 
     useEffect(() => {
         getDraftTors()
@@ -98,19 +128,110 @@ export default function ContractorDraftTOR() {
         );
     }, [query, tors]);
 
+    async function handleBookmark(tor: Tor) {
+        const userId = session?.user?.email;
+    
+        if (!userId) {
+            showToast("กรุณาเข้าสู่ระบบก่อนบันทึก TOR", "error");
+            return;
+        }
+    
+        const isSaved = savedTorIds.includes(tor._id);
+    
+        try {
+            setBookmarkLoading(tor._id);
+    
+            if (isSaved) {
+                await deleteInternalBookmark(
+                    userId,
+                    tor._id
+                );
+    
+                setSavedTorIds((prev) =>
+                    prev.filter((id) => id !== tor._id)
+                );
+    
+                showToast("ยกเลิกการบันทึก TOR แล้ว");
+            } else {
+                await createInternalBookmark(
+                    userId,
+                    tor._id
+                );
+    
+                setSavedTorIds((prev) => [
+                    ...prev,
+                    tor._id,
+                ]);
+    
+                showToast("บันทึก TOR แล้ว");
+            }
+        } catch (err) {
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : "บันทึก TOR ไม่สำเร็จ";
+    
+            showToast(message, "error");
+        } finally {
+            setBookmarkLoading(null);
+        }
+    }
+
+    const [displayName, setDisplayName] = useState("");
+    
+    useEffect(() => {
+        const email = session?.user?.email;
+      
+        if (!email) return;
+      
+        getUserProfile(email)
+            .then((profile) => {
+                setDisplayName(profile.name);
+            })
+            .catch((error) => {
+                console.error(
+                    "Failed to load dashboard profile:",
+                    error
+                );
+      
+                  setDisplayName(session?.user?.name ?? "");
+            }
+        );
+    }, [session?.user?.email, session?.user?.name]);
+      
+    const userName = displayName || session?.user?.name || "ผู้ใช้";
+    
+    const initials = userName
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    ;
+
     return (
         <div className="draft_layout">
             <Sidebar />
 
-            <main className="draft-main-header">
+            <main className="draft-main">
                 <header className="draft-header">
                     <div className="draft-header-content">
                         <h1>TOR ฉบับร่าง</h1>
                         <p>อ่านและติดตาม TOR ที่เจ้าของโครงการกำลังจัดทำ ก่อนเปิดรับสมัครจริง</p>
                     </div>
+
+                    <div className="profile-header-actions">
+                        <button className="notification-button">
+                        <BellRing size={16}/>
+                        </button>
+
+                        <div className="profile-circle">
+                            {initials}
+                        </div>
+                    </div>
                 </header>
 
-                <header className="draft-main">
+                <div className="draft-content">
 
                     <div className="draft-banner">
                         <TriangleAlert size={18} />
@@ -225,6 +346,28 @@ export default function ContractorDraftTOR() {
 
                                         <button
                                             type="button"
+                                            className="draft-action-button"
+                                            onClick={() => handleBookmark(tor)}
+                                            disabled={bookmarkLoading === tor._id}
+                                        >
+                                            <Bookmark
+                                                size={15}
+                                                fill={
+                                                    savedTorIds.includes(tor._id)
+                                                        ? "currentColor"
+                                                        : "none"
+                                                }
+                                            />
+
+                                            {bookmarkLoading === tor._id
+                                                ? "กำลังบันทึก..."
+                                                : savedTorIds.includes(tor._id)
+                                                ? "บันทึกแล้ว"
+                                                : "บันทึก"}
+                                        </button>
+
+                                        <button
+                                            type="button"
                                             onClick={() => setReviewTor(tor)}
                                         >
                                             รีวิว
@@ -236,7 +379,7 @@ export default function ContractorDraftTOR() {
                             ))}
                         </div>
                     )}
-                </header>
+                </div>
             </main>
 
             {activeTor && (

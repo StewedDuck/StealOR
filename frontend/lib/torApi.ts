@@ -118,6 +118,22 @@ export async function createBookmark(
   });
 }
 
+export async function createInternalBookmark(
+  userId: string,
+  torId: string
+) {
+  return request("/api/bookmarks", {
+    method: "POST",
+    body: JSON.stringify({
+      userId,
+      source: "internal",
+      torId,
+      savedFrom: "market",
+      match: null,
+    }),
+  });
+}
+
 export async function getBookmarks(
   userId: string
 ): Promise<SavedTor[]> {
@@ -134,6 +150,18 @@ export async function deleteBookmark(
     `/api/bookmarks/${encodeURIComponent(
       userId
     )}/${encodeURIComponent(projectId)}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+export async function deleteInternalBookmark(
+  userId: string,
+  torId: string
+) {
+  return request<{ torId: string }>(
+    `/api/bookmarks/internal/${encodeURIComponent(userId)}/${encodeURIComponent(torId)}`,
     {
       method: "DELETE",
     }
@@ -186,4 +214,60 @@ export async function deleteComment(
         body: JSON.stringify({ userId }),
       }
     );
+}
+
+export type UserProfile = {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+
+  phone: string;
+  company: string;
+  profileSummary: string;
+  experienceYears: number;
+  experienceSummary: string;
+  skills: string[];
+
+  accountRole:
+    | "contractor"
+    | "project_owner"
+    | "admin";
+
+  verificationStatus:
+    | "not_required"
+    | "pending"
+    | "approved"
+    | "rejected";
+};
+
+export async function getUserProfile(
+  email: string
+): Promise<UserProfile> {
+  return request<UserProfile>(
+    `/api/users/profile/${encodeURIComponent(email)}`
+  );
+}
+
+export type UpdateUserProfileData = {
+  name: string;
+  phone: string;
+  company: string;
+  profileSummary: string;
+  experienceYears: number;
+  experienceSummary: string;
+  skills: string[];
+};
+
+export async function updateUserProfile(
+  email: string,
+  data: UpdateUserProfileData
+): Promise<UserProfile> {
+  return request<UserProfile>(
+    `/api/users/profile/${encodeURIComponent(email)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }
+  );
 }

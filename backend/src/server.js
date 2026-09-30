@@ -9,6 +9,7 @@ const bookmarkRoutes = require("./routes/bookmarkRoutes");
 const govSpendingRoutes = require("./routes/govSpendingRoutes");
 const govProjectRoutes = require("./routes/govProjectRoutes");
 const commentRoutes = require("./routes/commentRoutes");
+const userRoutes = require("./routes/userRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,7 +24,26 @@ app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/govspending", govSpendingRoutes);
 app.use("/api/gov-projects", govProjectRoutes);
 app.use("/api/comments", commentRoutes);
+app.use("/api/users", userRoutes);
 
+const { checkDeadlineReminders, } = require("./services/notifications/deadlineReminderService");
+app.post("/api/test/deadline-reminders", async (req, res) => {
+  try {
+    await checkDeadlineReminders();
+
+    return res.json({
+      success: true,
+      message: "Deadline reminder check completed",
+    });
+  } catch (error) {
+    console.error("Deadline reminder test error:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
 // Health check
 app.get("/health", (req, res) => {
   res.json({

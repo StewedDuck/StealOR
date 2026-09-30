@@ -289,10 +289,42 @@ async function deleteBookmark(req, res) {
         });
     }
 }
+
+async function deleteInternalBookmark(req, res) {
+    try {
+        const { userId, torId } = req.params;
+
+        const bookmark = await Bookmark.findOneAndDelete({
+            userId,
+            source: "internal",
+            torId,
+        });
+
+        if (!bookmark) {
+            return res.status(404).json({
+                success: false,
+                error: "Bookmark not found",
+            });
+        }
+
+        return res.json({
+            success: true,
+            data: { torId },
+        });
+    } catch (error) {
+        console.error("Delete internal bookmark error:", error);
+
+        return res.status(500).json({
+            success: false,
+            error: "Failed to delete bookmark",
+        });
+    }
+}
   
   
 module.exports = {
     createBookmark,
     getBookmarks,
     deleteBookmark,
+    deleteInternalBookmark,
 };

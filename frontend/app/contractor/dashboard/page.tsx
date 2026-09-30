@@ -12,9 +12,10 @@ import "./dashboard.css";
 import SummaryCard from "@/components/SummaryCard";
 import MatchRateTrend from "@/components/MatchRateTrend";
 import QualificationGapChart from "@/components/QualificationGapChart";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import TorDetailModal from "@/components/TorDetailModal";
 import { useSession } from "next-auth/react";
+import { getUserProfile } from "@/lib/torApi";
 
 type Tor = {
     title: string;
@@ -35,7 +36,32 @@ export default function DashboardPage() {
     const [selectedTor, setSelectedTor] = useState<Tor | null>(null);
     const { data: session } = useSession();
 
-    const userName = session?.user?.name ?? "ผู้ใช้";
+    const [displayName, setDisplayName] = useState("");
+
+    useEffect(() => {
+        const email = session?.user?.email;
+    
+        if (!email) return;
+    
+        getUserProfile(email)
+            .then((profile) => {
+                setDisplayName(profile.name);
+            })
+            .catch((error) => {
+                console.error(
+                    "Failed to load dashboard profile:",
+                    error
+                );
+    
+                setDisplayName(session?.user?.name ?? "");
+            });
+    }, [session?.user?.email, session?.user?.name]);
+
+    const userName =
+        displayName ||
+        session?.user?.name ||
+        "ผู้ใช้";
+
     const initials = userName
         .split(" ")
         .map((w) => w[0])
@@ -50,14 +76,12 @@ export default function DashboardPage() {
                 <Sidebar />
 
                 <main className='dashboard-main-header'>
-
                     {/* Header */}
                     <header className='dashboard-header'>
                         <div>
                             <h1>
                                 แดชบอร์ด
                             </h1>
-
                             <p>
                                 ภาพรวมกิจกรรมของ TOR ที่ตรงกับคุณสมบัติของคุณ
                             </p>
