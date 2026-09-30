@@ -1,8 +1,12 @@
 const express = require("express");
-const { enrichProject } = require("../controllers/govProjectController");
+const {
+  enrichProject,
+  importEnrichedProjects,
+} = require("../controllers/govProjectController");
 
 const router = express.Router();
 
+router.post("/import-enriched", importEnrichedProjects);
 router.post("/:projectId/enrich", enrichProject);
 
 module.exports = router;

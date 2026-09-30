@@ -68,9 +68,22 @@ async function enrichProject(req, res) {
     const statusCode = Number(error.statusCode) || 500;
     if (project) {
       try {
+        const document = error.documentMetadata || {};
         project.documentExtraction.status = "failed";
         project.documentExtraction.error = errorMessage(error);
         project.documentExtraction.extractedAt = null;
+        project.documentExtraction.source = document.source || "egp";
+        project.documentExtraction.sourceDocumentType =
+          document.sourceDocumentType || "price_estimate";
+        project.documentExtraction.sourceDocument =
+          document.sourceDocument || null;
+        project.documentExtraction.sourceFileId = document.sourceFileId || null;
+        project.documentExtraction.sourceSha256 = document.sourceSha256 || null;
+        project.documentExtraction.pdfFileNames = document.pdfFileNames || [];
+        project.documentExtraction.textLength = Number(
+          document.textLength || 0
+        );
+        project.documentExtraction.extractedText = "";
         await project.save();
       } catch (saveError) {
         console.error("Unable to save document extraction failure:", saveError);
@@ -84,9 +97,9 @@ async function enrichProject(req, res) {
   }
 }
 
-async function importEnrichedProjects(_req, res) {
+async function importEnrichedProjects(req, res) {
   try {
-    const projects = await getLocalFilteredProjects();
+    const projects = await getLocalFilteredProjects({ limit: req.body?.limit });
     const summary = await enrichAndSaveProjects(projects);
 
     return res.status(200).json({

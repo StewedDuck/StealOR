@@ -28,13 +28,21 @@ function validateFileId(fileId) {
   return normalized;
 }
 
-async function request(url, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+async function request(
+  url,
+  {
+    fetchImpl = fetch,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    headers = {},
+  } = {}
+) {
   let response;
   try {
     response = await fetchImpl(url, {
       headers: {
         Accept: "application/json, application/zip, application/octet-stream",
         "User-Agent": "StealOR/1.0 document enrichment",
+        ...headers,
       },
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -48,31 +56,84 @@ async function request(url, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS 
   return response;
 }
 
-async function getPriceEstimateMetadata(projectId, options = {}) {
-  const safeProjectId = validateProjectId(projectId);
+async function readMetadataJson(response, sourceName) {
+  try {
+    return await response.json();
+  } catch (error) {
+    throw new EgpServiceError(
+      `e-GP returned invalid ${sourceName} metadata JSON: ${error.message}`
+    );
+  }
+}
+
+async function getPrimaryPriceEstimateMetadata(projectId, options) {
   const url = new URL(
     "/egp-doc-price-estimate-service/dpe-common/infoDocPriceestZipHis",
     EGP_BASE_URL
   );
-  url.searchParams.set("projectId", safeProjectId);
+  url.searchParams.set("projectId", projectId);
 
   const response = await request(url, options);
-  let payload;
-  try {
-    payload = await response.json();
-  } catch (error) {
-    throw new EgpServiceError(`e-GP returned invalid metadata JSON: ${error.message}`);
-  }
+  const payload = await readMetadataJson(response, "primary");
 
   if (payload?.response?.responseCode !== "0" || !payload?.data?.zipFileId) {
-    throw new EgpServiceError("No price estimate document found", 422);
+    return null;
   }
 
   return {
-    projectId: safeProjectId,
+    projectId,
     fileId: validateFileId(payload.data.zipFileId),
-    fileName: String(payload.data.zipFileName || `${safeProjectId}.zip`),
+    fileName: String(payload.data.zipFileName || `${projectId}.zip`),
   };
+}
+
+async function getFallbackPriceEstimateMetadata(projectId, options) {
+  const apiKey = String(
+    options.projectServiceApiKey || process.env.EGP_PROJECT_SERVICE_API_KEY || ""
+  ).trim();
+  if (!apiKey) {
+    throw new EgpServiceError(
+      "EGP_PROJECT_SERVICE_API_KEY is required for fallback document lookup",
+      500
+    );
+  }
+
+  const url = new URL(
+    "/egp-project-service/listProjectPriceBuildZipByProjectId",
+    EGP_BASE_URL
+  );
+  url.searchParams.set("projectId", projectId);
+
+  // This is the second lookup used by the public e-GP announcement website.
+  const response = await request(url, {
+    ...options,
+    headers: { ...options.headers, apikey: apiKey },
+  });
+  const payload = await readMetadataJson(response, "fallback");
+  const records = Array.isArray(payload?.data) ? payload.data : [];
+  // Match the website behavior by preferring the last usable archive returned.
+  const record = [...records].reverse().find((item) => item?.zipFileId);
+  if (payload?.response?.responseCode !== "0" || !record) return null;
+
+  return {
+    projectId,
+    fileId: validateFileId(record.zipFileId),
+    fileName: String(
+      record.priceBuildName || record.zipFileName || `${projectId}.zip`
+    ),
+  };
+}
+
+async function getPriceEstimateMetadata(projectId, options = {}) {
+  const safeProjectId = validateProjectId(projectId);
+
+  const primary = await getPrimaryPriceEstimateMetadata(safeProjectId, options);
+  if (primary) return primary;
+
+  const fallback = await getFallbackPriceEstimateMetadata(safeProjectId, options);
+  if (fallback) return fallback;
+
+  throw new EgpServiceError("No price estimate document found", 422);
 }
 
 async function readLimitedBody(response, maxBytes) {

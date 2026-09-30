@@ -13,10 +13,11 @@ const MAX_TOTAL_PDF_BYTES = 100 * 1024 * 1024;
 const MAX_EXTRACTED_TEXT_CHARS = 2_000_000;
 
 class DocumentExtractionError extends Error {
-  constructor(message, statusCode = 422) {
+  constructor(message, statusCode = 422, details = {}) {
     super(message);
     this.name = "DocumentExtractionError";
     this.statusCode = statusCode;
+    this.details = details;
   }
 }
 
@@ -77,7 +78,9 @@ async function extractPdfTextFromZip(zipBuffer, { parsePdf = pdfParse } = {}) {
   const extractedText = textParts.join("\n\n").trim();
   if (extractedText.length < 40) {
     throw new DocumentExtractionError(
-      "PDF contains no extractable text; OCR is not implemented yet"
+      "PDF contains no extractable text; OCR is not implemented yet",
+      422,
+      { pdfFileNames, textLength: extractedText.length }
     );
   }
   if (extractedText.length > MAX_EXTRACTED_TEXT_CHARS) {
@@ -90,16 +93,44 @@ async function extractPdfTextFromZip(zipBuffer, { parsePdf = pdfParse } = {}) {
 async function getPriceEstimateDocument(projectId, dependencies = {}) {
   const safeProjectId = validateProjectId(projectId);
   const metadata = await getPriceEstimateMetadata(safeProjectId, dependencies);
-  const zipBuffer = await downloadZip(metadata.fileId, dependencies);
-  const extraction = await extractPdfTextFromZip(zipBuffer, dependencies);
-
-  return {
+  const documentMetadata = {
     projectId: safeProjectId,
     source: "egp",
     sourceDocumentType: "price_estimate",
     sourceDocument: metadata.fileName,
     sourceFileId: metadata.fileId,
-    sourceSha256: crypto.createHash("sha256").update(zipBuffer).digest("hex"),
+    sourceSha256: null,
+    pdfFileNames: [],
+    textLength: 0,
+  };
+
+  let zipBuffer;
+  try {
+    zipBuffer = await downloadZip(metadata.fileId, dependencies);
+  } catch (error) {
+    error.documentMetadata = documentMetadata;
+    throw error;
+  }
+
+  documentMetadata.sourceSha256 = crypto
+    .createHash("sha256")
+    .update(zipBuffer)
+    .digest("hex");
+
+  let extraction;
+  try {
+    extraction = await extractPdfTextFromZip(zipBuffer, dependencies);
+  } catch (error) {
+    error.documentMetadata = {
+      ...documentMetadata,
+      pdfFileNames: error.details?.pdfFileNames || [],
+      textLength: Number(error.details?.textLength || 0),
+    };
+    throw error;
+  }
+
+  return {
+    ...documentMetadata,
     ...extraction,
   };
 }

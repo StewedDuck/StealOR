@@ -126,19 +126,21 @@ async function enrichAndSaveProjects(projects, dependencies = {}) {
       };
       succeeded += 1;
     } catch (error) {
+      const document = error.documentMetadata || {};
       documentExtraction = {
         status: "failed",
         attemptCount: 1,
         lastAttemptAt,
         extractedAt: null,
         error: errorMessage(error),
-        source: "egp",
-        sourceDocumentType: "price_estimate",
-        sourceDocument: null,
-        sourceFileId: null,
-        sourceSha256: null,
-        pdfFileNames: [],
-        textLength: 0,
+        source: document.source || "egp",
+        sourceDocumentType:
+          document.sourceDocumentType || "price_estimate",
+        sourceDocument: document.sourceDocument || null,
+        sourceFileId: document.sourceFileId || null,
+        sourceSha256: document.sourceSha256 || null,
+        pdfFileNames: document.pdfFileNames || [],
+        textLength: Number(document.textLength || 0),
         extractedText: "",
       };
       failed += 1;

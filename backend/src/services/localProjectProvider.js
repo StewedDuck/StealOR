@@ -17,7 +17,9 @@ function normalizeProject(rawProject) {
   };
 }
 
-async function getLocalFilteredProjects({ dataFile = DEFAULT_DATA_FILE } = {}) {
+async function getLocalFilteredProjects(
+  { dataFile = DEFAULT_DATA_FILE, limit } = {}
+) {
   const contents = await fs.readFile(dataFile, "utf8");
   const payload = JSON.parse(contents);
 
@@ -27,7 +29,7 @@ async function getLocalFilteredProjects({ dataFile = DEFAULT_DATA_FILE } = {}) {
     );
   }
 
-  return payload.matchedProjects.map((match, index) => {
+  const projects = payload.matchedProjects.map((match, index) => {
     if (!match?.raw_data || typeof match.raw_data !== "object") {
       throw new TypeError(
         `matchedProjects[${index}] must contain a raw_data object`
@@ -36,6 +38,13 @@ async function getLocalFilteredProjects({ dataFile = DEFAULT_DATA_FILE } = {}) {
 
     return normalizeProject(match.raw_data);
   });
+
+  if (limit === undefined) return projects;
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new TypeError("limit must be a positive integer");
+  }
+
+  return projects.slice(0, limit);
 }
 
 module.exports = {
