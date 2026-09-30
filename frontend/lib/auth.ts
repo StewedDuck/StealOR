@@ -12,7 +12,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ user }) {
       try {
         const response = await fetch (
-          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000"}/api/users/sync`,
+          `${process.env.INTERNAL_API_URL ?? "http://localhost:5000"}/api/users/sync`,
           {
             method: "POST",
             headers: {

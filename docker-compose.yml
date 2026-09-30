@@ -59,6 +59,7 @@ services:
       # NEXTAUTH_URL must match the URL the browser uses to reach the app.
       # For local Docker development this is always http://localhost:3000.
       - NEXTAUTH_URL=http://localhost:3000
+      - INTERNAL_API_URL=http://backend:5000
     volumes:
       # Bind-mount source code so edits are reflected without rebuild
       - ./frontend:/app
