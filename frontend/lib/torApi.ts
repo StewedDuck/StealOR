@@ -8,7 +8,33 @@ export function getEgpAnnouncementUrl(projectId: string) {
 }
 
 export function getGovProjectDocumentDownloadUrl(projectId: string) {
-  return `${API_URL}/api/gov-projects/${encodeURIComponent(projectId)}/document/download`;
+  return getGovProjectDocumentCategoryDownloadUrl(projectId, "price-estimate");
+}
+
+export type GovProjectDocumentCategory =
+  | "price-estimate"
+  | "invitation"
+  | "draft-ebidding";
+
+export function getGovProjectDocumentCategoryDownloadUrl(
+  projectId: string,
+  category: GovProjectDocumentCategory
+) {
+  const encodedProjectId = encodeURIComponent(projectId);
+  // The browser always downloads through our backend; it never relies on a
+  // stored e-GP URL, which may become stale when upstream file IDs change.
+  if (category === "price-estimate") {
+    return `${API_URL}/api/gov-projects/${encodedProjectId}/document/download`;
+  }
+  return `${API_URL}/api/gov-projects/${encodedProjectId}/documents/${category}/download`;
+}
+
+export function getGovProjectInvitationDownloadUrl(projectId: string) {
+  return getGovProjectDocumentCategoryDownloadUrl(projectId, "invitation");
+}
+
+export function getGovProjectDraftEbiddingDownloadUrl(projectId: string) {
+  return getGovProjectDocumentCategoryDownloadUrl(projectId, "draft-ebidding");
 }
 
 type ApiResponse<T> = { success: boolean; data: T; message?: string; error?: string };

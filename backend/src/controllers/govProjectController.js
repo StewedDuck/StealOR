@@ -1,5 +1,7 @@
 const GovProject = require("../models/GovProject");
 const {
+  getDraftEbiddingArchive,
+  getInvitationArchive,
   getPriceEstimateArchive,
   getPriceEstimateDocument,
   validateProjectId,
@@ -116,7 +118,7 @@ async function importEnrichedProjects(req, res) {
   }
 }
 
-function safeDownloadName(fileName, projectId) {
+function safeDownloadName(fileName, projectId, fallbackPrefix = "price-estimate") {
   const normalized = String(fileName || "")
     .replace(/\\/g, "/")
     .split("/")
@@ -124,10 +126,59 @@ function safeDownloadName(fileName, projectId) {
     .replace(/[^A-Za-z0-9._-]/g, "_");
   return normalized.toLowerCase().endsWith(".zip")
     ? normalized
-    : `price-estimate-${projectId}.zip`;
+    : `${fallbackPrefix}-${projectId}.zip`;
 }
 
-async function downloadOriginalDocument(req, res) {
+function newDocumentMetadata(project, key) {
+  const metadata = project.documents?.[key];
+  if (metadata?.status !== "available") return {};
+  return {
+    fileId: metadata.fileId || null,
+    fileName: metadata.fileName || null,
+    downloadMethod: metadata.downloadMethod || null,
+    revision: metadata.revision ?? null,
+    version: metadata.version ?? null,
+  };
+}
+
+function storedPriceEstimateMetadata(project) {
+  const current = newDocumentMetadata(project, "priceEstimate");
+  if (current.fileId || current.downloadMethod === "legacy_filename") {
+    return current;
+  }
+
+  const extraction = project.documentExtraction || {};
+  return {
+    fileId: extraction.sourceFileId || null,
+    fileName: extraction.sourceDocument || null,
+    downloadMethod: extraction.sourceFileId
+      ? "file_id"
+      : String(extraction.sourceDocument || "").startsWith("pricebuild_")
+        ? "legacy_filename"
+        : null,
+  };
+}
+
+function sendZipArchive(res, archive, projectId, fallbackPrefix) {
+  const fileName = safeDownloadName(
+    archive.fileName,
+    projectId,
+    fallbackPrefix
+  );
+  res.set({
+    "Content-Type": "application/zip",
+    "Content-Disposition": `attachment; filename="${fileName}"`,
+    "Content-Length": String(archive.zipBuffer.length),
+    "Cache-Control": "private, no-store",
+  });
+  return res.send(archive.zipBuffer);
+}
+
+async function downloadProjectArchive(
+  req,
+  res,
+  { getArchive, getKnownMetadata, fallbackPrefix }
+) {
   try {
     const projectId = validateProjectId(req.params.projectId);
     const project = await GovProject.findOne({ project_id: projectId });
@@ -135,21 +186,10 @@ async function downloadOriginalDocument(req, res) {
       return res.status(404).json({ success: false, error: "Project not found" });
     }
 
-    const extraction = project.documentExtraction || {};
-    const archive = await getPriceEstimateArchive(projectId, {
-      fileId: extraction.sourceFileId,
-      fileName: extraction.sourceDocument,
-    });
-    const fileName = safeDownloadName(archive.fileName, projectId);
-
-    // These headers make the frontend/browser download the response as a ZIP file.
-    res.set({
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${fileName}"`,
-      "Content-Length": String(archive.zipBuffer.length),
-      "Cache-Control": "private, no-store",
-    });
-    return res.send(archive.zipBuffer);
+    // Stored metadata is only a cached locator. The document service may
+    // rediscover it from projectId when e-GP reports that it has gone stale.
+    const archive = await getArchive(projectId, getKnownMetadata(project));
+    return sendZipArchive(res, archive, projectId, fallbackPrefix);
   } catch (error) {
     const statusCode = Number(error.statusCode) || 500;
     if (statusCode >= 500) {
@@ -162,7 +202,33 @@ async function downloadOriginalDocument(req, res) {
   }
 }
 
+function downloadOriginalDocument(req, res) {
+  return downloadProjectArchive(req, res, {
+    getArchive: getPriceEstimateArchive,
+    getKnownMetadata: storedPriceEstimateMetadata,
+    fallbackPrefix: "price-estimate",
+  });
+}
+
+function downloadInvitationDocument(req, res) {
+  return downloadProjectArchive(req, res, {
+    getArchive: getInvitationArchive,
+    getKnownMetadata: (project) => newDocumentMetadata(project, "invitation"),
+    fallbackPrefix: "invitation",
+  });
+}
+
+function downloadDraftEbiddingDocument(req, res) {
+  return downloadProjectArchive(req, res, {
+    getArchive: getDraftEbiddingArchive,
+    getKnownMetadata: (project) => newDocumentMetadata(project, "draftEbidding"),
+    fallbackPrefix: "draft-ebidding",
+  });
+}
+
 module.exports = {
+  downloadDraftEbiddingDocument,
+  downloadInvitationDocument,
   downloadOriginalDocument,
   enrichProject,
   importEnrichedProjects,

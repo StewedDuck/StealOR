@@ -258,6 +258,33 @@ test("stored file ID access denial does not attempt rediscovery", async () => {
   assert.equal(discoveryCount, 0);
 });
 
+test("stored legacy Price Estimate filename is reused without discovery", async () => {
+  const calls = [];
+  const egpAdapter = {
+    async discoverPriceEstimate() {
+      throw new Error("discovery should not run");
+    },
+    async downloadDocument(metadata) {
+      calls.push(metadata);
+      return ZIP_WITH_ONE_PDF;
+    },
+  };
+
+  await getPriceEstimateArchive(
+    "65117172803",
+    {
+      fileId: null,
+      fileName: "pricebuild_310000110000034_65117172803.zip",
+      downloadMethod: "legacy_filename",
+    },
+    { egpAdapter }
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].downloadMethod, "legacy_filename");
+  assert.equal(calls[0].fileId, null);
+});
+
 test("invitation metadata discovery is delegated to the e-GP adapter", async () => {
   const egpAdapter = {
     async discoverInvitation(projectId) {
@@ -340,6 +367,45 @@ test("invitation archive reports not found when only announcement PDF exists", a
       return true;
     }
   );
+});
+
+test("stored Invitation file ID is rediscovered once when stale", async () => {
+  const calls = [];
+  const staleError = Object.assign(new Error("stale Invitation ID"), {
+    upstreamStatus: 404,
+  });
+  const egpAdapter = {
+    shouldRediscoverAfterDownloadError(error) {
+      return error.upstreamStatus === 404;
+    },
+    async discoverInvitation(projectId) {
+      calls.push(["discover", projectId]);
+      return {
+        projectId,
+        status: "available",
+        fileId: "fresh-invitation-id",
+        fileName: "fresh-invitation.zip",
+      };
+    },
+    async downloadDocument(metadata) {
+      calls.push(["download", metadata.fileId]);
+      if (metadata.fileId === "stale-invitation-id") throw staleError;
+      return ZIP_WITH_ONE_PDF;
+    },
+  };
+
+  const result = await getInvitationArchive(
+    "68059426756",
+    { fileId: "stale-invitation-id", fileName: "stale.zip" },
+    { egpAdapter }
+  );
+
+  assert.deepEqual(calls, [
+    ["download", "stale-invitation-id"],
+    ["discover", "68059426756"],
+    ["download", "fresh-invitation-id"],
+  ]);
+  assert.equal(result.fileId, "fresh-invitation-id");
 });
 
 test("draft e-bidding metadata discovery is delegated to the e-GP adapter", async () => {
@@ -427,6 +493,44 @@ test("draft e-bidding archive refuses an ambiguous selection", async () => {
     }
   );
   assert.equal(downloadCalled, false);
+});
+
+test("stale Draft file ID rediscovery still refuses an ambiguous result", async () => {
+  let downloadCount = 0;
+  const staleError = Object.assign(new Error("stale Draft ID"), {
+    upstreamStatus: 404,
+  });
+  const egpAdapter = {
+    shouldRediscoverAfterDownloadError() {
+      return true;
+    },
+    async discoverDraftEbidding(projectId) {
+      return {
+        projectId,
+        status: "ambiguous",
+        candidateCount: 2,
+        ambiguityReason: "conflicting_latest_revision",
+      };
+    },
+    async downloadDocument() {
+      downloadCount += 1;
+      throw staleError;
+    },
+  };
+
+  await assert.rejects(
+    () =>
+      getDraftEbiddingArchive(
+        "68059426756",
+        { fileId: "stale-draft-id", fileName: "stale-draft.zip" },
+        { egpAdapter }
+      ),
+    (error) => {
+      assert.equal(error.code, "EGP_DRAFT_EBIDDING_AMBIGUOUS");
+      return true;
+    }
+  );
+  assert.equal(downloadCount, 1);
 });
 
 test("project document discovery checks every category after an earlier failure", async () => {

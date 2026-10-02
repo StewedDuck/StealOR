@@ -255,14 +255,21 @@ async function getPriceEstimateArchive(
 ) {
   const safeProjectId = validateProjectId(projectId);
   const adapter = getAdapter(dependencies);
-  const hasStoredFileId = Boolean(knownMetadata.fileId);
+  const hasStoredReference = Boolean(
+    knownMetadata.fileId ||
+      (knownMetadata.downloadMethod === "legacy_filename" && knownMetadata.fileName)
+  );
 
-  // Reuse MongoDB metadata when available; otherwise ask e-GP for the file ID.
-  let metadata = hasStoredFileId
+  // Reuse either the new MongoDB reference or a migrated legacy filename.
+  // The adapter still owns the distinction between both download mechanisms.
+  let metadata = hasStoredReference
     ? {
         projectId: safeProjectId,
-        fileId: knownMetadata.fileId,
+        fileId: knownMetadata.fileId || null,
         fileName: knownMetadata.fileName || `${safeProjectId}.zip`,
+        downloadMethod:
+          knownMetadata.downloadMethod ||
+          (knownMetadata.fileId ? "file_id" : "legacy_filename"),
       }
     : await adapter.discoverPriceEstimate(safeProjectId, dependencies);
 
@@ -272,7 +279,7 @@ async function getPriceEstimateArchive(
     zipBuffer = await downloadPriceEstimateArchive(metadata, dependencies);
   } catch (error) {
     const shouldRediscover =
-      hasStoredFileId &&
+      hasStoredReference &&
       adapter.shouldRediscoverAfterDownloadError?.(error) === true;
     if (!shouldRediscover) throw error;
 
@@ -297,6 +304,18 @@ async function getInvitationMetadata(projectId, dependencies = {}) {
   );
 }
 
+function requireInvitationArchiveMetadata(metadata) {
+  if (metadata.status === "available" && metadata.fileId) return metadata;
+  throw new EgpServiceError(
+    "No invitation bidding-document ZIP found",
+    422,
+    {
+      code: "EGP_INVITATION_NOT_FOUND",
+      kind: ERROR_KIND.NOT_FOUND,
+    }
+  );
+}
+
 async function getInvitationArchive(
   projectId,
   knownMetadata = {},
@@ -304,7 +323,8 @@ async function getInvitationArchive(
 ) {
   const safeProjectId = validateProjectId(projectId);
   const adapter = getAdapter(dependencies);
-  const metadata = knownMetadata.fileId
+  const hasStoredFileId = Boolean(knownMetadata.fileId);
+  let metadata = hasStoredFileId
     ? {
         projectId: safeProjectId,
         category: DOCUMENT_CATEGORY.INVITATION,
@@ -315,20 +335,22 @@ async function getInvitationArchive(
       }
     : await adapter.discoverInvitation(safeProjectId, dependencies);
 
-  if (metadata.status !== "available" || !metadata.fileId) {
-    throw new EgpServiceError(
-      "No invitation bidding-document ZIP found",
-      422,
-      {
-        code: "EGP_INVITATION_NOT_FOUND",
-        kind: ERROR_KIND.NOT_FOUND,
-      }
-    );
-  }
+  requireInvitationArchiveMetadata(metadata);
 
   // This downloads the bidding-document archive only. The announcement PDF
   // template reference is metadata and is intentionally not used here.
-  const zipBuffer = await adapter.downloadDocument(metadata, dependencies);
+  let zipBuffer;
+  try {
+    zipBuffer = await adapter.downloadDocument(metadata, dependencies);
+  } catch (error) {
+    const shouldRediscover =
+      hasStoredFileId &&
+      adapter.shouldRediscoverAfterDownloadError?.(error) === true;
+    if (!shouldRediscover) throw error;
+    metadata = await adapter.discoverInvitation(safeProjectId, dependencies);
+    requireInvitationArchiveMetadata(metadata);
+    zipBuffer = await adapter.downloadDocument(metadata, dependencies);
+  }
   return {
     projectId: safeProjectId,
     fileId: metadata.fileId,
@@ -345,6 +367,29 @@ async function getDraftEbiddingMetadata(projectId, dependencies = {}) {
   );
 }
 
+function requireDraftArchiveMetadata(metadata) {
+  if (metadata.status === "available" && metadata.fileId) return metadata;
+  const ambiguous = metadata.status === "ambiguous";
+  throw new EgpServiceError(
+    ambiguous
+      ? "Draft e-Bidding ZIP selection is ambiguous"
+      : "No Draft e-Bidding ZIP found",
+    422,
+    {
+      code: ambiguous
+        ? "EGP_DRAFT_EBIDDING_AMBIGUOUS"
+        : "EGP_DRAFT_EBIDDING_NOT_FOUND",
+      kind: ambiguous ? ERROR_KIND.INVALID_RESPONSE : ERROR_KIND.NOT_FOUND,
+      details: ambiguous
+        ? {
+            candidateCount: metadata.candidateCount,
+            ambiguityReason: metadata.ambiguityReason,
+          }
+        : {},
+    }
+  );
+}
+
 async function getDraftEbiddingArchive(
   projectId,
   knownMetadata = {},
@@ -352,7 +397,8 @@ async function getDraftEbiddingArchive(
 ) {
   const safeProjectId = validateProjectId(projectId);
   const adapter = getAdapter(dependencies);
-  const metadata = knownMetadata.fileId
+  const hasStoredFileId = Boolean(knownMetadata.fileId);
+  let metadata = hasStoredFileId
     ? {
         projectId: safeProjectId,
         category: DOCUMENT_CATEGORY.DRAFT_EBIDDING,
@@ -363,31 +409,22 @@ async function getDraftEbiddingArchive(
       }
     : await adapter.discoverDraftEbidding(safeProjectId, dependencies);
 
-  if (metadata.status !== "available" || !metadata.fileId) {
-    const ambiguous = metadata.status === "ambiguous";
-    throw new EgpServiceError(
-      ambiguous
-        ? "Draft e-Bidding ZIP selection is ambiguous"
-        : "No Draft e-Bidding ZIP found",
-      422,
-      {
-        code: ambiguous
-          ? "EGP_DRAFT_EBIDDING_AMBIGUOUS"
-          : "EGP_DRAFT_EBIDDING_NOT_FOUND",
-        kind: ambiguous ? ERROR_KIND.INVALID_RESPONSE : ERROR_KIND.NOT_FOUND,
-        details: ambiguous
-          ? {
-              candidateCount: metadata.candidateCount,
-              ambiguityReason: metadata.ambiguityReason,
-            }
-          : {},
-      }
-    );
-  }
+  requireDraftArchiveMetadata(metadata);
 
   // Only an unambiguous selected revision reaches the shared ZIP downloader.
   // Ambiguous discovery results never cause an arbitrary upstream download.
-  const zipBuffer = await adapter.downloadDocument(metadata, dependencies);
+  let zipBuffer;
+  try {
+    zipBuffer = await adapter.downloadDocument(metadata, dependencies);
+  } catch (error) {
+    const shouldRediscover =
+      hasStoredFileId &&
+      adapter.shouldRediscoverAfterDownloadError?.(error) === true;
+    if (!shouldRediscover) throw error;
+    metadata = await adapter.discoverDraftEbidding(safeProjectId, dependencies);
+    requireDraftArchiveMetadata(metadata);
+    zipBuffer = await adapter.downloadDocument(metadata, dependencies);
+  }
   return {
     projectId: safeProjectId,
     fileId: metadata.fileId,
