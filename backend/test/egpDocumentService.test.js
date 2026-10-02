@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  discoverProjectDocuments,
   extractPdfTextFromZip,
   getDraftEbiddingArchive,
   getDraftEbiddingMetadata,
@@ -426,4 +427,149 @@ test("draft e-bidding archive refuses an ambiguous selection", async () => {
     }
   );
   assert.equal(downloadCalled, false);
+});
+
+test("project document discovery checks every category after an earlier failure", async () => {
+  const calls = [];
+  const checkedAt = new Date("2026-10-02T10:00:00.000Z");
+  const priceError = Object.assign(new Error("price endpoint unavailable"), {
+    code: "EGP_TIMEOUT",
+    kind: "recoverable",
+    details: {
+      lookupAttempts: [{ lookupMethod: "price_primary", outcome: "error" }],
+    },
+  });
+  const egpAdapter = {
+    async discoverPriceEstimate() {
+      calls.push("priceEstimate");
+      throw priceError;
+    },
+    async discoverInvitation(projectId) {
+      calls.push("invitation");
+      return {
+        projectId,
+        category: "invitation",
+        status: "not_found",
+        source: "national_egp",
+        fileId: null,
+        fileName: null,
+        downloadUrl: null,
+      };
+    },
+    async discoverDraftEbidding(projectId) {
+      calls.push("draftEbidding");
+      return {
+        projectId,
+        category: "draft_ebidding",
+        status: "available",
+        source: "national_egp",
+        fileId: "draft-id",
+        fileName: "draft.zip",
+        downloadUrl: "https://example.test/draft-id",
+      };
+    },
+  };
+
+  const result = await discoverProjectDocuments("68059426756", {
+    egpAdapter,
+    now: () => checkedAt,
+  });
+
+  assert.deepEqual(calls, ["priceEstimate", "invitation", "draftEbidding"]);
+  assert.equal(result.documents.priceEstimate.status, "error");
+  assert.equal(result.documents.priceEstimate.error.code, "EGP_TIMEOUT");
+  assert.deepEqual(result.documents.priceEstimate.lookupAttempts, [
+    { lookupMethod: "price_primary", outcome: "error" },
+  ]);
+  assert.equal(result.documents.invitation.status, "not_found");
+  assert.equal(result.documents.draftEbidding.status, "available");
+  assert.equal(result.documents.selectedProcurementDocument, "draftEbidding");
+  assert.equal(result.documents.priceEstimate.lastCheckedAt, checkedAt);
+  assert.equal(result.documents.invitation.lastCheckedAt, checkedAt);
+  assert.equal(result.documents.draftEbidding.lastCheckedAt, checkedAt);
+});
+
+test("project document discovery prefers Invitation while retaining Draft", async () => {
+  const available = (projectId, category, fileId) => ({
+    projectId,
+    category,
+    status: "available",
+    source: "national_egp",
+    fileId,
+    fileName: `${fileId}.zip`,
+    downloadUrl: `https://example.test/${fileId}`,
+  });
+  const egpAdapter = {
+    discoverPriceEstimate: async (projectId) =>
+      available(projectId, "price_estimate", "price-id"),
+    discoverInvitation: async (projectId) =>
+      available(projectId, "invitation", "invitation-id"),
+    discoverDraftEbidding: async (projectId) =>
+      available(projectId, "draft_ebidding", "draft-id"),
+  };
+
+  const result = await discoverProjectDocuments("68059426756", { egpAdapter });
+
+  assert.equal(result.documents.selectedProcurementDocument, "invitation");
+  assert.equal(result.documents.invitation.fileId, "invitation-id");
+  assert.equal(result.documents.draftEbidding.fileId, "draft-id");
+  assert.equal(result.documents.priceEstimate.fileId, "price-id");
+});
+
+test("project document discovery does not treat an Invitation error as absence", async () => {
+  const egpAdapter = {
+    async discoverPriceEstimate(projectId) {
+      return { projectId, status: "not_found" };
+    },
+    async discoverInvitation() {
+      throw Object.assign(new Error("Invitation lookup failed"), {
+        code: "EGP_NETWORK_ERROR",
+        kind: "recoverable",
+      });
+    },
+    async discoverDraftEbidding(projectId) {
+      return {
+        projectId,
+        status: "available",
+        fileId: "draft-id",
+        fileName: "draft.zip",
+      };
+    },
+  };
+
+  const result = await discoverProjectDocuments("68059426756", { egpAdapter });
+
+  assert.equal(result.documents.invitation.status, "error");
+  assert.equal(result.documents.draftEbidding.status, "available");
+  assert.equal(result.documents.selectedProcurementDocument, null);
+});
+
+test("project document discovery normalizes a Price not-found exception", async () => {
+  const egpAdapter = {
+    async discoverPriceEstimate() {
+      throw Object.assign(new Error("No price estimate document found"), {
+        code: "EGP_DOCUMENT_NOT_FOUND",
+        kind: "not_found",
+        details: {
+          lookupAttempts: [
+            { lookupMethod: "price_primary", outcome: "not_found" },
+          ],
+        },
+      });
+    },
+    async discoverInvitation(projectId) {
+      return { projectId, status: "not_found" };
+    },
+    async discoverDraftEbidding(projectId) {
+      return { projectId, status: "not_found" };
+    },
+  };
+
+  const result = await discoverProjectDocuments("68059426756", { egpAdapter });
+
+  assert.equal(result.documents.priceEstimate.status, "not_found");
+  assert.equal("error" in result.documents.priceEstimate, false);
+  assert.deepEqual(result.documents.priceEstimate.lookupAttempts, [
+    { lookupMethod: "price_primary", outcome: "not_found" },
+  ]);
 });

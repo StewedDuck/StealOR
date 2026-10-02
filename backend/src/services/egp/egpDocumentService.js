@@ -18,6 +18,104 @@ function getAdapter(dependencies) {
   return dependencies.egpAdapter || nationalEgpAdapter;
 }
 
+function documentDiscoveryError(projectId, category, error, lastCheckedAt) {
+  const lookupAttempts = Array.isArray(error?.details?.lookupAttempts)
+    ? { lookupAttempts: error.details.lookupAttempts }
+    : {};
+  if (error?.kind === ERROR_KIND.NOT_FOUND) {
+    return {
+      projectId,
+      category,
+      status: "not_found",
+      source: "national_egp",
+      lookupMethod: null,
+      downloadMethod: null,
+      fileId: null,
+      fileName: null,
+      downloadUrl: null,
+      lastCheckedAt,
+      ...lookupAttempts,
+    };
+  }
+
+  return {
+    projectId,
+    category,
+    status: "error",
+    source: "national_egp",
+    lookupMethod: null,
+    downloadMethod: null,
+    fileId: null,
+    fileName: null,
+    downloadUrl: null,
+    lastCheckedAt,
+    error: {
+      code: error?.code || "EGP_SERVICE_ERROR",
+      kind: error?.kind || ERROR_KIND.RECOVERABLE,
+      message: String(error?.message || "Document discovery failed").slice(0, 500),
+    },
+    ...lookupAttempts,
+  };
+}
+
+function selectProcurementDocument(documents) {
+  if (documents.invitation.status === "available") return "invitation";
+
+  // An error is not evidence that Invitation is absent. Draft becomes the
+  // fallback only after e-GP positively reports Invitation as not found.
+  if (
+    documents.invitation.status === "not_found" &&
+    documents.draftEbidding.status === "available"
+  ) {
+    return "draftEbidding";
+  }
+  return null;
+}
+
+async function discoverProjectDocuments(projectId, dependencies = {}) {
+  const safeProjectId = validateProjectId(projectId);
+  const adapter = getAdapter(dependencies);
+  const checkedAtValue = dependencies.now ? dependencies.now() : new Date();
+  const lastCheckedAt =
+    checkedAtValue instanceof Date ? checkedAtValue : new Date(checkedAtValue);
+  const documents = {};
+  const discoveries = [
+    [
+      "priceEstimate",
+      DOCUMENT_CATEGORY.PRICE_ESTIMATE,
+      () => adapter.discoverPriceEstimate(safeProjectId, dependencies),
+    ],
+    [
+      "invitation",
+      DOCUMENT_CATEGORY.INVITATION,
+      () => adapter.discoverInvitation(safeProjectId, dependencies),
+    ],
+    [
+      "draftEbidding",
+      DOCUMENT_CATEGORY.DRAFT_EBIDDING,
+      () => adapter.discoverDraftEbidding(safeProjectId, dependencies),
+    ],
+  ];
+
+  // Run sequentially to be polite to e-GP, but isolate each failure so one
+  // category can never prevent the other two categories from being checked.
+  for (const [key, category, discover] of discoveries) {
+    try {
+      documents[key] = { ...(await discover()), lastCheckedAt };
+    } catch (error) {
+      documents[key] = documentDiscoveryError(
+        safeProjectId,
+        category,
+        error,
+        lastCheckedAt
+      );
+    }
+  }
+
+  documents.selectedProcurementDocument = selectProcurementDocument(documents);
+  return { projectId: safeProjectId, documents };
+}
+
 async function downloadPriceEstimateArchive(metadata, dependencies) {
   // The service handles application workflow; the adapter owns all knowledge
   // of modern file-ID downloads versus the legacy filename servlet.
@@ -311,4 +409,5 @@ module.exports = {
   getInvitationArchive,
   getDraftEbiddingMetadata,
   getDraftEbiddingArchive,
+  discoverProjectDocuments,
 };
