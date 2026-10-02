@@ -2,6 +2,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   extractPdfTextFromZip,
+  getDraftEbiddingArchive,
+  getDraftEbiddingMetadata,
+  getInvitationArchive,
+  getInvitationMetadata,
   getPriceEstimateArchive,
   getPriceEstimateDocument,
   isSafeArchivePath,
@@ -144,4 +148,282 @@ test("getPriceEstimateArchive looks up metadata when MongoDB has none", async ()
   assert.equal(requestCount, 2);
   assert.equal(result.fileId, "looked-up-file-id");
   assert.equal(result.fileName, "looked-up.zip");
+});
+
+test("document service delegates discovery and download to the e-GP adapter", async () => {
+  const calls = [];
+  const egpAdapter = {
+    async discoverPriceEstimate(projectId) {
+      calls.push(["discover", projectId]);
+      return {
+        projectId,
+        category: "price_estimate",
+        source: "national_egp",
+        lookupMethod: "price_primary",
+        downloadMethod: "file_id",
+        fileId: "adapter-file-id",
+        fileName: "adapter-price.zip",
+      };
+    },
+    async downloadDocument(metadata) {
+      calls.push(["download", metadata.fileId]);
+      return ZIP_WITH_ONE_PDF;
+    },
+  };
+
+  const result = await getPriceEstimateArchive(
+    "67079622362",
+    {},
+    { egpAdapter }
+  );
+
+  assert.deepEqual(calls, [
+    ["discover", "67079622362"],
+    ["download", "adapter-file-id"],
+  ]);
+  assert.equal(result.fileName, "adapter-price.zip");
+  assert.deepEqual(result.zipBuffer, ZIP_WITH_ONE_PDF);
+});
+
+test("stored file ID failure rediscoveries metadata and retries once", async () => {
+  const calls = [];
+  const staleError = Object.assign(new Error("stale file ID"), {
+    code: "EGP_HTTP_ERROR",
+    upstreamStatus: 404,
+  });
+  const egpAdapter = {
+    shouldRediscoverAfterDownloadError(error) {
+      return error.upstreamStatus === 404;
+    },
+    async discoverPriceEstimate(projectId) {
+      calls.push(["discover", projectId]);
+      return {
+        projectId,
+        fileId: "fresh-file-id",
+        fileName: "fresh-price.zip",
+        downloadMethod: "file_id",
+      };
+    },
+    async downloadDocument(metadata) {
+      calls.push(["download", metadata.fileId]);
+      if (metadata.fileId === "stale-file-id") throw staleError;
+      return ZIP_WITH_ONE_PDF;
+    },
+  };
+
+  const result = await getPriceEstimateArchive(
+    "67079622362",
+    { fileId: "stale-file-id", fileName: "stale-price.zip" },
+    { egpAdapter }
+  );
+
+  assert.deepEqual(calls, [
+    ["download", "stale-file-id"],
+    ["discover", "67079622362"],
+    ["download", "fresh-file-id"],
+  ]);
+  assert.equal(result.fileId, "fresh-file-id");
+  assert.equal(result.fileName, "fresh-price.zip");
+});
+
+test("stored file ID access denial does not attempt rediscovery", async () => {
+  let discoveryCount = 0;
+  const deniedError = Object.assign(new Error("access denied"), {
+    code: "EGP_ACCESS_DENIED",
+    upstreamStatus: 403,
+  });
+  const egpAdapter = {
+    shouldRediscoverAfterDownloadError() {
+      return false;
+    },
+    async discoverPriceEstimate() {
+      discoveryCount += 1;
+      throw new Error("should not run");
+    },
+    async downloadDocument() {
+      throw deniedError;
+    },
+  };
+
+  await assert.rejects(
+    () =>
+      getPriceEstimateArchive(
+        "67079622362",
+        { fileId: "stored-file-id", fileName: "stored.zip" },
+        { egpAdapter }
+      ),
+    /access denied/
+  );
+  assert.equal(discoveryCount, 0);
+});
+
+test("invitation metadata discovery is delegated to the e-GP adapter", async () => {
+  const egpAdapter = {
+    async discoverInvitation(projectId) {
+      return {
+        projectId,
+        category: "invitation",
+        status: "available",
+        source: "national_egp",
+        lookupMethod: "invitation_approval_final",
+        downloadMethod: "file_id",
+        fileId: "invitation-file-id",
+        fileName: "bidding-documents.zip",
+        announcementTemplateId: "announcement-template-id",
+      };
+    },
+  };
+
+  const result = await getInvitationMetadata("68059426756", { egpAdapter });
+
+  assert.equal(result.fileId, "invitation-file-id");
+  assert.equal(result.fileName, "bidding-documents.zip");
+  assert.equal(result.announcementTemplateId, "announcement-template-id");
+});
+
+test("invitation archive downloads zipId and never the announcement template", async () => {
+  const calls = [];
+  const egpAdapter = {
+    async discoverInvitation(projectId) {
+      calls.push(["discover", projectId]);
+      return {
+        projectId,
+        category: "invitation",
+        status: "available",
+        fileId: "invitation-file-id",
+        fileName: "bidding-documents.zip",
+        announcementTemplateId: "announcement-template-id",
+        downloadMethod: "file_id",
+      };
+    },
+    async downloadDocument(metadata) {
+      calls.push(["download", metadata.fileId]);
+      assert.notEqual(metadata.fileId, metadata.announcementTemplateId);
+      return ZIP_WITH_ONE_PDF;
+    },
+  };
+
+  const result = await getInvitationArchive(
+    "68059426756",
+    {},
+    { egpAdapter }
+  );
+
+  assert.deepEqual(calls, [
+    ["discover", "68059426756"],
+    ["download", "invitation-file-id"],
+  ]);
+  assert.equal(result.fileName, "bidding-documents.zip");
+  assert.deepEqual(result.zipBuffer, ZIP_WITH_ONE_PDF);
+});
+
+test("invitation archive reports not found when only announcement PDF exists", async () => {
+  const egpAdapter = {
+    async discoverInvitation(projectId) {
+      return {
+        projectId,
+        category: "invitation",
+        status: "not_found",
+        fileId: null,
+        fileName: null,
+        downloadUrl: null,
+      };
+    },
+  };
+
+  await assert.rejects(
+    () => getInvitationArchive("68059426756", {}, { egpAdapter }),
+    (error) => {
+      assert.equal(error.code, "EGP_INVITATION_NOT_FOUND");
+      assert.equal(error.statusCode, 422);
+      return true;
+    }
+  );
+});
+
+test("draft e-bidding metadata discovery is delegated to the e-GP adapter", async () => {
+  const egpAdapter = {
+    async discoverDraftEbidding(projectId) {
+      return {
+        projectId,
+        category: "draft_ebidding",
+        status: "available",
+        fileId: "draft-file-id",
+        fileName: "draft.zip",
+        revision: 2,
+        version: "revision_2",
+      };
+    },
+  };
+
+  const result = await getDraftEbiddingMetadata("68059426756", { egpAdapter });
+
+  assert.equal(result.fileId, "draft-file-id");
+  assert.equal(result.revision, 2);
+});
+
+test("draft e-bidding archive downloads only an unambiguous selected revision", async () => {
+  const calls = [];
+  const egpAdapter = {
+    async discoverDraftEbidding(projectId) {
+      calls.push(["discover", projectId]);
+      return {
+        projectId,
+        category: "draft_ebidding",
+        status: "available",
+        fileId: "draft-revision-2",
+        fileName: "draft-revision-2.zip",
+        revision: 2,
+        version: "revision_2",
+        downloadMethod: "file_id",
+      };
+    },
+    async downloadDocument(metadata) {
+      calls.push(["download", metadata.fileId]);
+      return ZIP_WITH_ONE_PDF;
+    },
+  };
+
+  const result = await getDraftEbiddingArchive(
+    "68059426756",
+    {},
+    { egpAdapter }
+  );
+
+  assert.deepEqual(calls, [
+    ["discover", "68059426756"],
+    ["download", "draft-revision-2"],
+  ]);
+  assert.equal(result.revision, 2);
+  assert.equal(result.version, "revision_2");
+  assert.deepEqual(result.zipBuffer, ZIP_WITH_ONE_PDF);
+});
+
+test("draft e-bidding archive refuses an ambiguous selection", async () => {
+  let downloadCalled = false;
+  const egpAdapter = {
+    async discoverDraftEbidding(projectId) {
+      return {
+        projectId,
+        category: "draft_ebidding",
+        status: "ambiguous",
+        fileId: null,
+        candidateCount: 2,
+        ambiguityReason: "conflicting_latest_revision",
+      };
+    },
+    async downloadDocument() {
+      downloadCalled = true;
+    },
+  };
+
+  await assert.rejects(
+    () => getDraftEbiddingArchive("68059426756", {}, { egpAdapter }),
+    (error) => {
+      assert.equal(error.code, "EGP_DRAFT_EBIDDING_AMBIGUOUS");
+      assert.equal(error.details.candidateCount, 2);
+      return true;
+    }
+  );
+  assert.equal(downloadCalled, false);
 });

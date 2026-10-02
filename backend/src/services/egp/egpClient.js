@@ -4,23 +4,65 @@ const EGP_BASE_URL = "https://process5.gprocurement.go.th";
 const EGP_LEGACY_BASE_URL = "https://process3.gprocurement.go.th";
 const ANNOUNCEMENT_PATH =
   "/egp-oann10-service/pb/a-egp-allt-project/announcement";
+const APPROVAL_COMMON_PATH = "/egp-approval-service/apv-common";
 // Real e-GP price archives can be around 50 MB and the service can stream slowly.
 // Keep both values bounded, but high enough for those observed public files.
 const DEFAULT_MAX_DOWNLOAD_BYTES = 75 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_RETRY_BASE_DELAY_MS = 250;
+const DEFAULT_RETRY_MAX_DELAY_MS = 2_000;
+
+const DOCUMENT_CATEGORY = Object.freeze({
+  DRAFT_EBIDDING: "draft_ebidding",
+  INVITATION: "invitation",
+  PRICE_ESTIMATE: "price_estimate",
+});
+
+const LOOKUP_METHOD = Object.freeze({
+  DRAFT_ADJUSTED: "draft_approval_adjusted",
+  DRAFT_TEMP: "draft_approval_temp",
+  INVITATION_APPROVAL_FINAL: "invitation_approval_final",
+  PRICE_PRIMARY: "price_primary",
+  PRICE_PROJECT_SERVICE: "price_project_service",
+  PRICE_LEGACY_GREEN_BOOK: "price_legacy_green_book",
+});
+
+const DOWNLOAD_METHOD = Object.freeze({
+  FILE_ID: "file_id",
+  LEGACY_FILENAME: "legacy_filename",
+});
+
+const ERROR_KIND = Object.freeze({
+  ACCESS_DENIED: "access_denied",
+  CONFIGURATION: "configuration_error",
+  INVALID_INPUT: "invalid_input",
+  INVALID_RESPONSE: "invalid_response",
+  NOT_FOUND: "not_found",
+  RATE_LIMITED: "rate_limited",
+  RECOVERABLE: "recoverable",
+});
 
 class EgpServiceError extends Error {
-  constructor(message, statusCode = 502) {
+  constructor(message, statusCode = 502, details = {}) {
     super(message);
     this.name = "EgpServiceError";
     this.statusCode = statusCode;
+    this.code = details.code || "EGP_SERVICE_ERROR";
+    this.kind = details.kind || ERROR_KIND.RECOVERABLE;
+    this.upstreamStatus = details.upstreamStatus ?? null;
+    this.retryable = Boolean(details.retryable);
+    this.details = details.details || {};
   }
 }
 
 function validateProjectId(projectId) {
   const normalized = String(projectId || "").trim();
   if (!/^\d{11}$/.test(normalized)) {
-    throw new EgpServiceError("Project ID must contain exactly 11 digits", 400);
+    throw new EgpServiceError("Project ID must contain exactly 11 digits", 400, {
+      code: "EGP_INVALID_PROJECT_ID",
+      kind: ERROR_KIND.INVALID_INPUT,
+    });
   }
   return normalized;
 }
@@ -28,7 +70,10 @@ function validateProjectId(projectId) {
 function validateFileId(fileId) {
   const normalized = String(fileId || "").trim();
   if (!/^[A-Za-z0-9._-]{1,200}$/.test(normalized)) {
-    throw new EgpServiceError("e-GP returned an invalid file ID");
+    throw new EgpServiceError("e-GP returned an invalid file ID", 502, {
+      code: "EGP_INVALID_FILE_ID",
+      kind: ERROR_KIND.INVALID_RESPONSE,
+    });
   }
   return normalized;
 }
@@ -41,28 +86,91 @@ async function request(
     headers = {},
     method = "GET",
     body,
+    maxRetries = DEFAULT_MAX_RETRIES,
+    retryBaseDelayMs = DEFAULT_RETRY_BASE_DELAY_MS,
+    retryMaxDelayMs = DEFAULT_RETRY_MAX_DELAY_MS,
+    sleepImpl = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
+    randomImpl = Math.random,
   } = {}
 ) {
-  let response;
-  try {
-    response = await fetchImpl(url, {
-      method,
-      headers: {
-        Accept: "application/json, application/zip, application/octet-stream",
-        "User-Agent": "StealOR/1.0 document enrichment",
-        ...headers,
-      },
-      body,
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-  } catch (error) {
-    throw new EgpServiceError(`Unable to reach e-GP: ${error.message}`);
+  const retries = Math.max(0, Number(maxRetries) || 0);
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    let response;
+    try {
+      response = await fetchImpl(url, {
+        method,
+        headers: {
+          Accept: "application/json, application/zip, application/octet-stream",
+          "User-Agent": "StealOR/1.0 document enrichment",
+          ...headers,
+        },
+        body,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error) {
+      const isTimeout =
+        error?.name === "TimeoutError" || error?.name === "AbortError";
+      if (isTimeout && attempt < retries) {
+        await sleepImpl(retryDelay(attempt, retryBaseDelayMs, retryMaxDelayMs, randomImpl));
+        continue;
+      }
+      throw new EgpServiceError(`Unable to reach e-GP: ${error.message}`, isTimeout ? 504 : 502, {
+        code: isTimeout ? "EGP_TIMEOUT" : "EGP_NETWORK_ERROR",
+        kind: ERROR_KIND.RECOVERABLE,
+        retryable: isTimeout,
+      });
+    }
+
+    if (response.ok) return response;
+
+    if (response.status >= 500 && attempt < retries) {
+      await sleepImpl(retryDelay(attempt, retryBaseDelayMs, retryMaxDelayMs, randomImpl));
+      continue;
+    }
+
+    throw createHttpError(response.status);
   }
 
-  if (!response.ok) {
-    throw new EgpServiceError(`e-GP responded with HTTP ${response.status}`);
+  throw new EgpServiceError("Unable to reach e-GP");
+}
+
+function retryDelay(attempt, baseDelayMs, maxDelayMs, randomImpl) {
+  const exponential = Math.min(
+    Math.max(0, Number(baseDelayMs) || 0) * 2 ** attempt,
+    Math.max(0, Number(maxDelayMs) || 0)
+  );
+  return Math.round(exponential * (0.75 + randomImpl() * 0.5));
+}
+
+function createHttpError(status) {
+  if (status === 401 || status === 403) {
+    return new EgpServiceError(`e-GP responded with HTTP ${status}`, status, {
+      code: "EGP_ACCESS_DENIED",
+      kind: ERROR_KIND.ACCESS_DENIED,
+      upstreamStatus: status,
+    });
   }
-  return response;
+  if (status === 429) {
+    return new EgpServiceError("e-GP responded with HTTP 429", 429, {
+      code: "EGP_RATE_LIMITED",
+      kind: ERROR_KIND.RATE_LIMITED,
+      upstreamStatus: status,
+    });
+  }
+  if (status === 404 || status >= 500) {
+    return new EgpServiceError(`e-GP responded with HTTP ${status}`, 502, {
+      code: "EGP_HTTP_ERROR",
+      kind: ERROR_KIND.RECOVERABLE,
+      upstreamStatus: status,
+      retryable: status >= 500,
+    });
+  }
+  return new EgpServiceError(`e-GP responded with HTTP ${status}`, 502, {
+    code: "EGP_HTTP_ERROR",
+    kind: ERROR_KIND.INVALID_RESPONSE,
+    upstreamStatus: status,
+  });
 }
 
 function encryptAnnouncementData(value) {
@@ -115,9 +223,109 @@ async function readMetadataJson(response, sourceName) {
     return await response.json();
   } catch (error) {
     throw new EgpServiceError(
-      `e-GP returned invalid ${sourceName} metadata JSON: ${error.message}`
+      `e-GP returned invalid ${sourceName} metadata JSON: ${error.message}`,
+      502,
+      {
+        code: "EGP_INVALID_JSON",
+        kind: ERROR_KIND.RECOVERABLE,
+      }
     );
   }
+}
+
+function validateZipFileName(fileName) {
+  const normalized = String(fileName || "").trim();
+  if (
+    normalized.length === 0 ||
+    normalized.length > 255 ||
+    normalized.includes("/") ||
+    normalized.includes("\\") ||
+    /[\u0000-\u001F\u007F]/.test(normalized) ||
+    !normalized.toLowerCase().endsWith(".zip")
+  ) {
+    throw new EgpServiceError("e-GP returned an invalid ZIP filename", 502, {
+      code: "EGP_INVALID_ZIP_FILENAME",
+      kind: ERROR_KIND.INVALID_RESPONSE,
+    });
+  }
+  return normalized;
+}
+
+// Convert every upstream response into one application-owned shape. Code outside
+// this adapter must not depend on e-GP field names such as zipFileId or priceBuildName.
+function createDocumentMetadata({
+  projectId,
+  category = DOCUMENT_CATEGORY.PRICE_ESTIMATE,
+  fileId = null,
+  fileName,
+  lookupMethod,
+  downloadMethod = DOWNLOAD_METHOD.FILE_ID,
+  additionalFields = {},
+}) {
+  const metadata = {
+    projectId,
+    category,
+    status: "available",
+    source: "national_egp",
+    lookupMethod,
+    downloadMethod,
+    fileId,
+    fileName: String(fileName || `${projectId}.zip`),
+    ...additionalFields,
+  };
+  return { ...metadata, downloadUrl: buildDocumentDownloadUrl(metadata) };
+}
+
+function createNotFoundMetadata(projectId, category, lookupMethod) {
+  return {
+    projectId,
+    category,
+    status: "not_found",
+    source: "national_egp",
+    lookupMethod,
+    downloadMethod: DOWNLOAD_METHOD.FILE_ID,
+    fileId: null,
+    fileName: null,
+    downloadUrl: null,
+  };
+}
+
+function createAmbiguousMetadata(projectId, candidates, details = {}) {
+  return {
+    projectId,
+    category: DOCUMENT_CATEGORY.DRAFT_EBIDDING,
+    status: "ambiguous",
+    source: "national_egp",
+    lookupMethod: null,
+    downloadMethod: DOWNLOAD_METHOD.FILE_ID,
+    fileId: null,
+    fileName: null,
+    downloadUrl: null,
+    candidateCount: candidates.length,
+    candidates: candidates.map(({ fileId, fileName, revision, lookupMethod }) => ({
+      fileId,
+      fileName,
+      revision,
+      lookupMethod,
+    })),
+    ...details,
+  };
+}
+
+function buildDocumentDownloadUrl(metadata) {
+  if (metadata.downloadMethod === DOWNLOAD_METHOD.LEGACY_FILENAME) {
+    const url = new URL(
+      "/egp2procmainWeb/FPRO9965AttachServ",
+      EGP_LEGACY_BASE_URL
+    );
+    url.searchParams.set("projectId", metadata.projectId);
+    url.searchParams.set("fileName", metadata.fileName);
+    return url.toString();
+  }
+
+  const url = new URL("/egp-upload-service/v1/downloadFileTest", EGP_BASE_URL);
+  url.searchParams.set("fileId", metadata.fileId);
+  return url.toString();
 }
 
 async function getPrimaryPriceEstimateMetadata(projectId, options) {
@@ -134,11 +342,12 @@ async function getPrimaryPriceEstimateMetadata(projectId, options) {
     return null;
   }
 
-  return {
+  return createDocumentMetadata({
     projectId,
     fileId: validateFileId(payload.data.zipFileId),
     fileName: String(payload.data.zipFileName || `${projectId}.zip`),
-  };
+    lookupMethod: LOOKUP_METHOD.PRICE_PRIMARY,
+  });
 }
 
 async function getFallbackPriceEstimateMetadata(projectId, options) {
@@ -148,7 +357,11 @@ async function getFallbackPriceEstimateMetadata(projectId, options) {
   if (!apiKey) {
     throw new EgpServiceError(
       "EGP_PROJECT_SERVICE_API_KEY is required for fallback document lookup",
-      500
+      500,
+      {
+        code: "EGP_FALLBACK_KEY_MISSING",
+        kind: ERROR_KIND.CONFIGURATION,
+      }
     );
   }
 
@@ -169,13 +382,14 @@ async function getFallbackPriceEstimateMetadata(projectId, options) {
   const record = [...records].reverse().find((item) => item?.zipFileId);
   if (payload?.response?.responseCode !== "0" || !record) return null;
 
-  return {
+  return createDocumentMetadata({
     projectId,
     fileId: validateFileId(record.zipFileId),
     fileName: String(
       record.priceBuildName || record.zipFileName || `${projectId}.zip`
     ),
-  };
+    lookupMethod: LOOKUP_METHOD.PRICE_PROJECT_SERVICE,
+  });
 }
 
 async function getLegacyPriceEstimateMetadata(projectId, options) {
@@ -247,27 +461,244 @@ async function getLegacyPriceEstimateMetadata(projectId, options) {
   );
   if (!record) return null;
 
+  return createDocumentMetadata({
+    projectId,
+    fileName: validateLegacyFileName(record.priceBuildName, projectId),
+    lookupMethod: LOOKUP_METHOD.PRICE_LEGACY_GREEN_BOOK,
+    downloadMethod: DOWNLOAD_METHOD.LEGACY_FILENAME,
+  });
+}
+
+async function getInvitationBiddingDocumentMetadata(projectId, options) {
+  const url = new URL(
+    `${APPROVAL_COMMON_PATH}/infoProcureDocAnnounZip`,
+    EGP_BASE_URL
+  );
+  url.searchParams.set("projectId", projectId);
+
+  const response = await request(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      "Content-Type": "application/json",
+      noToken: "noToken",
+      noDataProfile: "noDataProfile",
+    },
+  });
+  const payload = await readMetadataJson(response, "invitation");
+  const data = payload?.data;
+  if (
+    payload?.response?.responseCode !== "0" ||
+    !data?.zipId ||
+    !data?.buildName1
+  ) {
+    return createNotFoundMetadata(
+      projectId,
+      DOCUMENT_CATEGORY.INVITATION,
+      LOOKUP_METHOD.INVITATION_APPROVAL_FINAL
+    );
+  }
+
+  // The public website maps the UI label "เอกสารประกวดราคา" to zipId and
+  // buildName1. buildName2 is a template reference for the separate
+  // "ประกาศเชิญชวน" PDF and must never be used as this ZIP's file ID.
+  return createDocumentMetadata({
+    projectId,
+    category: DOCUMENT_CATEGORY.INVITATION,
+    fileId: validateFileId(data.zipId),
+    fileName: validateZipFileName(data.buildName1),
+    lookupMethod: LOOKUP_METHOD.INVITATION_APPROVAL_FINAL,
+    additionalFields: {
+      announcementTemplateId: data.buildName2
+        ? validateFileId(data.buildName2)
+        : null,
+    },
+  });
+}
+
+async function requestDraftPayload(projectId, endpoint, itemNo, options) {
+  const url = new URL(`${APPROVAL_COMMON_PATH}/${endpoint}`, EGP_BASE_URL);
+  url.searchParams.set("projectId", projectId);
+  if (itemNo !== null) url.searchParams.set("itemNo", String(itemNo));
+
+  const response = await request(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      "Content-Type": "application/json",
+      noToken: "noToken",
+      noDataProfile: "noDataProfile",
+    },
+  });
+  return readMetadataJson(response, "draft e-bidding");
+}
+
+function normalizeDraftCandidate(projectId, record, revision, lookupMethod) {
+  if (!record?.zipId || !record?.buildName1) return null;
   return {
     projectId,
-    fileId: null,
-    fileName: validateLegacyFileName(record.priceBuildName, projectId),
-    downloadMethod: "legacy_filename",
+    fileId: validateFileId(record.zipId),
+    fileName: validateZipFileName(record.buildName1),
+    revision,
+    lookupMethod,
   };
 }
 
-async function getPriceEstimateMetadata(projectId, options = {}) {
+function selectDraftCandidate(projectId, candidates, reachedRevisionLimit) {
+  if (candidates.length === 0) {
+    return createNotFoundMetadata(
+      projectId,
+      DOCUMENT_CATEGORY.DRAFT_EBIDDING,
+      LOOKUP_METHOD.DRAFT_TEMP
+    );
+  }
+
+  // itemNo is the revision selector used by the public website: 0 is the
+  // initial Temp document and positive values address adjusted revisions.
+  // This is intentionally different from trusting an API array's order.
+  const latestRevision = Math.max(...candidates.map(({ revision }) => revision));
+  const latestCandidates = candidates.filter(
+    ({ revision }) => revision === latestRevision
+  );
+  const uniqueLatest = new Map(
+    latestCandidates.map((candidate) => [
+      `${candidate.fileId}\u0000${candidate.fileName}`,
+      candidate,
+    ])
+  );
+
+  if (reachedRevisionLimit || uniqueLatest.size !== 1) {
+    return createAmbiguousMetadata(projectId, candidates, {
+      latestRevision,
+      ambiguityReason: reachedRevisionLimit
+        ? "revision_limit_reached"
+        : "conflicting_latest_revision",
+    });
+  }
+
+  const selected = uniqueLatest.values().next().value;
+  return createDocumentMetadata({
+    projectId,
+    category: DOCUMENT_CATEGORY.DRAFT_EBIDDING,
+    fileId: selected.fileId,
+    fileName: selected.fileName,
+    lookupMethod: selected.lookupMethod,
+    additionalFields: {
+      revision: selected.revision,
+      version: selected.revision === 0 ? "initial" : `revision_${selected.revision}`,
+      candidateCount: candidates.length,
+    },
+  });
+}
+
+async function getDraftEbiddingMetadata(projectId, options) {
+  const candidates = [];
+  const initialPayload = await requestDraftPayload(
+    projectId,
+    "infoProcureDocAnnounZipTemp",
+    null,
+    options
+  );
+  if (initialPayload?.response?.responseCode === "0") {
+    const initial = normalizeDraftCandidate(
+      projectId,
+      initialPayload.data,
+      0,
+      LOOKUP_METHOD.DRAFT_TEMP
+    );
+    if (initial) candidates.push(initial);
+  }
+
+  const maxRevisions = Math.min(
+    50,
+    Math.max(1, Math.floor(Number(options.maxDraftRevisions) || 20))
+  );
+  let reachedRevisionLimit = false;
+  // The public UI addresses adjusted drafts with contiguous positive itemNo
+  // values. Probe sequentially and stop at the first missing revision, with a
+  // hard cap so an upstream contract change cannot create an unbounded loop.
+  for (let itemNo = 1; itemNo <= maxRevisions; itemNo += 1) {
+    const payload = await requestDraftPayload(
+      projectId,
+      "infoProcureDocAnnounZipAdj",
+      itemNo,
+      options
+    );
+    const records = Array.isArray(payload?.data) ? payload.data : [];
+    if (payload?.response?.responseCode !== "0" || records.length === 0) break;
+
+    const revisionCandidates = records
+      .map((record) =>
+        normalizeDraftCandidate(
+          projectId,
+          record,
+          itemNo,
+          LOOKUP_METHOD.DRAFT_ADJUSTED
+        )
+      )
+      .filter(Boolean);
+    if (revisionCandidates.length === 0) break;
+    candidates.push(...revisionCandidates);
+    reachedRevisionLimit = itemNo === maxRevisions;
+  }
+
+  return selectDraftCandidate(projectId, candidates, reachedRevisionLimit);
+}
+
+async function discoverPriceEstimateMetadata(projectId, options = {}) {
   const safeProjectId = validateProjectId(projectId);
+  const attempts = [];
+  const strategies = [
+    [LOOKUP_METHOD.PRICE_PRIMARY, getPrimaryPriceEstimateMetadata],
+    [LOOKUP_METHOD.PRICE_PROJECT_SERVICE, getFallbackPriceEstimateMetadata],
+    [LOOKUP_METHOD.PRICE_LEGACY_GREEN_BOOK, getLegacyPriceEstimateMetadata],
+  ];
 
-  const primary = await getPrimaryPriceEstimateMetadata(safeProjectId, options);
-  if (primary) return primary;
+  // Each strategy is isolated so a recoverable failure in one undocumented
+  // endpoint cannot prevent the next known lookup from being attempted.
+  for (const [lookupMethod, strategy] of strategies) {
+    try {
+      const metadata = await strategy(safeProjectId, options);
+      if (metadata) {
+        attempts.push({ lookupMethod, outcome: "available" });
+        return { ...metadata, lookupAttempts: attempts };
+      }
+      attempts.push({ lookupMethod, outcome: "not_found" });
+    } catch (error) {
+      attempts.push({
+        lookupMethod,
+        outcome: "error",
+        code: error.code || "EGP_SERVICE_ERROR",
+        kind: error.kind || ERROR_KIND.RECOVERABLE,
+      });
+      if (!canContinueLookup(error)) {
+        error.details = { ...error.details, lookupAttempts: attempts };
+        throw error;
+      }
+    }
+  }
 
-  const fallback = await getFallbackPriceEstimateMetadata(safeProjectId, options);
-  if (fallback) return fallback;
+  throw new EgpServiceError("No price estimate document found", 422, {
+    code: "EGP_DOCUMENT_NOT_FOUND",
+    kind: ERROR_KIND.NOT_FOUND,
+    details: { lookupAttempts: attempts },
+  });
+}
 
-  const legacy = await getLegacyPriceEstimateMetadata(safeProjectId, options);
-  if (legacy) return legacy;
+function canContinueLookup(error) {
+  return [
+    ERROR_KIND.CONFIGURATION,
+    ERROR_KIND.INVALID_RESPONSE,
+    ERROR_KIND.RECOVERABLE,
+  ].includes(error?.kind);
+}
 
-  throw new EgpServiceError("No price estimate document found", 422);
+function isStaleDocumentReferenceError(error) {
+  return (
+    error?.code === "EGP_INVALID_FILE_ID" ||
+    error?.code === "EGP_INVALID_ZIP" ||
+    [404, 410].includes(error?.upstreamStatus)
+  );
 }
 
 async function readLimitedBody(response, maxBytes) {
@@ -308,7 +739,10 @@ async function downloadZip(fileId, options = {}) {
     throw error;
   }
   if (buffer.length < 4 || buffer.subarray(0, 2).toString("ascii") !== "PK") {
-    throw new EgpServiceError("e-GP download is not a valid ZIP file", 422);
+    throw new EgpServiceError("e-GP download is not a valid ZIP file", 422, {
+      code: "EGP_INVALID_ZIP",
+      kind: ERROR_KIND.INVALID_RESPONSE,
+    });
   }
   return buffer;
 }
@@ -329,15 +763,81 @@ async function downloadLegacyZip(projectId, fileName, options = {}) {
     options.maxBytes || DEFAULT_MAX_DOWNLOAD_BYTES
   );
   if (buffer.length < 4 || buffer.subarray(0, 2).toString("ascii") !== "PK") {
-    throw new EgpServiceError("e-GP legacy download is not a valid ZIP file", 422);
+    throw new EgpServiceError("e-GP legacy download is not a valid ZIP file", 422, {
+      code: "EGP_INVALID_ZIP",
+      kind: ERROR_KIND.INVALID_RESPONSE,
+    });
   }
   return buffer;
 }
 
+function createNationalEgpAdapter(defaultOptions = {}) {
+  return {
+    // Discover only metadata here. Downloading is deliberately separate so
+    // callers can cache the reference without fetching a large ZIP archive.
+    discoverPriceEstimate(projectId, options = {}) {
+      return discoverPriceEstimateMetadata(projectId, {
+        ...defaultOptions,
+        ...options,
+      });
+    },
+
+    discoverInvitation(projectId, options = {}) {
+      const safeProjectId = validateProjectId(projectId);
+      return getInvitationBiddingDocumentMetadata(safeProjectId, {
+        ...defaultOptions,
+        ...options,
+      });
+    },
+
+    discoverDraftEbidding(projectId, options = {}) {
+      const safeProjectId = validateProjectId(projectId);
+      return getDraftEbiddingMetadata(safeProjectId, {
+        ...defaultOptions,
+        ...options,
+      });
+    },
+
+    // Choose the upstream download mechanism inside the adapter. Services and
+    // controllers therefore do not need to understand the Process 3 fallback.
+    downloadDocument(metadata, options = {}) {
+      const requestOptions = { ...defaultOptions, ...options };
+      if (metadata?.downloadMethod === DOWNLOAD_METHOD.LEGACY_FILENAME) {
+        return downloadLegacyZip(
+          metadata.projectId,
+          metadata.fileName,
+          requestOptions
+        );
+      }
+      return downloadZip(metadata?.fileId, requestOptions);
+    },
+
+    // A stored locator is rediscovered only for evidence of staleness or a
+    // wrong file, never for access-denied or rate-limit responses.
+    shouldRediscoverAfterDownloadError(error) {
+      return isStaleDocumentReferenceError(error);
+    },
+  };
+}
+
+const nationalEgpAdapter = createNationalEgpAdapter();
+
+// Compatibility wrapper retained for current services and tests while the
+// application is migrated incrementally to the adapter interface.
+function getPriceEstimateMetadata(projectId, options = {}) {
+  return nationalEgpAdapter.discoverPriceEstimate(projectId, options);
+}
+
 module.exports = {
+  DOCUMENT_CATEGORY,
+  LOOKUP_METHOD,
+  DOWNLOAD_METHOD,
+  ERROR_KIND,
   EGP_BASE_URL,
   EgpServiceError,
   validateProjectId,
+  createNationalEgpAdapter,
+  nationalEgpAdapter,
   getPriceEstimateMetadata,
   downloadZip,
   downloadLegacyZip,

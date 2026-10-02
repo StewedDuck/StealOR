@@ -3,25 +3,25 @@ const path = require("path");
 const pdfParse = require("pdf-parse");
 const unzipper = require("unzipper");
 const {
+  DOCUMENT_CATEGORY,
+  ERROR_KIND,
+  EgpServiceError,
   validateProjectId,
-  getPriceEstimateMetadata,
-  downloadZip,
-  downloadLegacyZip,
+  nationalEgpAdapter,
 } = require("./egpClient");
 
 const MAX_PDF_COUNT = 20;
 const MAX_TOTAL_PDF_BYTES = 100 * 1024 * 1024;
 const MAX_EXTRACTED_TEXT_CHARS = 2_000_000;
 
+function getAdapter(dependencies) {
+  return dependencies.egpAdapter || nationalEgpAdapter;
+}
+
 async function downloadPriceEstimateArchive(metadata, dependencies) {
-  if (metadata.downloadMethod === "legacy_filename") {
-    return downloadLegacyZip(
-      metadata.projectId,
-      metadata.fileName,
-      dependencies
-    );
-  }
-  return downloadZip(metadata.fileId, dependencies);
+  // The service handles application workflow; the adapter owns all knowledge
+  // of modern file-ID downloads versus the legacy filename servlet.
+  return getAdapter(dependencies).downloadDocument(metadata, dependencies);
 }
 
 class DocumentExtractionError extends Error {
@@ -104,7 +104,10 @@ async function extractPdfTextFromZip(zipBuffer, { parsePdf = pdfParse } = {}) {
 
 async function getPriceEstimateDocument(projectId, dependencies = {}) {
   const safeProjectId = validateProjectId(projectId);
-  const metadata = await getPriceEstimateMetadata(safeProjectId, dependencies);
+  const metadata = await getAdapter(dependencies).discoverPriceEstimate(
+    safeProjectId,
+    dependencies
+  );
   const documentMetadata = {
     projectId: safeProjectId,
     source: "egp",
@@ -153,22 +156,146 @@ async function getPriceEstimateArchive(
   dependencies = {}
 ) {
   const safeProjectId = validateProjectId(projectId);
+  const adapter = getAdapter(dependencies);
+  const hasStoredFileId = Boolean(knownMetadata.fileId);
 
   // Reuse MongoDB metadata when available; otherwise ask e-GP for the file ID.
-  const metadata = knownMetadata.fileId
+  let metadata = hasStoredFileId
     ? {
         projectId: safeProjectId,
         fileId: knownMetadata.fileId,
         fileName: knownMetadata.fileName || `${safeProjectId}.zip`,
       }
-    : await getPriceEstimateMetadata(safeProjectId, dependencies);
+    : await adapter.discoverPriceEstimate(safeProjectId, dependencies);
 
   // Return the untouched ZIP. Text extraction and OCR are intentionally skipped.
-  const zipBuffer = await downloadPriceEstimateArchive(metadata, dependencies);
+  let zipBuffer;
+  try {
+    zipBuffer = await downloadPriceEstimateArchive(metadata, dependencies);
+  } catch (error) {
+    const shouldRediscover =
+      hasStoredFileId &&
+      adapter.shouldRediscoverAfterDownloadError?.(error) === true;
+    if (!shouldRediscover) throw error;
+
+    // A stale MongoDB file ID gets one fresh metadata lookup and one retry.
+    // This avoids permanently pinning downloads to an obsolete upstream ID.
+    metadata = await adapter.discoverPriceEstimate(safeProjectId, dependencies);
+    zipBuffer = await downloadPriceEstimateArchive(metadata, dependencies);
+  }
   return {
     projectId: safeProjectId,
     fileId: metadata.fileId,
     fileName: metadata.fileName,
+    zipBuffer,
+  };
+}
+
+async function getInvitationMetadata(projectId, dependencies = {}) {
+  const safeProjectId = validateProjectId(projectId);
+  return getAdapter(dependencies).discoverInvitation(
+    safeProjectId,
+    dependencies
+  );
+}
+
+async function getInvitationArchive(
+  projectId,
+  knownMetadata = {},
+  dependencies = {}
+) {
+  const safeProjectId = validateProjectId(projectId);
+  const adapter = getAdapter(dependencies);
+  const metadata = knownMetadata.fileId
+    ? {
+        projectId: safeProjectId,
+        category: DOCUMENT_CATEGORY.INVITATION,
+        status: "available",
+        fileId: knownMetadata.fileId,
+        fileName: knownMetadata.fileName || `${safeProjectId}.zip`,
+        downloadMethod: "file_id",
+      }
+    : await adapter.discoverInvitation(safeProjectId, dependencies);
+
+  if (metadata.status !== "available" || !metadata.fileId) {
+    throw new EgpServiceError(
+      "No invitation bidding-document ZIP found",
+      422,
+      {
+        code: "EGP_INVITATION_NOT_FOUND",
+        kind: ERROR_KIND.NOT_FOUND,
+      }
+    );
+  }
+
+  // This downloads the bidding-document archive only. The announcement PDF
+  // template reference is metadata and is intentionally not used here.
+  const zipBuffer = await adapter.downloadDocument(metadata, dependencies);
+  return {
+    projectId: safeProjectId,
+    fileId: metadata.fileId,
+    fileName: metadata.fileName,
+    zipBuffer,
+  };
+}
+
+async function getDraftEbiddingMetadata(projectId, dependencies = {}) {
+  const safeProjectId = validateProjectId(projectId);
+  return getAdapter(dependencies).discoverDraftEbidding(
+    safeProjectId,
+    dependencies
+  );
+}
+
+async function getDraftEbiddingArchive(
+  projectId,
+  knownMetadata = {},
+  dependencies = {}
+) {
+  const safeProjectId = validateProjectId(projectId);
+  const adapter = getAdapter(dependencies);
+  const metadata = knownMetadata.fileId
+    ? {
+        projectId: safeProjectId,
+        category: DOCUMENT_CATEGORY.DRAFT_EBIDDING,
+        status: "available",
+        fileId: knownMetadata.fileId,
+        fileName: knownMetadata.fileName || `${safeProjectId}.zip`,
+        downloadMethod: "file_id",
+      }
+    : await adapter.discoverDraftEbidding(safeProjectId, dependencies);
+
+  if (metadata.status !== "available" || !metadata.fileId) {
+    const ambiguous = metadata.status === "ambiguous";
+    throw new EgpServiceError(
+      ambiguous
+        ? "Draft e-Bidding ZIP selection is ambiguous"
+        : "No Draft e-Bidding ZIP found",
+      422,
+      {
+        code: ambiguous
+          ? "EGP_DRAFT_EBIDDING_AMBIGUOUS"
+          : "EGP_DRAFT_EBIDDING_NOT_FOUND",
+        kind: ambiguous ? ERROR_KIND.INVALID_RESPONSE : ERROR_KIND.NOT_FOUND,
+        details: ambiguous
+          ? {
+              candidateCount: metadata.candidateCount,
+              ambiguityReason: metadata.ambiguityReason,
+            }
+          : {},
+      }
+    );
+  }
+
+  // Only an unambiguous selected revision reaches the shared ZIP downloader.
+  // Ambiguous discovery results never cause an arbitrary upstream download.
+  const zipBuffer = await adapter.downloadDocument(metadata, dependencies);
+  return {
+    projectId: safeProjectId,
+    fileId: metadata.fileId,
+    fileName: metadata.fileName,
+    revision: metadata.revision ?? null,
+    version: metadata.version ?? null,
     zipBuffer,
   };
 }
@@ -180,4 +307,8 @@ module.exports = {
   extractPdfTextFromZip,
   getPriceEstimateArchive,
   getPriceEstimateDocument,
+  getInvitationMetadata,
+  getInvitationArchive,
+  getDraftEbiddingMetadata,
+  getDraftEbiddingArchive,
 };
