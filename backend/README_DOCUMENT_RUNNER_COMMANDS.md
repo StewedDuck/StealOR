@@ -20,6 +20,22 @@ On our development PC, the normal npm command could not resolve the MongoDB Atla
 
 If DNS works normally on your PC, you can instead run `npm run enrich:documents --` followed by the same runner arguments. Do not change system-wide DNS or disable TLS verification just for this script.
 
+## Invitation category verification (corrected discovery)
+
+Invitation discovery no longer treats a successful ZIP-reference response as proof that an Invitation package exists. The adapter compares the Invitation candidate with the initial Draft Temp locator (`zipId`, `buildName1`, and `buildName2`) and corroborates the category against the public e-GP `greenBook` related-document list (`data.greenBookAnnouncementTypeLinkDto`). A `D0` entry identifies the Invitation/ประกาศเชิญชวน category; `B0` and `B3` are Draft categories. Matching or differing filenames/locators alone do not establish a document's category.
+
+The Invitation result now distinguishes:
+
+| Status | Meaning for this runner |
+| --- | --- |
+| `available` | Authoritative category evidence confirms Invitation and the candidate is consistent. |
+| `not_found` | A successful, complete public document list confirms no `D0` Invitation entry. |
+| `error` | Verification failed or evidence is incomplete, unavailable, or contradictory; this is **not** confirmed absence. |
+
+Category evidence is accepted as complete only after successful token generation, project-detail lookup, `greenBook` response and valid token state, with an array-valued document list. A timeout, malformed response, or failed Draft Temp correlation must not become `not_found`. Existing selection logic prefers a confirmed Invitation; when Invitation is confirmed `not_found` and Draft is available, it selects `draftEbidding`; when Invitation is `error`, selection remains `null` even if Draft is available. Price Estimate remains independent. Selection indicates priority, not exclusive extraction eligibility.
+
+**Persistence caution:** The runner compares new observations with existing `GovProject.documents` using a conservative merge. An existing usable `available` reference is preserved when refresh returns `not_found`, `error`, `ambiguous`, or incomplete availability; the discrepancy should be reviewed rather than assuming the new result automatically repairs previously stored false-positive Invitation metadata. Dry-run displays proposed changes and makes no writes. Review the target records and the report before approving any `--apply`; this bug fix did not run a migration or rewrite MongoDB data.
+
 ## A. Dry-run commands — no MongoDB writes
 
 Dry-run is the default. It **does connect to MongoDB and make live e-GP metadata requests**, but does not save document changes.

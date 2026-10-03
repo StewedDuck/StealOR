@@ -56,6 +56,8 @@ test("real adapter contract produces all normalized project document categories"
         JSON.stringify({ response: { responseCode: "1" }, data: null })
       );
     }
+    const evidence = publicInvitationEvidenceResponse(url, true);
+    if (evidence) return evidence;
     throw new Error(`Unexpected request: ${url}`);
   };
   const adapter = createNationalEgpAdapter({ fetchImpl, maxRetries: 0 });
@@ -71,6 +73,10 @@ test("real adapter contract produces all normalized project document categories"
   assert.deepEqual(requests, [
     "/egp-doc-price-estimate-service/dpe-common/infoDocPriceestZipHis?projectId=68059426756",
     "/egp-approval-service/apv-common/infoProcureDocAnnounZip?projectId=68059426756",
+    "/egp-approval-service/apv-common/infoProcureDocAnnounZipTemp?projectId=68059426756",
+    "/egp-oann10-service/pb/a-egp-allt-project/announcement/generateToken",
+    "/egp-oann10-service/pb/a-egp-allt-project/announcement/getProjectDetail?projectId=68059426756",
+    "/egp-oann10-service/pb/a-egp-allt-project/announcement/greenBook?mode=LINK&methodId=16&tempProjectId=68059426756&pageAnnounceType=D0",
     "/egp-approval-service/apv-common/infoProcureDocAnnounZipTemp?projectId=68059426756",
     "/egp-approval-service/apv-common/infoProcureDocAnnounZipAdj?projectId=68059426756&itemNo=1",
   ]);
@@ -115,6 +121,152 @@ function priceResponse(projectId) {
     },
   });
 }
+
+function publicInvitationEvidenceResponse(url, hasInvitation = false) {
+  if (url.pathname.endsWith("/generateToken")) {
+    return jsonResponse({ data: "announcement-token" });
+  }
+  if (url.pathname.endsWith("/getProjectDetail")) {
+    return jsonResponse({
+      data: {
+        methodId: "16",
+        announceType: hasInvitation ? "D0" : "B0",
+        isSect7: false,
+      },
+    });
+  }
+  if (url.pathname.endsWith("/greenBook")) {
+    return jsonResponse({
+      response: { responseCode: 0 },
+      data: {
+        greenBookAnnouncementTypeLinkDto: [
+          { announceType: hasInvitation ? "D0" : "B0" },
+        ],
+      },
+    });
+  }
+  return null;
+}
+
+test("six false-positive Invitations fall back to the correct Draft", async (t) => {
+  const fixtures = [
+    {
+      projectId: "69059292256",
+      zipId: "0d8308d6782b41d488c8cb0249d2aea7",
+      fileName: "69059292256_10062569.zip",
+      templateId: "49a3e8de-9ca3-4ce5-9031-0ca16f28e353",
+      adjusted: [
+        ["e77e918cddd54c83a8d91980f8ffffb9", "69059292256_13082569_1.zip"],
+        ["8d76e185e6de454bbcede4dfa39c353e", "69059292256_02102569_2.zip"],
+      ],
+      expectedRevision: 2,
+    },
+    {
+      projectId: "69109005145",
+      zipId: "b3c9f94cecad46169655a3982f5bccb4",
+      fileName: "69109005145_01102569.zip",
+      templateId: "10841a5c-44e0-4bb0-a4a1-9943a58b85a2",
+      adjusted: [],
+      expectedRevision: 0,
+    },
+    {
+      projectId: "69099683466",
+      zipId: "f1faa5e84e2f49059f048095f58e1b87",
+      fileName: "69099683466_30092569.zip",
+      templateId: "89180019-442b-445d-9e9e-7239d9e8862c",
+      adjusted: [],
+      expectedRevision: 0,
+    },
+    {
+      projectId: "68109235287",
+      zipId: "3c647d6c9b404104ac21a4e917d6262b",
+      fileName: "68109235287_01092569.zip",
+      templateId: "f53ae7e5-73de-4080-beb6-82a3dedd9124",
+      adjusted: [
+        ["bed6c75ee1654963a238ecf68ba044cc", "68109235287_23092569_1.zip"],
+      ],
+      expectedRevision: 1,
+    },
+    {
+      projectId: "68049412254",
+      zipId: "216ec993eccb474cb5a95c3d062ec012",
+      fileName: "68049412254_30042568.zip",
+      templateId: "b5372f65-b800-434a-b6ae-514928e98561",
+      adjusted: [],
+      expectedRevision: 0,
+    },
+    {
+      projectId: "67119566073",
+      zipId: "3b38515f2fad46dca4690d04ad7aeef4",
+      fileName: "67119566073_02122567.zip",
+      templateId: "2a1f4485-5a34-4031-8296-ec2ea7cbe15a",
+      adjusted: [],
+      expectedRevision: 0,
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    await t.test(fixture.projectId, async () => {
+      const sharedData = {
+        projectId: fixture.projectId,
+        zipId: fixture.zipId,
+        buildName1: fixture.fileName,
+        buildName2: fixture.templateId,
+      };
+      const adapter = createNationalEgpAdapter({
+        maxRetries: 0,
+        fetchImpl: async (url) => {
+          if (url.pathname.endsWith("infoDocPriceestZipHis")) {
+            return priceResponse(fixture.projectId);
+          }
+          if (
+            url.pathname.endsWith("infoProcureDocAnnounZip") ||
+            url.pathname.endsWith("infoProcureDocAnnounZipTemp")
+          ) {
+            return jsonResponse({
+              response: { responseCode: "0" },
+              data: sharedData,
+            });
+          }
+          if (url.pathname.endsWith("infoProcureDocAnnounZipAdj")) {
+            const itemNo = Number(url.searchParams.get("itemNo"));
+            const adjusted = fixture.adjusted[itemNo - 1];
+            return adjusted
+              ? jsonResponse({
+                  response: { responseCode: "0" },
+                  data: [{ zipId: adjusted[0], buildName1: adjusted[1] }],
+                })
+              : confirmedMissingResponse();
+          }
+          const evidence = publicInvitationEvidenceResponse(url);
+          if (evidence) return evidence;
+          throw new Error(`Unexpected request: ${url}`);
+        },
+      });
+
+      const result = await discoverProjectDocuments(fixture.projectId, {
+        egpAdapter: adapter,
+      });
+
+      assert.equal(result.documents.invitation.status, "not_found");
+      assert.equal(result.documents.draftEbidding.status, "available");
+      assert.equal(
+        result.documents.draftEbidding.revision,
+        fixture.expectedRevision
+      );
+      assert.equal(
+        result.documents.draftEbidding.fileName,
+        fixture.expectedRevision === 0
+          ? fixture.fileName
+          : fixture.adjusted[fixture.expectedRevision - 1][1]
+      );
+      assert.equal(
+        result.documents.selectedProcurementDocument,
+        "draftEbidding"
+      );
+    });
+  }
+});
 
 test("65077164290 selects and downloads the newest of four Legacy Drafts", async () => {
   const projectId = "65077164290";
@@ -167,6 +319,8 @@ test("65077164290 selects and downloads the newest of four Legacy Drafts", async
     if (url.pathname.endsWith("getTorZipList")) {
       return legacyListResponse(legacyCandidates);
     }
+    const evidence = publicInvitationEvidenceResponse(url);
+    if (evidence) return evidence;
     if (url.pathname.endsWith("/EGPTransService/control.download")) {
       return new Response(zip, {
         status: 200,
@@ -237,6 +391,8 @@ test("64117010720 persists one selected Legacy Draft when Invitation is absent",
           : []
       );
     }
+    const evidence = publicInvitationEvidenceResponse(url);
+    if (evidence) return evidence;
     throw new Error(`Unexpected request: ${url}`);
   };
   const adapter = createNationalEgpAdapter({ fetchImpl, maxRetries: 0 });
@@ -299,6 +455,8 @@ test("67079622362 remains Price Estimate only with no selected procurement docum
       legacyTypeIds.push(url.searchParams.get("typeId"));
       return legacyListResponse([]);
     }
+    const evidence = publicInvitationEvidenceResponse(url);
+    if (evidence) return evidence;
     throw new Error(`Unexpected request: ${url}`);
   };
   const adapter = createNationalEgpAdapter({

@@ -16,6 +16,30 @@ guaranteed clickable link. Always use either:
 - this application's backend download API; or
 - `nationalEgpAdapter.downloadDocument(metadata)` inside trusted backend code.
 
+## Invitation ZIP category verification
+
+A successful response from `infoProcureDocAnnounZip`, a `zipId`, a `.zip` filename, HTTP 200, or a valid ZIP signature proves neither that the archive belongs to the Invitation category nor that a public Invitation package exists. In some projects the apparent Invitation reference is exactly the initial Draft Temp reference. The corrected discovery compares `zipId`, `buildName1`, and `buildName2` against initial Draft Temp and verifies the category using the public e-GP related-document list:
+
+```text
+GET /egp-oann10-service/pb/a-egp-allt-project/announcement/greenBook
+mode=LINK or LINK_SECTION
+methodId=<project method>
+tempProjectId=<project ID>
+pageAnnounceType=<current announcement type>
+```
+
+The returned `data.greenBookAnnouncementTypeLinkDto` list has machine category code `D0` for Invitation/ประกาศเชิญชวน, and `B0`/`B3` for Draft e-Bidding. The public frontend also routes `T0`/`T3` through draft/tender handling. A shared locator is a warning of category conflict, **not**, by itself, proof of absence; different locators alone are not proof of availability either. Only a successful, complete category list after valid token and project-detail lookup can establish confirmed Invitation absence.
+
+| Invitation discovery status | Meaning | Selection when Draft is `available` |
+| --- | --- | --- |
+| `available` | Public category evidence confirms an Invitation and its reference is consistent. | `invitation` |
+| `not_found` | Complete authoritative list confirms no `D0` Invitation entry. | `draftEbidding` |
+| `error` | Evidence is incomplete, unavailable, malformed, or contradictory (including temporary correlation failure). | `null`; do not treat as absence. |
+
+This correction changes **new discovery results**; it does not automatically repair previous false-positive Invitation metadata stored in MongoDB. The metadata runner's conservative merge preserves a usable stored `available` reference when a refresh yields `not_found` or `error` and reports the discrepancy for review. Review stored references before using an Invitation download route for affected historical records. No MongoDB migration or cleanup was part of this fix.
+
+In the reported live metadata-only regression, six affected projects (`69059292256`, `69109005145`, `69099683466`, `68109235287`, `68049412254`, `67119566073`) changed to Invitation `not_found` with Draft selected. Positive control `68059426756` retained verified Invitation `available`. The reported complete backend test suite passed 134/134 tests. These checks did not download ZIPs or write to MongoDB.
+
 ## The three download methods
 
 | `downloadMethod` | What it means | Can the stored URL work directly? |

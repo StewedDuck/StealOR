@@ -458,37 +458,75 @@ test("Legacy Draft download rejects an HTML transfer error as non-ZIP", async ()
   );
 });
 
-test("invitation discovery maps the website bidding-document ZIP fields", async () => {
-  let requestedUrl;
-  let requestedHeaders;
+function invitationEvidenceResponse(url, { hasInvitation = true } = {}) {
+  if (url.pathname.endsWith("/generateToken")) {
+    return new Response(JSON.stringify({ data: "announcement-token" }));
+  }
+  if (url.pathname.endsWith("/getProjectDetail")) {
+    return new Response(
+      JSON.stringify({
+        data: { methodId: "16", announceType: hasInvitation ? "D0" : "B0" },
+      })
+    );
+  }
+  if (url.pathname.endsWith("/greenBook")) {
+    return new Response(
+      JSON.stringify({
+        response: { responseCode: 0 },
+        data: {
+          greenBookAnnouncementTypeLinkDto: [
+            { announceType: hasInvitation ? "D0" : "B0" },
+          ],
+        },
+      })
+    );
+  }
+  return null;
+}
+
+test("invitation discovery maps a publicly confirmed bidding-document ZIP", async () => {
+  const requested = [];
   const adapter = createNationalEgpAdapter({
     fetchImpl: async (url, options) => {
-      requestedUrl = url;
-      requestedHeaders = options.headers;
-      return new Response(
-        JSON.stringify({
-          response: { responseCode: "0" },
-          data: {
-            projectId: "68059426756",
-            zipId: "invitation-zip-id",
-            buildName1: "68059426756_09062568_1.zip",
-            buildName2: "announcement-template-id",
-          },
-        }),
-        { status: 200 }
-      );
+      requested.push({ url, options });
+      if (url.pathname.endsWith("infoProcureDocAnnounZip")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: {
+              projectId: "68059426756",
+              zipId: "invitation-zip-id",
+              buildName1: "68059426756_09062568_1.zip",
+              buildName2: "announcement-template-id",
+            },
+          })
+        );
+      }
+      if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: {
+              zipId: "draft-file-id",
+              buildName1: "68059426756_30052568.zip",
+              buildName2: "draft-template-id",
+            },
+          })
+        );
+      }
+      return invitationEvidenceResponse(url);
     },
   });
 
   const result = await adapter.discoverInvitation("68059426756");
 
   assert.equal(
-    requestedUrl.pathname,
+    requested[0].url.pathname,
     "/egp-approval-service/apv-common/infoProcureDocAnnounZip"
   );
-  assert.equal(requestedUrl.searchParams.get("projectId"), "68059426756");
-  assert.equal(requestedHeaders.noToken, "noToken");
-  assert.equal(requestedHeaders.noDataProfile, "noDataProfile");
+  assert.equal(requested[0].url.searchParams.get("projectId"), "68059426756");
+  assert.equal(requested[0].options.headers.noToken, "noToken");
+  assert.equal(requested[0].options.headers.noDataProfile, "noDataProfile");
   assert.deepEqual(result, {
     projectId: "68059426756",
     category: DOCUMENT_CATEGORY.INVITATION,
@@ -504,20 +542,25 @@ test("invitation discovery maps the website bidding-document ZIP fields", async 
   });
 });
 
-test("invitation discovery does not mistake the announcement template for a ZIP", async () => {
+test("confirmed public absence does not mistake a shared Draft Temp ZIP for Invitation", async () => {
+  const sharedData = {
+    projectId: "68059426756",
+    zipId: "shared-draft-id",
+    buildName1: "68059426756_30052568.zip",
+    buildName2: "shared-template-id",
+  };
   const adapter = createNationalEgpAdapter({
-    fetchImpl: async () =>
-      new Response(
-        JSON.stringify({
-          response: { responseCode: "0" },
-          data: {
-            projectId: "68059426756",
-            zipId: null,
-            buildName1: null,
-            buildName2: "announcement-template-only",
-          },
-        })
-      ),
+    fetchImpl: async (url) => {
+      if (
+        url.pathname.endsWith("infoProcureDocAnnounZip") ||
+        url.pathname.endsWith("infoProcureDocAnnounZipTemp")
+      ) {
+        return new Response(
+          JSON.stringify({ response: { responseCode: "0" }, data: sharedData })
+        );
+      }
+      return invitationEvidenceResponse(url, { hasInvitation: false });
+    },
   });
 
   const result = await adapter.discoverInvitation("68059426756");
@@ -526,6 +569,161 @@ test("invitation discovery does not mistake the announcement template for a ZIP"
   assert.equal(result.fileId, null);
   assert.equal(result.downloadUrl, null);
   assert.equal("announcementTemplateId" in result, false);
+});
+
+test("public D0 with incomplete ZIP metadata is an error, not not_found", async () => {
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) => {
+      if (url.pathname.endsWith("infoProcureDocAnnounZip")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: { zipId: null, buildName1: null, buildName2: "template-only" },
+          })
+        );
+      }
+      if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
+        return new Response(
+          JSON.stringify({ response: { responseCode: "1" }, data: null })
+        );
+      }
+      return invitationEvidenceResponse(url);
+    },
+  });
+
+  await assert.rejects(
+    () => adapter.discoverInvitation("68059426756"),
+    (error) => error.code === "EGP_INVITATION_CATEGORY_CONFLICT"
+  );
+});
+
+test("Invitation category evidence failure remains an error", async () => {
+  const adapter = createNationalEgpAdapter({
+    maxRetries: 0,
+    fetchImpl: async (url) => {
+      if (url.pathname.endsWith("infoProcureDocAnnounZip")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: { zipId: "candidate-id", buildName1: "candidate.zip" },
+          })
+        );
+      }
+      if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
+        return new Response(
+          JSON.stringify({ response: { responseCode: "1" }, data: null })
+        );
+      }
+      if (url.pathname.endsWith("/generateToken")) {
+        return new Response(JSON.stringify({ data: "announcement-token" }));
+      }
+      if (url.pathname.endsWith("/getProjectDetail")) {
+        return new Response(JSON.stringify({ data: { methodId: "16" } }));
+      }
+      return new Response(
+        JSON.stringify({ response: { responseCode: 0 }, data: {} })
+      );
+    },
+  });
+
+  await assert.rejects(
+    () => adapter.discoverInvitation("68059426756"),
+    (error) => error.code === "EGP_INVITATION_CATEGORY_UNVERIFIED"
+  );
+});
+
+test("temporary Draft Temp correlation failure never becomes Invitation not_found", async () => {
+  const adapter = createNationalEgpAdapter({
+    maxRetries: 0,
+    fetchImpl: async (url) => {
+      if (url.pathname.endsWith("infoProcureDocAnnounZip")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: { zipId: "candidate-id", buildName1: "candidate.zip" },
+          })
+        );
+      }
+      const error = new Error("temporary upstream timeout");
+      error.name = "TimeoutError";
+      throw error;
+    },
+  });
+
+  await assert.rejects(
+    () => adapter.discoverInvitation("68059426756"),
+    (error) => error.code === "EGP_TIMEOUT" && error.kind === ERROR_KIND.RECOVERABLE
+  );
+});
+
+test("all six shared-locator regressions require public D0 evidence", async (t) => {
+  const fixtures = [
+    ["69059292256", "0d8308d6782b41d488c8cb0249d2aea7", "69059292256_10062569.zip", "49a3e8de-9ca3-4ce5-9031-0ca16f28e353"],
+    ["69109005145", "b3c9f94cecad46169655a3982f5bccb4", "69109005145_01102569.zip", "10841a5c-44e0-4bb0-a4a1-9943a58b85a2"],
+    ["69099683466", "f1faa5e84e2f49059f048095f58e1b87", "69099683466_30092569.zip", "89180019-442b-445d-9e9e-7239d9e8862c"],
+    ["68109235287", "3c647d6c9b404104ac21a4e917d6262b", "68109235287_01092569.zip", "f53ae7e5-73de-4080-beb6-82a3dedd9124"],
+    ["68049412254", "216ec993eccb474cb5a95c3d062ec012", "68049412254_30042568.zip", "b5372f65-b800-434a-b6ae-514928e98561"],
+    ["67119566073", "3b38515f2fad46dca4690d04ad7aeef4", "67119566073_02122567.zip", "2a1f4485-5a34-4031-8296-ec2ea7cbe15a"],
+  ];
+
+  for (const [projectId, zipId, buildName1, buildName2] of fixtures) {
+    await t.test(projectId, async () => {
+      const data = { projectId, zipId, buildName1, buildName2 };
+      const adapter = createNationalEgpAdapter({
+        fetchImpl: async (url) => {
+          if (
+            url.pathname.endsWith("infoProcureDocAnnounZip") ||
+            url.pathname.endsWith("infoProcureDocAnnounZipTemp")
+          ) {
+            return new Response(
+              JSON.stringify({ response: { responseCode: "0" }, data })
+            );
+          }
+          return invitationEvidenceResponse(url, { hasInvitation: false });
+        },
+      });
+
+      const result = await adapter.discoverInvitation(projectId);
+      assert.equal(result.status, "not_found");
+      assert.equal(result.fileId, null);
+    });
+  }
+});
+
+test("identical filenames with different IDs remain eligible when D0 is present", async () => {
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) => {
+      if (url.pathname.endsWith("infoProcureDocAnnounZip")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: {
+              zipId: "invitation-id",
+              buildName1: "same-name.zip",
+              buildName2: "invitation-template",
+            },
+          })
+        );
+      }
+      if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: {
+              zipId: "draft-id",
+              buildName1: "same-name.zip",
+              buildName2: "draft-template",
+            },
+          })
+        );
+      }
+      return invitationEvidenceResponse(url);
+    },
+  });
+
+  const result = await adapter.discoverInvitation("68059426756");
+  assert.equal(result.status, "available");
+  assert.equal(result.fileId, "invitation-id");
 });
 
 test("draft e-bidding discovery selects the only valid initial ZIP", async () => {

@@ -1,4 +1,3 @@
-const crypto = require("crypto");
 const {
   EGP_BASE_URL,
   ANNOUNCEMENT_PATH,
@@ -13,35 +12,7 @@ const {
 } = require("./validation");
 const { request, readMetadataJson } = require("./transport");
 const { createDocumentMetadata } = require("./metadata");
-
-function encryptAnnouncementData(value) {
-  const salt = crypto.randomBytes(8);
-  const password = Buffer.from("RDCrypto", "utf8");
-  let derived = Buffer.alloc(0);
-  let previous = Buffer.alloc(0);
-
-  // Match the public e-GP CryptoJS/OpenSSL passphrase format.
-  while (derived.length < 48) {
-    previous = crypto
-      .createHash("md5")
-      .update(Buffer.concat([previous, password, salt]))
-      .digest();
-    derived = Buffer.concat([derived, previous]);
-  }
-
-  const cipher = crypto.createCipheriv(
-    "aes-256-cbc",
-    derived.subarray(0, 32),
-    derived.subarray(32, 48)
-  );
-  const encrypted = Buffer.concat([
-    cipher.update(JSON.stringify(value), "utf8"),
-    cipher.final(),
-  ]);
-  return encodeURIComponent(
-    Buffer.concat([Buffer.from("Salted__"), salt, encrypted]).toString("base64")
-  );
-}
+const { encryptAnnouncementData } = require("./publicAnnouncement");
 
 async function getPrimaryPriceEstimateMetadata(projectId, options) {
   const url = new URL(

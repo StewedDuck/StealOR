@@ -210,5 +210,6 @@ async function getDraftEbiddingMetadata(projectId, options) {
 
 module.exports = {
   getDraftEbiddingMetadata,
+  requestDraftPayload,
   responseCode,
 };
