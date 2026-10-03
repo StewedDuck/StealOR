@@ -7,7 +7,8 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "migrate:documents:dry-run": "node scripts/migrateGovProjectDocuments.js"
+    "migrate:documents:dry-run": "node scripts/migrateGovProjectDocuments.js",
+    "enrich:documents": "node scripts/enrichGovProjectDocuments.js"
   },
   "keywords": [],
   "author": "",

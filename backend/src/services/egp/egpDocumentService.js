@@ -482,4 +482,5 @@ module.exports = {
   getDraftEbiddingMetadata,
   getDraftEbiddingArchive,
   discoverProjectDocuments,
+  selectProcurementDocument,
 };
