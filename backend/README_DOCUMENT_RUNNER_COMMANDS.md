@@ -14,41 +14,11 @@ Set-Location 'C:\Users\USER\Downloads\software_collab\StealOR\backend'
 
 Make sure dependencies and the backend's MongoDB configuration are set up. These commands use the MongoDB configured by the backend; confirm it is the **intended database**, especially before any apply command. The backend HTTP server does not need to be started merely to run this CLI.
 
-### Windows DNS workaround (if you receive `querySrv ECONNREFUSED`)
+### Windows DNS workaround (`querySrv ECONNREFUSED`)
 
-On the Windows setup used during development, the normal npm command encountered a MongoDB Atlas SRV DNS error. This helper changes DNS servers **only for the launched Node.js process**, and calls the runner's exported `run(argv)` entry point. Paste the full function **once in your current PowerShell session**:
+On our development PC, the normal npm command could not resolve the MongoDB Atlas SRV address. The examples below use the **tested, directly executable `node -e` format**. Each command sets DNS servers to `1.1.1.1` and `8.8.8.8` for that **Node.js process only**, then starts the runner explicitly. No PowerShell helper needs to be defined. Run each command from `backend`.
 
-```powershell
-function Invoke-EgpDocumentRunnerWithDns {
-  [CmdletBinding()]
-  param(
-    [Parameter(Mandatory = $true)]
-    [string[]]$RunnerArgs
-  )
-
-  $previousArgs = $env:EGP_DOCUMENT_RUNNER_ARGS
-
-  try {
-    $env:EGP_DOCUMENT_RUNNER_ARGS = ConvertTo-Json -InputObject @($RunnerArgs) -Compress
-
-    node -e 'const dns = require("node:dns"); dns.setServers(["1.1.1.1", "8.8.8.8"]); const { run } = require("./scripts/enrichGovProjectDocuments"); const args = JSON.parse(process.env.EGP_DOCUMENT_RUNNER_ARGS); run(args).catch((error) => { console.error(error.message); process.exitCode = 1; });'
-
-    if ($LASTEXITCODE -ne 0) {
-      throw "Document Runner exited with code $LASTEXITCODE"
-    }
-  }
-  finally {
-    if ($null -eq $previousArgs) {
-      Remove-Item Env:\EGP_DOCUMENT_RUNNER_ARGS -ErrorAction SilentlyContinue
-    }
-    else {
-      $env:EGP_DOCUMENT_RUNNER_ARGS = $previousArgs
-    }
-  }
-}
-```
-
-All eight cases below use this helper, so the commands are short and consistent. After opening a **new** PowerShell session, paste the helper again. If DNS works normally on another computer, replace each helper invocation with `npm run enrich:documents --` followed by its listed arguments. Do not disable TLS verification or change Windows-wide DNS settings merely for this script.
+If DNS works normally on your PC, you can instead run `npm run enrich:documents --` followed by the same runner arguments. Do not change system-wide DNS or disable TLS verification just for this script.
 
 ## A. Dry-run commands — no MongoDB writes
 
@@ -57,7 +27,7 @@ Dry-run is the default. It **does connect to MongoDB and make live e-GP metadata
 ### Case 1 — Discover one known project
 
 ```powershell
-Invoke-EgpDocumentRunnerWithDns -RunnerArgs @('--project-id', '68059426756')
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--project-id','68059426756']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
 Checks whether that existing MongoDB project has document references and prints the proposed metadata changes. Start here.
@@ -65,7 +35,7 @@ Checks whether that existing MongoDB project has document references and prints 
 ### Case 2 — Read one project ID from Local JSON
 
 ```powershell
-Invoke-EgpDocumentRunnerWithDns -RunnerArgs @('--source', 'local', '--limit', '1')
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','local','--limit','1']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
 Takes one project ID from the configured local provider (`software_tor_5.json` in the current setup). If it is not in MongoDB, skips it; does not import it.
@@ -73,7 +43,7 @@ Takes one project ID from the configured local provider (`software_tor_5.json` i
 ### Case 3 — Read one existing project ID from MongoDB
 
 ```powershell
-Invoke-EgpDocumentRunnerWithDns -RunnerArgs @('--source', 'mongo', '--limit', '1')
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--limit','1']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
 Checks the MongoDB-source workflow with a small batch.
@@ -81,7 +51,7 @@ Checks the MongoDB-source workflow with a small batch.
 ### Case 4 — Discover all project IDs from Local JSON
 
 ```powershell
-Invoke-EgpDocumentRunnerWithDns -RunnerArgs @('--source', 'local')
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','local']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
 Dynamically reads the provider's actual entries. The current local file contains 27 unique project IDs, but the runner must not hard-code that count. Missing MongoDB records are skipped.
@@ -89,7 +59,7 @@ Dynamically reads the provider's actual entries. The current local file contains
 ### Case 5 — Discover all existing MongoDB projects
 
 ```powershell
-Invoke-EgpDocumentRunnerWithDns -RunnerArgs @('--source', 'mongo', '--all')
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--all']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
 Explicitly opts in to a database-wide dry-run. This can send **multiple e-GP requests per project**. For a larger data set, consider a smaller `--limit` first and a higher delay (see below).
@@ -101,7 +71,7 @@ Explicitly opts in to a database-wide dry-run. This can send **multiple e-GP req
 ### Case 6 — Apply one approved project (recommended first write)
 
 ```powershell
-Invoke-EgpDocumentRunnerWithDns -RunnerArgs @('--project-id', '68059426756', '--apply', '--confirm', 'APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT')
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--project-id','68059426756','--apply','--confirm','APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
 Updates only the targeted existing project's document-reference fields, if there is an eligible change. Inspect the report and backup information afterwards.
@@ -109,7 +79,7 @@ Updates only the targeted existing project's document-reference fields, if there
 ### Case 7 — Apply all matching Local JSON projects
 
 ```powershell
-Invoke-EgpDocumentRunnerWithDns -RunnerArgs @('--source', 'local', '--apply', '--confirm', 'APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT')
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','local','--apply','--confirm','APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
 Resolves IDs from Local JSON and applies metadata changes only to matching existing MongoDB projects. **This is not an importer**.
@@ -117,7 +87,7 @@ Resolves IDs from Local JSON and applies metadata changes only to matching exist
 ### Case 8 — Apply all existing MongoDB projects
 
 ```powershell
-Invoke-EgpDocumentRunnerWithDns -RunnerArgs @('--source', 'mongo', '--all', '--apply', '--confirm', 'APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT')
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--all','--apply','--confirm','APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
 Explicitly opts in to a full-database metadata refresh and write. Run only after validating smaller batches and confirming the intended scope.
@@ -129,13 +99,13 @@ The implementation processes projects sequentially with a default **750 ms delay
 Example: dry-run 5 existing MongoDB projects with a 2-second inter-project delay:
 
 ```powershell
-Invoke-EgpDocumentRunnerWithDns -RunnerArgs @('--source', 'mongo', '--limit', '5', '--delay-ms', '2000')
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--limit','5','--delay-ms','2000']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
 Example: apply those 5 projects only after inspecting the matching dry-run:
 
 ```powershell
-Invoke-EgpDocumentRunnerWithDns -RunnerArgs @('--source', 'mongo', '--limit', '5', '--delay-ms', '2000', '--apply', '--confirm', 'APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT')
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--limit','5','--delay-ms','2000','--apply','--confirm','APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
 Note: If the database contents or sort order change between separate executions, `--limit 5` is not necessarily an immutable set of the same five IDs. For a critical single-project update, prefer `--project-id`.
