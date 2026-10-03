@@ -2,6 +2,7 @@ const crypto = require("crypto");
 
 const EGP_BASE_URL = "https://process5.gprocurement.go.th";
 const EGP_LEGACY_BASE_URL = "https://process3.gprocurement.go.th";
+const EGP_LEGACY_FILE_BASE_URL = "https://file.gprocurement.go.th";
 const ANNOUNCEMENT_PATH =
   "/egp-oann10-service/pb/a-egp-allt-project/announcement";
 const APPROVAL_COMMON_PATH = "/egp-approval-service/apv-common";
@@ -21,6 +22,7 @@ const DOCUMENT_CATEGORY = Object.freeze({
 
 const LOOKUP_METHOD = Object.freeze({
   DRAFT_ADJUSTED: "draft_approval_adjusted",
+  DRAFT_LEGACY_PUBLIC: "draft_legacy_public",
   DRAFT_TEMP: "draft_approval_temp",
   INVITATION_APPROVAL_FINAL: "invitation_approval_final",
   PRICE_PRIMARY: "price_primary",
@@ -30,8 +32,17 @@ const LOOKUP_METHOD = Object.freeze({
 
 const DOWNLOAD_METHOD = Object.freeze({
   FILE_ID: "file_id",
+  LEGACY_DRAFT_TRANSFER: "legacy_draft_transfer",
   LEGACY_FILENAME: "legacy_filename",
 });
+
+const LEGACY_DRAFT_DISCOVERY_PATH =
+  "/egp-oann10-service/pb/a-egp-allt-project/announcement/getTorZipList";
+const LEGACY_DRAFT_TRANSFER_PATH = "/EGPTransService/control.download";
+const LEGACY_DRAFT_TYPES = Object.freeze([
+  Object.freeze({ typeId: "03", docType: "temp", stepId: "D03" }),
+  Object.freeze({ typeId: "04", docType: "adj", stepId: "U03" }),
+]);
 
 const ERROR_KIND = Object.freeze({
   ACCESS_DENIED: "access_denied",
@@ -86,6 +97,7 @@ async function request(
     headers = {},
     method = "GET",
     body,
+    redirect = "follow",
     maxRetries = DEFAULT_MAX_RETRIES,
     retryBaseDelayMs = DEFAULT_RETRY_BASE_DELAY_MS,
     retryMaxDelayMs = DEFAULT_RETRY_MAX_DELAY_MS,
@@ -106,6 +118,7 @@ async function request(
           ...headers,
         },
         body,
+        redirect,
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
@@ -302,17 +315,39 @@ function createAmbiguousMetadata(projectId, candidates, details = {}) {
     fileName: null,
     downloadUrl: null,
     candidateCount: candidates.length,
-    candidates: candidates.map(({ fileId, fileName, revision, lookupMethod }) => ({
-      fileId,
-      fileName,
-      revision,
-      lookupMethod,
-    })),
+    candidates: candidates.map((candidate) => createCandidateDiagnostic(candidate)),
     ...details,
   };
 }
 
+function createCandidateDiagnostic(candidate) {
+  const diagnostic = {};
+  for (const field of [
+    "fileId",
+    "fileName",
+    "revision",
+    "lookupMethod",
+    "publishedAt",
+    "commentDeadlineAt",
+    "legacyItemNo",
+    "legacyTypeId",
+    "legacyDocType",
+    "legacyMethodId",
+    "legacyStepId",
+  ]) {
+    if (candidate[field] !== undefined) diagnostic[field] = candidate[field];
+  }
+  return diagnostic;
+}
+
 function buildDocumentDownloadUrl(metadata) {
+  if (metadata.downloadMethod === DOWNLOAD_METHOD.LEGACY_DRAFT_TRANSFER) {
+    return new URL(
+      LEGACY_DRAFT_TRANSFER_PATH,
+      EGP_LEGACY_FILE_BASE_URL
+    ).toString();
+  }
+
   if (metadata.downloadMethod === DOWNLOAD_METHOD.LEGACY_FILENAME) {
     const url = new URL(
       "/egp2procmainWeb/FPRO9965AttachServ",
@@ -544,6 +579,40 @@ function normalizeDraftCandidate(projectId, record, revision, lookupMethod) {
   };
 }
 
+function responseCode(payload) {
+  return String(payload?.response?.responseCode ?? "");
+}
+
+function isConfirmedProcess5Absence(payload) {
+  const code = responseCode(payload);
+  const messageCode = String(payload?.response?.messageCode ?? "");
+  return (
+    code === "1" &&
+    payload?.data == null &&
+    (messageCode === "" || messageCode === "E0001")
+  );
+}
+
+function assertSupportedProcess5DraftPayload(payload, { allowArray }) {
+  if (isConfirmedProcess5Absence(payload)) return "not_found";
+  if (responseCode(payload) !== "0") {
+    throw new EgpServiceError("e-GP returned an unsupported Draft response", 502, {
+      code: "EGP_INVALID_DRAFT_RESPONSE",
+      kind: ERROR_KIND.INVALID_RESPONSE,
+    });
+  }
+  if (allowArray && Array.isArray(payload?.data)) {
+    return payload.data.length === 0 ? "not_found" : "available";
+  }
+  if (!allowArray && payload?.data && typeof payload.data === "object") {
+    return "available";
+  }
+  throw new EgpServiceError("e-GP returned malformed Draft metadata", 502, {
+    code: "EGP_INVALID_DRAFT_RESPONSE",
+    kind: ERROR_KIND.INVALID_RESPONSE,
+  });
+}
+
 function selectDraftCandidate(projectId, candidates, reachedRevisionLimit) {
   if (candidates.length === 0) {
     return createNotFoundMetadata(
@@ -593,21 +662,32 @@ function selectDraftCandidate(projectId, candidates, reachedRevisionLimit) {
 
 async function getDraftEbiddingMetadata(projectId, options) {
   const candidates = [];
+  const attempts = [];
   const initialPayload = await requestDraftPayload(
     projectId,
     "infoProcureDocAnnounZipTemp",
     null,
     options
   );
-  if (initialPayload?.response?.responseCode === "0") {
+  const initialOutcome = assertSupportedProcess5DraftPayload(initialPayload, {
+    allowArray: false,
+  });
+  if (initialOutcome === "available") {
     const initial = normalizeDraftCandidate(
       projectId,
       initialPayload.data,
       0,
       LOOKUP_METHOD.DRAFT_TEMP
     );
-    if (initial) candidates.push(initial);
+    if (!initial) {
+      throw new EgpServiceError("e-GP returned malformed initial Draft metadata", 502, {
+        code: "EGP_INVALID_DRAFT_RESPONSE",
+        kind: ERROR_KIND.INVALID_RESPONSE,
+      });
+    }
+    candidates.push(initial);
   }
+  attempts.push({ lookupMethod: LOOKUP_METHOD.DRAFT_TEMP, outcome: initialOutcome });
 
   const maxRevisions = Math.min(
     50,
@@ -624,8 +704,17 @@ async function getDraftEbiddingMetadata(projectId, options) {
       itemNo,
       options
     );
-    const records = Array.isArray(payload?.data) ? payload.data : [];
-    if (payload?.response?.responseCode !== "0" || records.length === 0) break;
+    const adjustedOutcome = assertSupportedProcess5DraftPayload(payload, {
+      allowArray: true,
+    });
+    if (adjustedOutcome === "not_found") {
+      attempts.push({
+        lookupMethod: LOOKUP_METHOD.DRAFT_ADJUSTED,
+        outcome: "not_found",
+      });
+      break;
+    }
+    const records = payload.data;
 
     const revisionCandidates = records
       .map((record) =>
@@ -637,12 +726,246 @@ async function getDraftEbiddingMetadata(projectId, options) {
         )
       )
       .filter(Boolean);
-    if (revisionCandidates.length === 0) break;
+    if (revisionCandidates.length !== records.length) {
+      throw new EgpServiceError("e-GP returned malformed adjusted Draft metadata", 502, {
+        code: "EGP_INVALID_DRAFT_RESPONSE",
+        kind: ERROR_KIND.INVALID_RESPONSE,
+      });
+    }
+    attempts.push({
+      lookupMethod: LOOKUP_METHOD.DRAFT_ADJUSTED,
+      outcome: "available",
+    });
     candidates.push(...revisionCandidates);
     reachedRevisionLimit = itemNo === maxRevisions;
   }
 
-  return selectDraftCandidate(projectId, candidates, reachedRevisionLimit);
+  return {
+    ...selectDraftCandidate(projectId, candidates, reachedRevisionLimit),
+    lookupAttempts: attempts,
+  };
+}
+
+function invalidLegacyDraftResponse(message) {
+  return new EgpServiceError(message, 502, {
+    code: "EGP_INVALID_LEGACY_DRAFT_RESPONSE",
+    kind: ERROR_KIND.INVALID_RESPONSE,
+  });
+}
+
+function parseLegacyDraftFileName(fileName, projectId) {
+  const normalized = validateZipFileName(fileName);
+  const escapedProjectId = projectId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = normalized.match(
+    new RegExp(`^${escapedProjectId}_(\\d{14})_[A-Za-z0-9-]+\\.zip$`, "i")
+  );
+  if (!match) {
+    throw invalidLegacyDraftResponse("e-GP returned an invalid Legacy Draft filename");
+  }
+
+  const stamp = match[1];
+  const buddhistYear = Number(stamp.slice(0, 4));
+  const month = Number(stamp.slice(4, 6));
+  const day = Number(stamp.slice(6, 8));
+  const hour = Number(stamp.slice(8, 10));
+  const minute = Number(stamp.slice(10, 12));
+  const second = Number(stamp.slice(12, 14));
+  const gregorianYear = buddhistYear - 543;
+  const timestampMs = Date.UTC(
+    gregorianYear,
+    month - 1,
+    day,
+    hour - 7,
+    minute,
+    second
+  );
+  const thailand = new Date(timestampMs + 7 * 60 * 60 * 1000);
+  if (
+    !Number.isFinite(timestampMs) ||
+    thailand.getUTCFullYear() !== gregorianYear ||
+    thailand.getUTCMonth() + 1 !== month ||
+    thailand.getUTCDate() !== day ||
+    thailand.getUTCHours() !== hour ||
+    thailand.getUTCMinutes() !== minute ||
+    thailand.getUTCSeconds() !== second
+  ) {
+    throw invalidLegacyDraftResponse("e-GP returned an invalid Legacy Draft timestamp");
+  }
+  return { fileName: normalized, fileTimestamp: stamp, timestampMs };
+}
+
+function normalizeLegacyDraftCandidate(projectId, record, legacyItemNo, queryType) {
+  if (!record || typeof record !== "object") {
+    throw invalidLegacyDraftResponse("e-GP returned malformed Legacy Draft metadata");
+  }
+  if (String(record.projectId || "") !== projectId) {
+    throw invalidLegacyDraftResponse("e-GP returned a mismatched Legacy Draft project ID");
+  }
+  const sourceType = LEGACY_DRAFT_TYPES.find(({ stepId }) => stepId === record.stepId);
+  if (!sourceType) {
+    throw invalidLegacyDraftResponse("e-GP returned an unsupported Legacy Draft step");
+  }
+  const parsedName = parseLegacyDraftFileName(record.buildName, projectId);
+  const publishedAt = new Date(record.webDate);
+  if (Number.isNaN(publishedAt.getTime())) {
+    throw invalidLegacyDraftResponse("e-GP returned an invalid Legacy Draft publication date");
+  }
+  const publishedThailand = new Date(publishedAt.getTime() + 7 * 60 * 60 * 1000);
+  const fileThailand = new Date(parsedName.timestampMs + 7 * 60 * 60 * 1000);
+  if (
+    publishedThailand.getUTCFullYear() !== fileThailand.getUTCFullYear() ||
+    publishedThailand.getUTCMonth() !== fileThailand.getUTCMonth() ||
+    publishedThailand.getUTCDate() !== fileThailand.getUTCDate()
+  ) {
+    throw invalidLegacyDraftResponse(
+      "e-GP returned conflicting Legacy Draft publication timestamps"
+    );
+  }
+  const commentDeadline = record.commentFDate
+    ? new Date(record.commentFDate)
+    : null;
+  if (commentDeadline && Number.isNaN(commentDeadline.getTime())) {
+    throw invalidLegacyDraftResponse("e-GP returned an invalid Draft comment deadline");
+  }
+  return {
+    projectId,
+    fileId: null,
+    fileName: parsedName.fileName,
+    fileTimestamp: parsedName.fileTimestamp,
+    timestampMs: parsedName.timestampMs,
+    publishedAt: publishedAt.toISOString(),
+    commentDeadlineAt: commentDeadline?.toISOString() || null,
+    lookupMethod: LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC,
+    legacyItemNo,
+    legacyTypeId: sourceType.typeId,
+    legacyDocType: sourceType.docType,
+    legacyMethodId: "16",
+    legacyStepId: sourceType.stepId,
+    queryTypeId: queryType.typeId,
+    locatorMatchesSource: queryType.typeId === sourceType.typeId,
+  };
+}
+
+async function requestLegacyDraftCandidates(projectId, queryType, options) {
+  const url = new URL(LEGACY_DRAFT_DISCOVERY_PATH, EGP_BASE_URL);
+  for (const [key, value] of Object.entries({
+    projectId,
+    methodId: "16",
+    projectVersion: "3",
+    typeProject: "6",
+    stepId: "C01",
+    typeId: queryType.typeId,
+  })) {
+    url.searchParams.set(key, value);
+  }
+  const response = await request(url, {
+    ...options,
+    headers: { ...options.headers, Accept: "application/json" },
+  });
+  const payload = await readMetadataJson(response, "Legacy Draft");
+  if (responseCode(payload) !== "0" || !Array.isArray(payload?.data)) {
+    throw invalidLegacyDraftResponse("e-GP returned an unsupported Legacy Draft response");
+  }
+  return payload.data.map((record, legacyItemNo) =>
+    normalizeLegacyDraftCandidate(projectId, record, legacyItemNo, queryType)
+  );
+}
+
+function deduplicateLegacyDraftCandidates(candidates) {
+  const grouped = new Map();
+  for (const candidate of candidates) {
+    const group = grouped.get(candidate.fileName) || [];
+    group.push(candidate);
+    grouped.set(candidate.fileName, group);
+  }
+  const deduplicated = [];
+  for (const group of grouped.values()) {
+    const matchingLocators = group.filter(({ locatorMatchesSource }) => locatorMatchesSource);
+    if (matchingLocators.length !== 1) {
+      throw invalidLegacyDraftResponse(
+        "e-GP did not provide one authoritative Legacy Draft download locator"
+      );
+    }
+    deduplicated.push(matchingLocators[0]);
+  }
+  return deduplicated;
+}
+
+function selectLegacyDraftCandidate(projectId, candidates) {
+  if (candidates.length === 0) {
+    return createNotFoundMetadata(
+      projectId,
+      DOCUMENT_CATEGORY.DRAFT_EBIDDING,
+      LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC
+    );
+  }
+  const latestTimestamp = Math.max(...candidates.map(({ timestampMs }) => timestampMs));
+  const latest = candidates.filter(({ timestampMs }) => timestampMs === latestTimestamp);
+  if (latest.length !== 1) {
+    return createAmbiguousMetadata(projectId, candidates, {
+      lookupMethod: LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC,
+      latestPublishedAt: new Date(latestTimestamp).toISOString(),
+      ambiguityReason: "conflicting_latest_legacy_draft",
+    });
+  }
+  const selected = latest[0];
+  const diagnostics = candidates.map(createCandidateDiagnostic);
+  return createDocumentMetadata({
+    projectId,
+    category: DOCUMENT_CATEGORY.DRAFT_EBIDDING,
+    fileName: selected.fileName,
+    lookupMethod: LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC,
+    downloadMethod: DOWNLOAD_METHOD.LEGACY_DRAFT_TRANSFER,
+    additionalFields: {
+      version: `legacy_${selected.fileTimestamp}`,
+      candidateCount: candidates.length,
+      candidates: diagnostics,
+      publishedAt: selected.publishedAt,
+      commentDeadlineAt: selected.commentDeadlineAt,
+      legacyItemNo: selected.legacyItemNo,
+      legacyTypeId: selected.legacyTypeId,
+      legacyDocType: selected.legacyDocType,
+      legacyMethodId: selected.legacyMethodId,
+      legacyStepId: selected.legacyStepId,
+    },
+  });
+}
+
+async function getLegacyDraftEbiddingMetadata(projectId, options) {
+  const candidatesByType = [];
+  for (const queryType of LEGACY_DRAFT_TYPES) {
+    candidatesByType.push(
+      ...(await requestLegacyDraftCandidates(projectId, queryType, options))
+    );
+  }
+  return selectLegacyDraftCandidate(
+    projectId,
+    deduplicateLegacyDraftCandidates(candidatesByType)
+  );
+}
+
+async function discoverDraftEbiddingMetadata(projectId, options) {
+  const process5 = await getDraftEbiddingMetadata(projectId, options);
+  if (process5.status !== "not_found") return process5;
+
+  const attempts = [...(process5.lookupAttempts || [])];
+  try {
+    const legacy = await getLegacyDraftEbiddingMetadata(projectId, options);
+    attempts.push({
+      lookupMethod: LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC,
+      outcome: legacy.status,
+    });
+    return { ...legacy, lookupAttempts: attempts };
+  } catch (error) {
+    attempts.push({
+      lookupMethod: LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC,
+      outcome: "error",
+      code: error.code || "EGP_SERVICE_ERROR",
+      kind: error.kind || ERROR_KIND.RECOVERABLE,
+    });
+    error.details = { ...error.details, lookupAttempts: attempts };
+    throw error;
+  }
 }
 
 async function discoverPriceEstimateMetadata(projectId, options = {}) {
@@ -771,6 +1094,91 @@ async function downloadLegacyZip(projectId, fileName, options = {}) {
   return buffer;
 }
 
+function validateLegacyDraftDownloadMetadata(metadata) {
+  const projectId = validateProjectId(metadata?.projectId);
+  const fileName = parseLegacyDraftFileName(metadata?.fileName, projectId).fileName;
+  const legacyItemNo = Number(metadata?.legacyItemNo);
+  if (!Number.isSafeInteger(legacyItemNo) || legacyItemNo < 0) {
+    throw new EgpServiceError("Legacy Draft item locator is invalid", 502, {
+      code: "EGP_INVALID_LEGACY_DRAFT_LOCATOR",
+      kind: ERROR_KIND.INVALID_RESPONSE,
+    });
+  }
+
+  const type = LEGACY_DRAFT_TYPES.find(
+    ({ typeId, docType }) =>
+      typeId === String(metadata?.legacyTypeId || "") &&
+      docType === String(metadata?.legacyDocType || "")
+  );
+  if (!type || String(metadata?.legacyMethodId || "") !== "16") {
+    throw new EgpServiceError("Legacy Draft transfer metadata is invalid", 502, {
+      code: "EGP_INVALID_LEGACY_DRAFT_LOCATOR",
+      kind: ERROR_KIND.INVALID_RESPONSE,
+    });
+  }
+
+  return { projectId, fileName, legacyItemNo, type };
+}
+
+async function downloadLegacyDraftZip(metadata, options = {}) {
+  const { projectId, fileName, legacyItemNo, type } =
+    validateLegacyDraftDownloadMetadata(metadata);
+  const form = new URLSearchParams({
+    proc_id: "",
+    servlet: "",
+    service: "D",
+    projectId,
+    methodId: "16",
+    typeId: type.typeId,
+    itemNo: String(legacyItemNo),
+    subjectNo: "",
+    subjectName: "",
+    strAdd: "",
+    mode: "public",
+    seqNo: "",
+    docType: type.docType,
+    docFlag: "",
+    submitTin: "",
+    attachSimulate: "",
+    fileName,
+    partType: "z",
+    branchNo: "",
+    fieldname: "",
+    fieldsize: "",
+    num: "",
+    realMethodId: "",
+    announceSeq: "",
+    considerSeqno: "",
+  });
+  const url = new URL(LEGACY_DRAFT_TRANSFER_PATH, EGP_LEGACY_FILE_BASE_URL);
+  const response = await request(url, {
+    ...options,
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      ...options.headers,
+      Accept: "application/zip, application/octet-stream",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: form,
+  });
+  const buffer = await readLimitedBody(
+    response,
+    options.maxBytes || DEFAULT_MAX_DOWNLOAD_BYTES
+  );
+  if (buffer.length < 4 || buffer.subarray(0, 2).toString("ascii") !== "PK") {
+    throw new EgpServiceError(
+      "e-GP Legacy Draft download is not a valid ZIP file",
+      422,
+      {
+        code: "EGP_INVALID_ZIP",
+        kind: ERROR_KIND.INVALID_RESPONSE,
+      }
+    );
+  }
+  return buffer;
+}
+
 function createNationalEgpAdapter(defaultOptions = {}) {
   return {
     // Discover only metadata here. Downloading is deliberately separate so
@@ -792,7 +1200,7 @@ function createNationalEgpAdapter(defaultOptions = {}) {
 
     discoverDraftEbidding(projectId, options = {}) {
       const safeProjectId = validateProjectId(projectId);
-      return getDraftEbiddingMetadata(safeProjectId, {
+      return discoverDraftEbiddingMetadata(safeProjectId, {
         ...defaultOptions,
         ...options,
       });
@@ -802,6 +1210,11 @@ function createNationalEgpAdapter(defaultOptions = {}) {
     // controllers therefore do not need to understand the Process 3 fallback.
     downloadDocument(metadata, options = {}) {
       const requestOptions = { ...defaultOptions, ...options };
+      if (
+        metadata?.downloadMethod === DOWNLOAD_METHOD.LEGACY_DRAFT_TRANSFER
+      ) {
+        return downloadLegacyDraftZip(metadata, requestOptions);
+      }
       if (metadata?.downloadMethod === DOWNLOAD_METHOD.LEGACY_FILENAME) {
         return downloadLegacyZip(
           metadata.projectId,
@@ -840,5 +1253,6 @@ module.exports = {
   nationalEgpAdapter,
   getPriceEstimateMetadata,
   downloadZip,
+  downloadLegacyDraftZip,
   downloadLegacyZip,
 };

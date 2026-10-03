@@ -340,6 +340,124 @@ test("National e-GP adapter hides the legacy download mechanism from callers", a
   assert.deepEqual(result, zip);
 });
 
+test("adapter downloads a Legacy Draft through the verified anonymous POST contract", async () => {
+  const zip = Buffer.from("PK\u0003\u0004legacy-draft-zip");
+  let request;
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(zip, {
+        status: 200,
+        headers: {
+          "content-type": "application/zip",
+          "content-disposition":
+            'attachment; filename="65077164290_25650831154250_2.zip"',
+        },
+      });
+    },
+  });
+
+  const result = await adapter.downloadDocument({
+    projectId: "65077164290",
+    fileId: null,
+    fileName: "65077164290_25650831154250_2.zip",
+    downloadMethod: DOWNLOAD_METHOD.LEGACY_DRAFT_TRANSFER,
+    legacyItemNo: 3,
+    legacyTypeId: "04",
+    legacyDocType: "adj",
+    legacyMethodId: "16",
+  });
+
+  assert.deepEqual(result, zip);
+  assert.equal(request.url.toString(),
+    "https://file.gprocurement.go.th/EGPTransService/control.download"
+  );
+  assert.equal(request.options.method, "POST");
+  assert.equal(request.options.redirect, "manual");
+  assert.equal(
+    request.options.headers["Content-Type"],
+    "application/x-www-form-urlencoded"
+  );
+  assert.equal(request.options.headers.cookie, undefined);
+  assert.equal(request.options.headers["x-xsrf-token"], undefined);
+  assert.deepEqual(Object.fromEntries(request.options.body), {
+    proc_id: "",
+    servlet: "",
+    service: "D",
+    projectId: "65077164290",
+    methodId: "16",
+    typeId: "04",
+    itemNo: "3",
+    subjectNo: "",
+    subjectName: "",
+    strAdd: "",
+    mode: "public",
+    seqNo: "",
+    docType: "adj",
+    docFlag: "",
+    submitTin: "",
+    attachSimulate: "",
+    fileName: "65077164290_25650831154250_2.zip",
+    partType: "z",
+    branchNo: "",
+    fieldname: "",
+    fieldsize: "",
+    num: "",
+    realMethodId: "",
+    announceSeq: "",
+    considerSeqno: "",
+  });
+});
+
+test("Legacy Draft download rejects invalid locators before making a request", async () => {
+  let requestCount = 0;
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async () => {
+      requestCount += 1;
+      return new Response(Buffer.from("PK\u0003\u0004unexpected"));
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      adapter.downloadDocument({
+        projectId: "65077164290",
+        fileName: "65077164290_25650831154250_2.zip",
+        downloadMethod: DOWNLOAD_METHOD.LEGACY_DRAFT_TRANSFER,
+        legacyItemNo: 0,
+        legacyTypeId: "04",
+        legacyDocType: "temp",
+        legacyMethodId: "16",
+      }),
+    (error) => error.code === "EGP_INVALID_LEGACY_DRAFT_LOCATOR"
+  );
+  assert.equal(requestCount, 0);
+});
+
+test("Legacy Draft download rejects an HTML transfer error as non-ZIP", async () => {
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async () =>
+      new Response("<font>invalid item locator</font>", {
+        status: 200,
+        headers: { "content-type": "text/html;charset=TIS-620" },
+      }),
+  });
+
+  await assert.rejects(
+    () =>
+      adapter.downloadDocument({
+        projectId: "64117010720",
+        fileName: "64117010720_25641104130520_2.zip",
+        downloadMethod: DOWNLOAD_METHOD.LEGACY_DRAFT_TRANSFER,
+        legacyItemNo: 0,
+        legacyTypeId: "03",
+        legacyDocType: "temp",
+        legacyMethodId: "16",
+      }),
+    (error) => error.code === "EGP_INVALID_ZIP"
+  );
+});
+
 test("invitation discovery maps the website bidding-document ZIP fields", async () => {
   let requestedUrl;
   let requestedHeaders;
@@ -552,6 +670,211 @@ test("draft e-bidding discovery does not select when the revision cap is reached
 
   assert.equal(result.status, "ambiguous");
   assert.equal(result.ambiguityReason, "revision_limit_reached");
+  assert.equal(result.fileId, null);
+});
+
+function confirmedMissingDraftResponse() {
+  return new Response(
+    JSON.stringify({
+      response: { responseCode: "1", messageCode: "E0001" },
+      data: null,
+    }),
+    { status: 200, headers: { "content-type": "application/json" } }
+  );
+}
+
+function legacyDraftResponse(data) {
+  return new Response(
+    JSON.stringify({ response: { responseCode: 0, responseDesc: "" }, data }),
+    { status: 200, headers: { "content-type": "application/json" } }
+  );
+}
+
+function legacyDraftRecord({
+  projectId,
+  buildName,
+  webDate,
+  stepId,
+  commentFDate = null,
+}) {
+  return { projectId, buildName, webDate, commentFDate, stepId };
+}
+
+test("confirmed Process 5 absence falls back to one Legacy Draft", async () => {
+  const requested = [];
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) => {
+      requested.push(url);
+      if (!url.pathname.endsWith("getTorZipList")) {
+        return confirmedMissingDraftResponse();
+      }
+      if (url.searchParams.get("typeId") === "03") {
+        return legacyDraftResponse([
+          legacyDraftRecord({
+            projectId: "64117010720",
+            buildName: "64117010720_25641104130520_2.zip",
+            webDate: "2021-11-03T17:00:00.000Z",
+            commentFDate: "2021-11-08T17:00:00.000Z",
+            stepId: "D03",
+          }),
+        ]);
+      }
+      return legacyDraftResponse([]);
+    },
+  });
+
+  const result = await adapter.discoverDraftEbidding("64117010720");
+
+  assert.equal(requested.length, 4);
+  assert.equal(result.status, "available");
+  assert.equal(result.lookupMethod, LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC);
+  assert.equal(result.downloadMethod, DOWNLOAD_METHOD.LEGACY_DRAFT_TRANSFER);
+  assert.equal(result.fileId, null);
+  assert.equal(result.fileName, "64117010720_25641104130520_2.zip");
+  assert.equal(result.legacyItemNo, 0);
+  assert.equal(result.legacyTypeId, "03");
+  assert.equal(result.legacyDocType, "temp");
+  assert.equal(result.legacyMethodId, "16");
+  assert.equal(result.candidateCount, 1);
+  assert.equal(result.candidates[0].legacyItemNo, 0);
+  assert.equal(
+    result.downloadUrl,
+    "https://file.gprocurement.go.th/EGPTransService/control.download"
+  );
+  assert.deepEqual(result.lookupAttempts, [
+    { lookupMethod: LOOKUP_METHOD.DRAFT_TEMP, outcome: "not_found" },
+    { lookupMethod: LOOKUP_METHOD.DRAFT_ADJUSTED, outcome: "not_found" },
+    { lookupMethod: LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC, outcome: "available" },
+  ]);
+});
+
+test("multiple Legacy Drafts select the newest timestamp and retain its source locator", async () => {
+  const projectId = "65077164290";
+  const records = [
+    legacyDraftRecord({
+      projectId,
+      buildName: "65077164290_25650805170219_2.zip",
+      webDate: "2022-08-04T17:00:00.000Z",
+      stepId: "D03",
+    }),
+    legacyDraftRecord({
+      projectId,
+      buildName: "65077164290_25650816165634_2.zip",
+      webDate: "2022-08-15T17:00:00.000Z",
+      stepId: "U03",
+    }),
+    legacyDraftRecord({
+      projectId,
+      buildName: "65077164290_25650830164828_2.zip",
+      webDate: "2022-08-29T17:00:00.000Z",
+      stepId: "U03",
+    }),
+    legacyDraftRecord({
+      projectId,
+      buildName: "65077164290_25650831154250_2.zip",
+      webDate: "2022-08-30T17:00:00.000Z",
+      stepId: "U03",
+    }),
+  ];
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) =>
+      url.pathname.endsWith("getTorZipList")
+        ? legacyDraftResponse(records)
+        : confirmedMissingDraftResponse(),
+  });
+
+  const result = await adapter.discoverDraftEbidding(projectId);
+
+  assert.equal(result.status, "available");
+  assert.equal(result.fileName, "65077164290_25650831154250_2.zip");
+  assert.equal(result.candidateCount, 4);
+  assert.equal(result.legacyItemNo, 3);
+  assert.equal(result.legacyTypeId, "04");
+  assert.equal(result.legacyDocType, "adj");
+  assert.equal(result.candidates.length, 4);
+  assert.equal(
+    result.candidates.find(({ fileName }) =>
+      fileName.endsWith("25650831154250_2.zip")
+    ).legacyItemNo,
+    3
+  );
+});
+
+test("Process 5 and Legacy Draft confirmed absence returns not_found", async () => {
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) =>
+      url.pathname.endsWith("getTorZipList")
+        ? legacyDraftResponse([])
+        : confirmedMissingDraftResponse(),
+  });
+
+  const result = await adapter.discoverDraftEbidding("67079622362");
+
+  assert.equal(result.status, "not_found");
+  assert.equal(result.lookupMethod, LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC);
+  assert.equal(result.fileId, null);
+  assert.deepEqual(result.lookupAttempts.at(-1), {
+    lookupMethod: LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC,
+    outcome: "not_found",
+  });
+});
+
+test("Legacy Draft discovery failure remains an error", async () => {
+  const adapter = createNationalEgpAdapter({
+    maxRetries: 0,
+    fetchImpl: async (url) =>
+      url.pathname.endsWith("getTorZipList")
+        ? new Response("forbidden", { status: 403 })
+        : confirmedMissingDraftResponse(),
+  });
+
+  await assert.rejects(
+    () => adapter.discoverDraftEbidding("67079622362"),
+    (error) => {
+      assert.equal(error.kind, ERROR_KIND.ACCESS_DENIED);
+      assert.equal(error.details.lookupAttempts.at(-1).outcome, "error");
+      assert.equal(
+        error.details.lookupAttempts.at(-1).lookupMethod,
+        LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC
+      );
+      return true;
+    }
+  );
+});
+
+test("conflicting newest Legacy Draft candidates return ambiguous", async () => {
+  const projectId = "65077164290";
+  const conflicts = [
+    legacyDraftRecord({
+      projectId,
+      buildName: "65077164290_25650831154250_a.zip",
+      webDate: "2022-08-30T17:00:00.000Z",
+      stepId: "D03",
+    }),
+    legacyDraftRecord({
+      projectId,
+      buildName: "65077164290_25650831154250_b.zip",
+      webDate: "2022-08-30T17:00:00.000Z",
+      stepId: "D03",
+    }),
+  ];
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) => {
+      if (!url.pathname.endsWith("getTorZipList")) {
+        return confirmedMissingDraftResponse();
+      }
+      return legacyDraftResponse(
+        url.searchParams.get("typeId") === "03" ? conflicts : []
+      );
+    },
+  });
+
+  const result = await adapter.discoverDraftEbidding(projectId);
+
+  assert.equal(result.status, "ambiguous");
+  assert.equal(result.lookupMethod, LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC);
+  assert.equal(result.ambiguityReason, "conflicting_latest_legacy_draft");
+  assert.equal(result.candidateCount, 2);
   assert.equal(result.fileId, null);
 });
 

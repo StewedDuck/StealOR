@@ -466,6 +466,88 @@ test("draft e-bidding archive downloads only an unambiguous selected revision", 
   assert.deepEqual(result.zipBuffer, ZIP_WITH_ONE_PDF);
 });
 
+test("draft e-bidding archive reuses a stored Legacy Draft locator", async () => {
+  const calls = [];
+  const storedMetadata = {
+    fileId: null,
+    fileName: "65077164290_25650831154250_2.zip",
+    downloadMethod: "legacy_draft_transfer",
+    legacyItemNo: 3,
+    legacyTypeId: "04",
+    legacyDocType: "adj",
+    legacyMethodId: "16",
+    legacyStepId: "U03",
+    version: "legacy_25650831154250",
+  };
+  const egpAdapter = {
+    async discoverDraftEbidding() {
+      calls.push(["discover"]);
+      throw new Error("stored Legacy Draft should not be rediscovered");
+    },
+    async downloadDocument(metadata) {
+      calls.push(["download", metadata]);
+      return ZIP_WITH_ONE_PDF;
+    },
+  };
+
+  const result = await getDraftEbiddingArchive(
+    "65077164290",
+    storedMetadata,
+    { egpAdapter }
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "download");
+  assert.equal(calls[0][1].fileId, null);
+  assert.equal(calls[0][1].downloadMethod, "legacy_draft_transfer");
+  assert.equal(calls[0][1].legacyItemNo, 3);
+  assert.equal(calls[0][1].legacyTypeId, "04");
+  assert.equal(calls[0][1].legacyDocType, "adj");
+  assert.equal(result.fileName, storedMetadata.fileName);
+  assert.equal(result.legacyItemNo, 3);
+  assert.equal(result.version, "legacy_25650831154250");
+  assert.deepEqual(result.zipBuffer, ZIP_WITH_ONE_PDF);
+});
+
+test("incomplete stored Legacy Draft metadata is rediscovered", async () => {
+  const calls = [];
+  const egpAdapter = {
+    async discoverDraftEbidding(projectId) {
+      calls.push(["discover", projectId]);
+      return {
+        projectId,
+        category: "draft_ebidding",
+        status: "available",
+        fileId: "modern-draft-id",
+        fileName: "modern-draft.zip",
+        downloadMethod: "file_id",
+      };
+    },
+    async downloadDocument(metadata) {
+      calls.push(["download", metadata.fileId]);
+      return ZIP_WITH_ONE_PDF;
+    },
+  };
+
+  await getDraftEbiddingArchive(
+    "65077164290",
+    {
+      fileName: "65077164290_25650831154250_2.zip",
+      downloadMethod: "legacy_draft_transfer",
+      legacyItemNo: null,
+      legacyTypeId: "04",
+      legacyDocType: "adj",
+      legacyMethodId: "16",
+    },
+    { egpAdapter }
+  );
+
+  assert.deepEqual(calls, [
+    ["discover", "65077164290"],
+    ["download", "modern-draft-id"],
+  ]);
+});
+
 test("draft e-bidding archive refuses an ambiguous selection", async () => {
   let downloadCalled = false;
   const egpAdapter = {

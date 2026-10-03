@@ -367,8 +367,28 @@ async function getDraftEbiddingMetadata(projectId, dependencies = {}) {
   );
 }
 
+function hasLegacyDraftReference(metadata) {
+  const itemNo = metadata?.legacyItemNo;
+  return Boolean(
+    metadata?.downloadMethod === "legacy_draft_transfer" &&
+      metadata.fileName &&
+      itemNo !== null &&
+      itemNo !== undefined &&
+      Number.isSafeInteger(Number(itemNo)) &&
+      Number(itemNo) >= 0 &&
+      metadata.legacyTypeId &&
+      metadata.legacyDocType &&
+      metadata.legacyMethodId
+  );
+}
+
 function requireDraftArchiveMetadata(metadata) {
-  if (metadata.status === "available" && metadata.fileId) return metadata;
+  if (
+    metadata.status === "available" &&
+    (metadata.fileId || hasLegacyDraftReference(metadata))
+  ) {
+    return metadata;
+  }
   const ambiguous = metadata.status === "ambiguous";
   throw new EgpServiceError(
     ambiguous
@@ -398,14 +418,25 @@ async function getDraftEbiddingArchive(
   const safeProjectId = validateProjectId(projectId);
   const adapter = getAdapter(dependencies);
   const hasStoredFileId = Boolean(knownMetadata.fileId);
-  let metadata = hasStoredFileId
+  const hasStoredLegacyReference = hasLegacyDraftReference(knownMetadata);
+  const hasStoredReference = hasStoredFileId || hasStoredLegacyReference;
+  let metadata = hasStoredReference
     ? {
         projectId: safeProjectId,
         category: DOCUMENT_CATEGORY.DRAFT_EBIDDING,
         status: "available",
-        fileId: knownMetadata.fileId,
+        fileId: knownMetadata.fileId || null,
         fileName: knownMetadata.fileName || `${safeProjectId}.zip`,
-        downloadMethod: "file_id",
+        downloadMethod: hasStoredFileId
+          ? "file_id"
+          : "legacy_draft_transfer",
+        legacyItemNo: knownMetadata.legacyItemNo ?? null,
+        legacyTypeId: knownMetadata.legacyTypeId || null,
+        legacyDocType: knownMetadata.legacyDocType || null,
+        legacyMethodId: knownMetadata.legacyMethodId || null,
+        legacyStepId: knownMetadata.legacyStepId || null,
+        revision: knownMetadata.revision ?? null,
+        version: knownMetadata.version ?? null,
       }
     : await adapter.discoverDraftEbidding(safeProjectId, dependencies);
 
@@ -418,7 +449,7 @@ async function getDraftEbiddingArchive(
     zipBuffer = await adapter.downloadDocument(metadata, dependencies);
   } catch (error) {
     const shouldRediscover =
-      hasStoredFileId &&
+      hasStoredReference &&
       adapter.shouldRediscoverAfterDownloadError?.(error) === true;
     if (!shouldRediscover) throw error;
     metadata = await adapter.discoverDraftEbidding(safeProjectId, dependencies);
@@ -431,6 +462,10 @@ async function getDraftEbiddingArchive(
     fileName: metadata.fileName,
     revision: metadata.revision ?? null,
     version: metadata.version ?? null,
+    legacyItemNo: metadata.legacyItemNo ?? null,
+    legacyTypeId: metadata.legacyTypeId ?? null,
+    legacyDocType: metadata.legacyDocType ?? null,
+    legacyMethodId: metadata.legacyMethodId ?? null,
     zipBuffer,
   };
 }

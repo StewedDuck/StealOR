@@ -132,13 +132,21 @@ function safeDownloadName(fileName, projectId, fallbackPrefix = "price-estimate"
 function newDocumentMetadata(project, key) {
   const metadata = project.documents?.[key];
   if (metadata?.status !== "available") return {};
-  return {
+  const stored = {
     fileId: metadata.fileId || null,
     fileName: metadata.fileName || null,
     downloadMethod: metadata.downloadMethod || null,
     revision: metadata.revision ?? null,
     version: metadata.version ?? null,
   };
+  if (metadata.downloadMethod === "legacy_draft_transfer") {
+    stored.legacyItemNo = metadata.legacyItemNo ?? null;
+    stored.legacyTypeId = metadata.legacyTypeId || null;
+    stored.legacyDocType = metadata.legacyDocType || null;
+    stored.legacyMethodId = metadata.legacyMethodId || null;
+    stored.legacyStepId = metadata.legacyStepId || null;
+  }
+  return stored;
 }
 
 function storedPriceEstimateMetadata(project) {

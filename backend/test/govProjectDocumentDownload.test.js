@@ -229,6 +229,50 @@ test("Draft e-Bidding download rediscovery starts when stored metadata is unavai
   );
 });
 
+test("Draft e-Bidding route forwards a stored Legacy Draft locator", async () => {
+  projectResult = {
+    documents: {
+      draftEbidding: {
+        status: "available",
+        fileId: null,
+        fileName: "65077164290_25650831154250_2.zip",
+        downloadMethod: "legacy_draft_transfer",
+        legacyItemNo: 3,
+        legacyTypeId: "04",
+        legacyDocType: "adj",
+        legacyMethodId: "16",
+        legacyStepId: "U03",
+        version: "legacy_25650831154250",
+      },
+    },
+  };
+  const response = createResponse();
+
+  await downloadDraftEbiddingDocument(
+    { params: { projectId: "65077164290" } },
+    response
+  );
+
+  assert.deepEqual(receivedMetadata, {
+    fileId: null,
+    fileName: "65077164290_25650831154250_2.zip",
+    downloadMethod: "legacy_draft_transfer",
+    revision: null,
+    version: "legacy_25650831154250",
+    legacyItemNo: 3,
+    legacyTypeId: "04",
+    legacyDocType: "adj",
+    legacyMethodId: "16",
+    legacyStepId: "U03",
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers["Content-Type"], "application/zip");
+  assert.equal(
+    response.headers["Content-Disposition"],
+    'attachment; filename="65077164290_25650831154250_2.zip"'
+  );
+});
+
 test("downloadOriginalDocument returns 404 for an unknown project", async () => {
   projectResult = null;
   const response = createResponse();
