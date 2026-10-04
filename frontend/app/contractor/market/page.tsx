@@ -254,6 +254,13 @@ export default function TorMarketPage() {
             });
     }, [session?.user?.email]);
 
+    console.log("MARKET TORS:", tors);
+
+    console.log(
+        "TORS WITHOUT PROJECT NAME:",
+        tors.filter((tor) => !tor.projectName)
+    );
+
     const filteredTors = useMemo(() => {
         let result = [...tors];
 
@@ -323,16 +330,19 @@ export default function TorMarketPage() {
 
         // Sort
         result.sort((a, b) => {
+            const aName = a.projectName ?? "";
+            const bName = b.projectName ?? "";
+
             switch (sortOption) {
                 case "name-asc":
-                return a.projectName.localeCompare(
-                    b.projectName,
+                return aName.localeCompare(
+                  bName,
                     "th"
                 );
 
                 case "name-desc":
-                return b.projectName.localeCompare(
-                    a.projectName,
+                return bName.localeCompare(
+                  aName,
                     "th"
                 );
 

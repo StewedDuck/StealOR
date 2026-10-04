@@ -1,5 +1,6 @@
 const { formatDate, contractorFooter } = require("./Shared");
-const { sendEmail } = require("../email/Mailer");
+const { closingSoonEmail, } = require("./closingSoonEmail");
+const { draftUpdatedEmail, } = require("./draftUpdatedEmail");
 
 // p ={ torTitle, scopre, matchPercent, closeDate, torUrl }
 const torSummaryLines = (p) => [
@@ -27,6 +28,7 @@ const newMatch = (p) => ({
 // p = { name, torTitle, scope, matchPercent, closeDate, torUrl, daysLeft }
 const deadlineReminder = (p) => ({
     subject: `TOR ที่คุณบันทึกไว้จะปิดรับในอีก ${p.daysLeft} วัน - ${p.torTitle}`,
+
     text: [
         `สวัสดีคุณ ${p.name},`,
         "",
@@ -35,6 +37,15 @@ const deadlineReminder = (p) => ({
         ...torSummaryLines(p),
         ...contractorFooter(),
     ].join("\n"),
+
+    html: closingSoonEmail({
+        userName: p.name,
+        projectName: p.torTitle,
+        agencyName: p.agencyName,
+        deadline: formatDate(p.closeDate),
+        daysLeft: p.daysLeft,
+        torUrl: p.torUrl,
+    }),
 });
 
 // p = { name, torTitle, scope, torUrl }
@@ -55,7 +66,10 @@ const draftPublished = (p) => ({
 
 // p = { name, torTitle, torUrl }
 const draftUpdated = (p) => ({
-    subject: `TOR ร่างที่คุณบันทึกไว้มีการอัปเดต - ${p.torTitle}`,
+    subject:
+        `TOR ร่างที่คุณบันทึกไว้มีการอัปเดต - ${p.torTitle}`,
+
+    // Plain text fallback
     text: [
         `สวัสดีคุณ ${p.name},`,
         "",
@@ -64,6 +78,12 @@ const draftUpdated = (p) => ({
         `ดูรายละเอียด: ${p.torUrl}`,
         ...contractorFooter(),
     ].join("\n"),
+
+    html: draftUpdatedEmail({
+        userName: p.name,
+        projectName: p.torTitle,
+        torUrl: p.torUrl,
+    }),
 });
 
 module.exports = { newMatch, deadlineReminder, draftPublished, draftUpdated };

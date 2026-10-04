@@ -95,6 +95,11 @@ const projectOwnerMenuItems: MenuSection[] = [
         label: "เจ้าของโครงการ",
         items: [
             {
+                name: "แดชบอร์ด",
+                href: "/project_own/dashboard",
+                icon: "LayoutDashboard",
+            },
+            {
                 name: "สร้าง TOR",
                 href: "/project_own/create_TOR",
                 icon: "Plus",
@@ -161,10 +166,6 @@ function MenuIcon({
         return <BellRing size={20} />;
     }
 
-    if (icon === "CircleCheckBig") {
-        return <CircleCheckBig size={20} />;
-    }
-
     if (icon === "Plus") {
         return <Plus size={20} />;
     }
@@ -200,6 +201,7 @@ export default function Sidebar () {
     ;
 
     const isProjectOwner =
+    pathname.startsWith("/project_own/dashboard") ||
     pathname.startsWith("/project_own/create_TOR") ||
     pathname.startsWith("/project_own/draft_TOR") ||
     pathname.startsWith("/project_own/my_TOR") ||
@@ -262,7 +264,7 @@ export default function Sidebar () {
                     className={`role-button ${
                         isProjectOwner ? "active" : ""
                     }`}
-                    onClick={() => router.push("/project_own/create_TOR")}
+                    onClick={() => router.push("/project_own/dashboard")}
                 >
                     เจ้าของโครงการ
                 </button>
