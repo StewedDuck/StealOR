@@ -297,3 +297,38 @@ export async function updateUserProfile(
     }
   );
 }
+
+export type LocalDocumentFile = {
+  fileName: string;
+  url: string;
+};
+
+export type LocalDocumentCategory = {
+  available: boolean;
+  files: LocalDocumentFile[];
+};
+
+export type LocalProjectDocuments = {
+  projectId: string;
+  documents: {
+    priceEstimate: LocalDocumentCategory;
+    invitation: LocalDocumentCategory;
+    draftEbidding: LocalDocumentCategory;
+  };
+};
+
+export async function getLocalProjectDocuments(
+  projectId: string
+): Promise<LocalProjectDocuments> {
+    return request<LocalProjectDocuments>(
+      `/api/gov-projects/${encodeURIComponent(
+        projectId
+      )}/documents/local`
+    );
+  }
+
+export function getLocalDocumentUrl(
+  relativeUrl: string
+) {
+  return `${API_URL}${relativeUrl}`;
+}
