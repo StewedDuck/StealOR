@@ -6,12 +6,12 @@ const {
   getPriceEstimateDocument,
   validateProjectId,
 } = require("../services/egp/egpDocumentService");
-const {
-  enrichAndSaveProjects,
-} = require("../services/govProjectBatchImportService");
-const {
-  getLocalFilteredProjects,
-} = require("../services/localProjectProvider");
+
+const { enrichAndSaveProjects, } = require("../services/govProjectBatchImportService");
+const { getLocalFilteredProjects, } = require("../services/localProjectProvider");
+
+const fs = require("fs");
+const { getLocalProjectDocuments, getLocalPdfPath } = require("../services/localDocumentService");
 
 function errorMessage(error) {
   return String(error?.message || "Document enrichment failed").slice(0, 500);
@@ -234,10 +234,72 @@ function downloadDraftEbiddingDocument(req, res) {
   });
 }
 
+async function listLocalProjectDocuments(req, res) {
+  try {
+    const data = await getLocalProjectDocuments(
+      req.params.projectId
+    );
+
+    return res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    console.error(
+      "List local project documents error:",
+      error
+    );
+
+    return res
+      .status(Number(error.statusCode) || 500)
+      .json({
+        success: false,
+        error:
+          error.message ||
+          "Unable to load local documents",
+      });
+  }
+}
+
+async function viewLocalProjectDocument(req, res) {
+  try {
+    const filePath = getLocalPdfPath(
+      req.params.projectId,
+      req.params.category,
+      req.params.fileName
+    );
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        error: "Document not found",
+      });
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "inline");
+
+    return res.sendFile(filePath);
+  } catch (error) {
+    console.error("View local project document error:", error);
+
+    return res
+      .status(Number(error.statusCode) || 500)
+      .json({
+        success: false,
+        error:
+          error.message ||
+          "Unable to load local document",
+      });
+  }
+}
+
 module.exports = {
   downloadDraftEbiddingDocument,
   downloadInvitationDocument,
   downloadOriginalDocument,
   enrichProject,
   importEnrichedProjects,
+  listLocalProjectDocuments,
+  viewLocalProjectDocument,
 };

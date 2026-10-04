@@ -50,7 +50,7 @@ function emailLayout({
                             ">
                                 sTealORs
                             </div>
-                            
+
                             <div style="
                                 color:#AFC5DD;
                                 font-size: 12px;

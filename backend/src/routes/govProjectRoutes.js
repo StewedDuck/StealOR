@@ -5,6 +5,8 @@ const {
   downloadOriginalDocument,
   enrichProject,
   importEnrichedProjects,
+  listLocalProjectDocuments,
+  viewLocalProjectDocument,
 } = require("../controllers/govProjectController");
 
 const router = express.Router();
@@ -19,6 +21,8 @@ router.get(
   "/:projectId/documents/draft-ebidding/download",
   downloadDraftEbiddingDocument
 );
+router.get("/:projectId/documents/local", listLocalProjectDocuments);
+router.get("/:projectId/documents/local/:category/:fileName", viewLocalProjectDocument);
 router.post("/:projectId/enrich", enrichProject);
 
 module.exports = router;
