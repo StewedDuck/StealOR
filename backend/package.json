@@ -8,7 +8,8 @@
     "dev": "node --watch src/server.js",
     "test": "node --test",
     "migrate:documents:dry-run": "node scripts/migrateGovProjectDocuments.js",
-    "enrich:documents": "node scripts/enrichGovProjectDocuments.js"
+    "enrich:documents": "node scripts/enrichGovProjectDocuments.js",
+    "extract:documents": "node scripts/extractGovProjectDocuments.js"
   },
   "keywords": [],
   "author": "",

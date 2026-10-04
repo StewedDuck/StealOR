@@ -20,4 +20,5 @@ Thumbs.db
 
 # Local
 tmp
+/temp/
 *mannual-test-downloads
