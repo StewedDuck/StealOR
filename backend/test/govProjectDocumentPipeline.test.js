@@ -89,9 +89,17 @@ test("modern download publishes PDFs and deletes successful ZIP data", async () 
       () => fs.lstat(path.join(zipDirectory, "invitation.zip.source.json")),
       { code: "ENOENT" }
     );
+    await assert.rejects(() => fs.lstat(zipDirectory), { code: "ENOENT" });
+    await assert.rejects(
+      () =>
+        fs.lstat(
+          path.join(tempRoot, "pdfs", ".staging", "modern-run")
+        ),
+      { code: "ENOENT" }
+    );
     assert.equal(
-      (await fs.readdir(zipDirectory)).some((name) => name.includes(".part-")),
-      false
+      (await fs.lstat(path.join(tempRoot, "pdfs", ".staging"))).isDirectory(),
+      true
     );
     assert.equal(
       (
@@ -246,6 +254,17 @@ test("failed PDF validation retains the ZIP and removes failed staging", async (
         ),
       { code: "ENOENT" }
     );
+    await assert.rejects(
+      () =>
+        fs.lstat(path.join(tempRoot, "pdfs", ".staging", "failed-run")),
+      { code: "ENOENT" }
+    );
+    assert.equal(
+      (
+        await fs.lstat(path.join(tempRoot, "zips", PROJECT_ID))
+      ).isDirectory(),
+      true
+    );
   });
 });
 
@@ -396,6 +415,110 @@ test("temporary ZIP deletion failure is a warning after successful publication",
     assert.equal(
       result.cleanupWarnings[0].code,
       "temporary_zip_cleanup_failed"
+    );
+  });
+});
+
+test("staging cleanup preserves a nonempty sibling and the shared root", async () => {
+  await withTemporaryDirectory(async (tempRoot) => {
+    const runDirectory = path.join(
+      tempRoot,
+      "pdfs",
+      ".staging",
+      "shared-run"
+    );
+    const activeDirectory = path.join(runDirectory, "active-sibling");
+    await fs.mkdir(activeDirectory, { recursive: true });
+    await fs.writeFile(path.join(activeDirectory, "active.txt"), "do not remove");
+
+    const result = await processDocumentCategory(
+      {
+        projectId: PROJECT_ID,
+        category: "invitation",
+        reference: modernReference(),
+        tempRoot,
+      },
+      {
+        egpAdapter: {
+          async downloadDocument() {
+            return ZIP_WITH_ONE_PDF;
+          },
+          shouldRediscoverAfterDownloadError() {
+            return false;
+          },
+        },
+        runId: () => "shared-run",
+      }
+    );
+
+    assert.equal(result.outcome, "extracted");
+    assert.equal(
+      await fs.readFile(path.join(activeDirectory, "active.txt"), "utf8"),
+      "do not remove"
+    );
+    assert.equal((await fs.lstat(runDirectory)).isDirectory(), true);
+    assert.equal(
+      (await fs.lstat(path.join(tempRoot, "pdfs", ".staging"))).isDirectory(),
+      true
+    );
+  });
+});
+
+test("unexpected empty-directory cleanup failures are reported as warnings", async () => {
+  await withTemporaryDirectory(async (tempRoot) => {
+    const guardedFs = Object.create(fs);
+    guardedFs.rmdir = async (targetPath) => {
+      const error = new Error(`injected rmdir failure for ${targetPath}`);
+      error.code = "EACCES";
+      throw error;
+    };
+
+    const result = await processDocumentCategory(
+      {
+        projectId: PROJECT_ID,
+        category: "invitation",
+        reference: modernReference(),
+        tempRoot,
+      },
+      {
+        fs: guardedFs,
+        egpAdapter: {
+          async downloadDocument() {
+            return ZIP_WITH_ONE_PDF;
+          },
+          shouldRediscoverAfterDownloadError() {
+            return false;
+          },
+        },
+      }
+    );
+
+    assert.equal(result.outcome, "extracted");
+    assert.equal(
+      result.cleanupWarnings.some(
+        (warning) => warning.code === "empty_zip_directory_cleanup_failed"
+      ),
+      true
+    );
+    assert.equal(
+      result.cleanupWarnings.filter(
+        (warning) => warning.code === "empty_staging_directory_cleanup_failed"
+      ).length,
+      2
+    );
+    assert.equal(
+      (
+        await verifyPublishedDocumentCategory({
+          categoryDirectory: path.join(
+            tempRoot,
+            "pdfs",
+            PROJECT_ID,
+            "invitation"
+          ),
+          locatorIdentity: result.locatorIdentity,
+        })
+      ).verified,
+      true
     );
   });
 });

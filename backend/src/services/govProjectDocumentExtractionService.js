@@ -190,6 +190,52 @@ function extractionPaths(tempRoot, projectId, category, runId) {
   };
 }
 
+async function pruneRunOwnedStagingParents(
+  stagingDirectory,
+  stagingRoot,
+  fileSystem
+) {
+  const resolvedStagingDirectory = path.resolve(stagingDirectory);
+  const resolvedStagingRoot = path.resolve(stagingRoot);
+  const relativePath = path.relative(
+    resolvedStagingRoot,
+    resolvedStagingDirectory
+  );
+  const segments = relativePath.split(path.sep);
+  if (
+    segments.length !== 3 ||
+    segments.some((segment) => !segment || segment === "..")
+  ) {
+    return [
+      {
+        code: "staging_parent_cleanup_refused",
+        message: "Refusing to prune a staging path outside the owned run layout",
+        path: resolvedStagingDirectory,
+      },
+    ];
+  }
+
+  const warnings = [];
+  const projectDirectory = path.dirname(resolvedStagingDirectory);
+  const runDirectory = path.dirname(projectDirectory);
+  for (const targetPath of [projectDirectory, runDirectory]) {
+    try {
+      await fileSystem.rmdir(targetPath);
+    } catch (error) {
+      if (!["ENOENT", "ENOTEMPTY"].includes(error?.code)) {
+        warnings.push({
+          code: "empty_staging_directory_cleanup_failed",
+          message: String(
+            error?.message || "Unable to remove empty staging directory"
+          ),
+          path: targetPath,
+        });
+      }
+    }
+  }
+  return warnings;
+}
+
 function classifiedDownloadError(error, adapter) {
   if (adapter.shouldRediscoverAfterDownloadError?.(error) === true) {
     const classified = extractionError(
@@ -252,6 +298,7 @@ async function processDocumentCategory(input, dependencies = {}) {
     reference
   );
   const paths = extractionPaths(tempRoot, projectId, category, runId);
+  const stagingRoot = path.join(tempRoot, "pdfs", ".staging");
   const zipDependencies = {
     fs: fileSystem,
     randomId: dependencies.randomId,
@@ -332,6 +379,11 @@ async function processDocumentCategory(input, dependencies = {}) {
       },
       dependencies
     );
+    const stagingCleanupWarnings = await pruneRunOwnedStagingParents(
+      paths.stagingDirectory,
+      stagingRoot,
+      fileSystem
+    );
     const cleanup = await deleteZip(
       { tempRoot, projectId, category },
       zipDependencies
@@ -350,10 +402,12 @@ async function processDocumentCategory(input, dependencies = {}) {
       replacedExisting: publication.replacedExisting,
       cleanupWarnings: [
         ...publication.cleanupWarnings,
+        ...stagingCleanupWarnings,
         ...cleanup.warnings,
       ],
     };
   } catch (error) {
+    const cleanupWarnings = [];
     try {
       await fileSystem.rm(paths.stagingDirectory, {
         recursive: true,
@@ -362,6 +416,13 @@ async function processDocumentCategory(input, dependencies = {}) {
     } catch (cleanupError) {
       if (error && typeof error === "object") error.cleanupError = cleanupError;
     }
+    cleanupWarnings.push(
+      ...(await pruneRunOwnedStagingParents(
+        paths.stagingDirectory,
+        stagingRoot,
+        fileSystem
+      ))
+    );
     const zipPaths = temporaryZipPaths(tempRoot, projectId, category);
     let zipRetained = false;
     try {
@@ -379,6 +440,7 @@ async function processDocumentCategory(input, dependencies = {}) {
       locatorIdentity,
       zipRetained,
       retainedZipPath: zipRetained ? zipPaths.zipPath : null,
+      cleanupWarnings,
       error: {
         code: error?.code || "document_extraction_failed",
         stage: error?.stage || "extraction",

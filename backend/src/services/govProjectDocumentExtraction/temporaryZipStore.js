@@ -190,6 +190,19 @@ async function deleteTemporaryZip(options, dependencies = {}) {
       path: paths.directory,
     });
   }
+  try {
+    await fileSystem.rmdir(paths.directory);
+  } catch (error) {
+    if (!["ENOENT", "ENOTEMPTY"].includes(error?.code)) {
+      warnings.push({
+        code: "empty_zip_directory_cleanup_failed",
+        message: String(
+          error?.message || "Unable to remove empty ZIP project directory"
+        ),
+        path: paths.directory,
+      });
+    }
+  }
   return { deleted: warnings.length === 0, warnings, ...paths };
 }
 
