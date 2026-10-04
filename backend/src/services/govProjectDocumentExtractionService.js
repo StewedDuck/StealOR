@@ -338,6 +338,9 @@ async function processDocumentCategory(input, dependencies = {}) {
     if (!temporaryZip) {
       let zipBuffer;
       try {
+        if (dependencies.beforeDownload) {
+          await dependencies.beforeDownload();
+        }
         zipBuffer = await adapter.downloadDocument(
           { ...reference, projectId },
           dependencies.downloadOptions || {}

@@ -12,6 +12,8 @@ const {
 } = require("../src/services/govProjectDocumentExtractionService");
 
 const APPLY_CONFIRMATION = "EXTRACT_GOV_PROJECT_DOCUMENTS";
+const DEFAULT_DELAY_MS = 750;
+const MAX_DELAY_MS = 5_000;
 const PROJECT_PROJECTION = {
   _id: 1,
   project_id: 1,
@@ -34,6 +36,28 @@ function positiveInteger(value, flag) {
   return parsed;
 }
 
+function boundedDelay(value = DEFAULT_DELAY_MS) {
+  const delay = Number(value);
+  if (!Number.isInteger(delay) || delay < 0 || delay > MAX_DELAY_MS) {
+    throw new Error(`--delay-ms must be an integer from 0 to ${MAX_DELAY_MS}`);
+  }
+  return delay;
+}
+
+function createDownloadThrottle(delayMs, dependencies = {}) {
+  const delay = boundedDelay(delayMs);
+  const sleep =
+    dependencies.sleep ||
+    ((milliseconds) =>
+      new Promise((resolve) => setTimeout(resolve, milliseconds)));
+  let downloadStarted = false;
+
+  return async function beforeDownload() {
+    if (downloadStarted && delay > 0) await sleep(delay);
+    downloadStarted = true;
+  };
+}
+
 function parseArgs(argv = process.argv.slice(2)) {
   const options = {
     source: null,
@@ -44,6 +68,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     confirm: null,
     force: false,
     redownload: false,
+    delayMs: DEFAULT_DELAY_MS,
     json: false,
   };
 
@@ -63,6 +88,9 @@ function parseArgs(argv = process.argv.slice(2)) {
       index += 1;
     } else if (argument === "--confirm") {
       options.confirm = requireValue(argv, index, argument);
+      index += 1;
+    } else if (argument === "--delay-ms") {
+      options.delayMs = boundedDelay(requireValue(argv, index, argument));
       index += 1;
     } else if (argument === "--all") {
       options.all = true;
@@ -108,6 +136,7 @@ function parseArgs(argv = process.argv.slice(2)) {
   if (!options.apply && options.confirm) {
     throw new Error("--confirm is valid only with --apply");
   }
+  options.delayMs = boundedDelay(options.delayMs);
 
   return options;
 }
@@ -128,6 +157,7 @@ function createDryRunReport(projects, options = {}) {
     options: {
       force: options.force === true,
       redownload: options.redownload === true,
+      delayMs: boundedDelay(options.delayMs),
     },
     summary: planned.summary,
     projects: planned.reports,
@@ -253,10 +283,15 @@ async function run(argv = process.argv.slice(2), dependencies = {}) {
     } else {
       const tempRoot =
         dependencies.tempRoot || path.join(__dirname, "..", "temp");
+      const beforeDownload =
+        dependencies.beforeDownload ||
+        createDownloadThrottle(options.delayMs, {
+          sleep: dependencies.sleep,
+        });
       const executed = await executeProjects(
         resolved.projects,
         { ...options, tempRoot },
-        dependencies
+        { ...dependencies, beforeDownload }
       );
       executed.summary.failedProjects += resolved.missingProjectIds.length;
       output = {
@@ -266,6 +301,7 @@ async function run(argv = process.argv.slice(2), dependencies = {}) {
         options: {
           force: options.force,
           redownload: options.redownload,
+          delayMs: options.delayMs,
         },
         tempRoot,
         summary: executed.summary,
@@ -306,8 +342,12 @@ if (require.main === module) {
 
 module.exports = {
   APPLY_CONFIRMATION,
+  DEFAULT_DELAY_MS,
+  MAX_DELAY_MS,
   PROJECT_PROJECTION,
+  boundedDelay,
   createDryRunReport,
+  createDownloadThrottle,
   executeProjects,
   parseArgs,
   resolveProjects,

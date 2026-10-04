@@ -4,8 +4,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   APPLY_CONFIRMATION,
+  DEFAULT_DELAY_MS,
   PROJECT_PROJECTION,
+  boundedDelay,
   createDryRunReport,
+  createDownloadThrottle,
   executeProjects,
   parseArgs,
   resolveProjects,
@@ -44,6 +47,37 @@ test("Mongo batch selection requires limit or explicit all", () => {
     () => parseArgs(["--source", "mongo", "--limit", "5", "--all"]),
     /either --limit or --all/
   );
+});
+
+test("download delay defaults to 750 ms and is bounded", () => {
+  assert.equal(parseArgs(["--project-id", "68059426756"]).delayMs, 750);
+  assert.equal(
+    parseArgs(["--project-id", "68059426756", "--delay-ms", "0"]).delayMs,
+    0
+  );
+  assert.equal(DEFAULT_DELAY_MS, 750);
+  assert.equal(boundedDelay(5000), 5000);
+  assert.throws(
+    () => parseArgs(["--project-id", "68059426756", "--delay-ms", "5001"]),
+    /integer from 0 to 5000/
+  );
+  assert.throws(
+    () => parseArgs(["--project-id", "68059426756", "--delay-ms", "1.5"]),
+    /integer from 0 to 5000/
+  );
+});
+
+test("download throttle waits only before attempts after the first", async () => {
+  const sleeps = [];
+  const beforeDownload = createDownloadThrottle(750, {
+    sleep: async (milliseconds) => sleeps.push(milliseconds),
+  });
+
+  await beforeDownload();
+  assert.deepEqual(sleeps, []);
+  await beforeDownload();
+  await beforeDownload();
+  assert.deepEqual(sleeps, [750, 750]);
 });
 
 test("apply requires the exact confirmation phrase", () => {

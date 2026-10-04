@@ -271,6 +271,10 @@ test("failed PDF validation retains the ZIP and removes failed staging", async (
 test("a retained ZIP is safely reused after a failed publication", async () => {
   await withTemporaryDirectory(async (tempRoot) => {
     let downloadCount = 0;
+    let throttleCount = 0;
+    const beforeDownload = async () => {
+      throttleCount += 1;
+    };
     const adapter = {
       async downloadDocument() {
         downloadCount += 1;
@@ -288,6 +292,7 @@ test("a retained ZIP is safely reused after a failed publication", async () => {
     };
     const first = await processDocumentCategory(input, {
       egpAdapter: adapter,
+      beforeDownload,
       runId: () => "first-run",
       publishStagedDocumentCategory: async () => {
         const error = new Error("injected publication failure");
@@ -301,17 +306,23 @@ test("a retained ZIP is safely reused after a failed publication", async () => {
 
     const second = await processDocumentCategory(input, {
       egpAdapter: adapter,
+      beforeDownload,
       runId: () => "second-run",
     });
     assert.equal(second.outcome, "extracted");
     assert.equal(second.reusedTemporaryZip, true);
     assert.equal(downloadCount, 1);
+    assert.equal(throttleCount, 1);
   });
 });
 
 test("verified reruns skip downloading while checking leftover ZIP cleanup", async () => {
   await withTemporaryDirectory(async (tempRoot) => {
     let downloadCount = 0;
+    let throttleCount = 0;
+    const beforeDownload = async () => {
+      throttleCount += 1;
+    };
     const adapter = {
       async downloadDocument() {
         downloadCount += 1;
@@ -328,13 +339,22 @@ test("verified reruns skip downloading while checking leftover ZIP cleanup", asy
       tempRoot,
     };
     assert.equal(
-      (await processDocumentCategory(input, { egpAdapter: adapter })).outcome,
+      (
+        await processDocumentCategory(input, {
+          egpAdapter: adapter,
+          beforeDownload,
+        })
+      ).outcome,
       "extracted"
     );
-    const rerun = await processDocumentCategory(input, { egpAdapter: adapter });
+    const rerun = await processDocumentCategory(input, {
+      egpAdapter: adapter,
+      beforeDownload,
+    });
 
     assert.equal(rerun.outcome, "skipped_verified");
     assert.equal(downloadCount, 1);
+    assert.equal(throttleCount, 1);
   });
 });
 
