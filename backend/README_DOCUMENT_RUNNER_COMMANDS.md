@@ -1,150 +1,137 @@
-# Document Enrichment Runner — Command Guide (PowerShell)
+# StealOR — Phase A: Document Enrichment Runner Guide
 
-This guide is for running the **metadata-only** National e-GP document enrichment process. For ZIP downloads and PDF extraction, see `backend/README_DOCUMENT_DOWNLOADS.md`.
+**Teammate Guide | Run from `StealOR/backend` | PowerShell (Windows)**
 
-The runner discovers Price Estimate, Invitation, and Draft e-Bidding ZIP references and compares them with existing `GovProject.documents` metadata. It **does not download or store ZIPs, extract PDFs, run OCR/AI, or create missing projects**.
+This guide explains how to run **Phase A**: discovering National e-GP document metadata and saving it into MongoDB.
 
-## Before running
+---
 
-Open PowerShell and switch to the repository's backend directory:
+## 1. What Phase A Does
 
+Phase A (`enrichGovProjectDocuments.js`) queries public e-GP APIs for existing MongoDB projects, finds their bidding documents, and saves normalized reference metadata into `GovProject.documents`.
+
+```text
+MongoDB Project (project_id)
+  │
+  ├──> 1. Price Estimate Discovery   (price_primary -> fallback -> legacy)
+  ├──> 2. Invitation Discovery        (infoProcureDocAnnounZip + GreenBook D0 verification)
+  └──> 3. Draft e-Bidding Discovery   (temp revision 0 -> adjusted revisions -> legacy fallback)
+  │
+  ▼
+Determine `selectedProcurementDocument` priority:
+  - If Invitation is confirmed present: 'invitation'
+  - If Invitation is confirmed absent:   'draftEbidding'
+  - If Invitation check fails/error:    null (safe fallback)
+  │
+  ▼
+Update MongoDB `documents` field (Guarded $set, never overwrites other project fields)
+```
+
+### What Phase A DOES NOT do:
+- ❌ Does **not** download ZIP files to disk.
+- ❌ Does **not** extract PDFs, parse text, run OCR, or call AI.
+- ❌ Does **not** create missing projects in MongoDB (projects must exist).
+- ❌ Does **not** write to MongoDB during **dry-run** mode.
+
+---
+
+## 2. Quick Command Reference
+
+All commands run directly in **PowerShell** from the `backend/` directory. They include the process-local DNS fix (`1.1.1.1`, `8.8.8.8`) to avoid Windows `querySrv ECONNREFUSED` errors automatically.
+
+| Scenario | Mode | Command Type |
+|---|---|---|
+| **Single Project** | Dry-Run (Safe) | [Case 1](#case-1--single-project-dry-run) |
+| **Single Project** | Apply (Writes Mongo) | [Case 2](#case-2--single-project-apply-first-write) |
+| **Batch (5 projects)** | Dry-Run (Safe) | [Case 3](#case-3--batch-dry-run-first-5-projects) |
+| **Batch (5 projects)** | Apply (Writes Mongo) | [Case 4](#case-4--batch-apply-first-5-projects) |
+| **All Projects** | Dry-Run (Safe) | [Case 5](#case-5--all-projects-dry-run) |
+| **All Projects** | Apply (Full Refresh) | [Case 6](#case-6--all-projects-apply-full-database-enrichment) |
+
+---
+
+## 3. Ready-to-Run PowerShell Commands
+
+Open PowerShell and navigate to the backend folder:
 ```powershell
 Set-Location 'C:\Users\USER\Downloads\software_collab\StealOR\backend'
 ```
 
-Make sure dependencies and the backend's MongoDB configuration are set up. These commands use the MongoDB configured by the backend; confirm it is the **intended database**, especially before any apply command. The backend HTTP server does not need to be started merely to run this CLI.
-
-### Windows DNS workaround (`querySrv ECONNREFUSED`)
-
-On our development PC, the normal npm command could not resolve the MongoDB Atlas SRV address. The examples below use the **tested, directly executable `node -e` format**. Each command sets DNS servers to `1.1.1.1` and `8.8.8.8` for that **Node.js process only**, then starts the runner explicitly. No PowerShell helper needs to be defined. Run each command from `backend`.
-
-If DNS works normally on your PC, you can instead run `npm run enrich:documents --` followed by the same runner arguments. Do not change system-wide DNS or disable TLS verification just for this script.
-
-## Invitation category verification (corrected discovery)
-
-Invitation discovery no longer treats a successful ZIP-reference response as proof that an Invitation package exists. The adapter compares the Invitation candidate with the initial Draft Temp locator (`zipId`, `buildName1`, and `buildName2`) and corroborates the category against the public e-GP `greenBook` related-document list (`data.greenBookAnnouncementTypeLinkDto`). A `D0` entry identifies the Invitation/ประกาศเชิญชวน category; `B0` and `B3` are Draft categories. Matching or differing filenames/locators alone do not establish a document's category.
-
-The Invitation result now distinguishes:
-
-| Status | Meaning for this runner |
-| --- | --- |
-| `available` | Authoritative category evidence confirms Invitation and the candidate is consistent. |
-| `not_found` | A successful, complete public document list confirms no `D0` Invitation entry. |
-| `error` | Verification failed or evidence is incomplete, unavailable, or contradictory; this is **not** confirmed absence. |
-
-Category evidence is accepted as complete only after successful token generation, project-detail lookup, `greenBook` response and valid token state, with an array-valued document list. A timeout, malformed response, or failed Draft Temp correlation must not become `not_found`. Existing selection logic prefers a confirmed Invitation; when Invitation is confirmed `not_found` and Draft is available, it selects `draftEbidding`; when Invitation is `error`, selection remains `null` even if Draft is available. Price Estimate remains independent. Selection indicates priority, not exclusive extraction eligibility.
-
-**Persistence caution:** The runner compares new observations with existing `GovProject.documents` using a conservative merge. An existing usable `available` reference is preserved when refresh returns `not_found`, `error`, `ambiguous`, or incomplete availability; the discrepancy should be reviewed rather than assuming the new result automatically repairs previously stored false-positive Invitation metadata. Dry-run displays proposed changes and makes no writes. Review the target records and the report before approving any `--apply`; this bug fix did not run a migration or rewrite MongoDB data.
-
-## A. Dry-run commands — no MongoDB writes
-
-Dry-run is the default. It **does connect to MongoDB and make live e-GP metadata requests**, but does not save document changes.
-
-### Case 1 — Discover one known project
-
+### Case 1 — Single Project Dry-Run
+> **Checks what documents exist without modifying MongoDB.**
 ```powershell
 node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--project-id','68059426756']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
-Checks whether that existing MongoDB project has document references and prints the proposed metadata changes. Start here.
-
-### Case 2 — Read one project ID from Local JSON
-
-```powershell
-node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','local','--limit','1']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
-```
-
-Takes one project ID from the configured local provider (`software_tor_5.json` in the current setup). If it is not in MongoDB, skips it; does not import it.
-
-### Case 3 — Read one existing project ID from MongoDB
-
-```powershell
-node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--limit','1']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
-```
-
-Checks the MongoDB-source workflow with a small batch.
-
-### Case 4 — Discover all project IDs from Local JSON
-
-```powershell
-node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','local']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
-```
-
-Dynamically reads the provider's actual entries. The current local file contains 27 unique project IDs, but the runner must not hard-code that count. Missing MongoDB records are skipped.
-
-### Case 5 — Discover all existing MongoDB projects
-
-```powershell
-node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--all']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
-```
-
-Explicitly opts in to a database-wide dry-run. This can send **multiple e-GP requests per project**. For a larger data set, consider a smaller `--limit` first and a higher delay (see below).
-
-## B. Apply commands — these WRITE metadata to MongoDB
-
-**Warning:** Do not run these until you have reviewed the corresponding dry-run output, checked the target database, and decided to update existing project records. Apply mode requires the exact confirmation token, makes a pre-write backup, performs narrow document-metadata updates, and verifies writes according to the runner implementation. It does **not** create missing projects.
-
-### Case 6 — Apply one approved project (recommended first write)
-
+### Case 2 — Single Project Apply (First Write)
+> **Saves document metadata for one project into MongoDB after dry-run review.**
 ```powershell
 node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--project-id','68059426756','--apply','--confirm','APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
-Updates only the targeted existing project's document-reference fields, if there is an eligible change. Inspect the report and backup information afterwards.
-
-### Case 7 — Apply all matching Local JSON projects
-
+### Case 3 — Batch Dry-Run (First 5 Projects)
+> **Simulates enrichment for the first 5 records in MongoDB.**
 ```powershell
-node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','local','--apply','--confirm','APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--limit','5']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
-Resolves IDs from Local JSON and applies metadata changes only to matching existing MongoDB projects. **This is not an importer**.
+### Case 4 — Batch Apply (First 5 Projects)
+> **Saves document metadata for the first 5 records into MongoDB.**
+```powershell
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--limit','5','--apply','--confirm','APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
+```
 
-### Case 8 — Apply all existing MongoDB projects
+### Case 5 — All Projects Dry-Run
+> **Scans entire MongoDB collection and plans metadata updates without writing.**
+```powershell
+node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--all']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
+```
 
+### Case 6 — All Projects Apply (Full Database Enrichment)
+> **Automates metadata discovery and saves references for all existing projects in MongoDB.**
 ```powershell
 node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--all','--apply','--confirm','APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
 ```
 
-Explicitly opts in to a full-database metadata refresh and write. Run only after validating smaller batches and confirming the intended scope.
+*(Optional: add `--delay-ms 1500` to increase delay between projects if you experience rate limits.)*
 
-## C. Smaller batches and request delay
+---
 
-The implementation processes projects sequentially with a default **750 ms delay between projects**. The supported `--delay-ms` range is **0–5000 ms**. A delay reduces request pressure but **does not guarantee protection from Cloudflare/rate limiting**; each project can require multiple e-GP requests.
+## 4. CLI Flags Reference
 
-Example: dry-run 5 existing MongoDB projects with a 2-second inter-project delay:
+| Flag | Description |
+|---|---|
+| `--project-id <id>` | Target exactly one 11-digit project ID. |
+| `--source mongo` | Read project IDs from MongoDB. |
+| `--limit <n>` | Limit batch to the first `n` projects (required with `--source mongo` unless `--all`). |
+| `--all` | Process all projects in the collection (only with `--source mongo`). |
+| `--delay-ms <n>` | Delay between projects in milliseconds (default: `750`, range: `0–5000`). |
+| `--apply` | Enables database writes. If omitted, the runner is in read-only **dry-run** mode. |
+| `--confirm APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT` | Exact confirmation token required when `--apply` is set. |
+| `--json` | Outputs machine-readable JSON summary. |
 
-```powershell
-node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--limit','5','--delay-ms','2000']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
-```
+---
 
-Example: apply those 5 projects only after inspecting the matching dry-run:
+## 5. Understanding the Discovery Results
 
-```powershell
-node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/enrichGovProjectDocuments.js'),'--source','mongo','--limit','5','--delay-ms','2000','--apply','--confirm','APPLY_GOV_PROJECT_DOCUMENT_ENRICHMENT']; require('./scripts/enrichGovProjectDocuments.js').run().catch(e=>{console.error(e.message);process.exitCode=1})"
-```
+Each project's `documents` field in MongoDB will contain:
 
-Note: If the database contents or sort order change between separate executions, `--limit 5` is not necessarily an immutable set of the same five IDs. For a critical single-project update, prefer `--project-id`.
+| Status | Meaning |
+|---|---|
+| `available` | A valid document ZIP reference was discovered and verified. |
+| `not_found` | Upstream confirmed that this document category does not exist for this project. |
+| `error` | Upstream request timed out, failed, or returned inconclusive data (safe retryable state). |
+| `ambiguous` | Multiple conflicting revisions exist that cannot be safely chosen automatically. |
 
-## D. Recommended testing order
+### Document Categories:
+1. **`priceEstimate`**: ราคากลาง (Budget / Price estimation). Independent category.
+2. **`invitation`**: เอกสารประกวดราคา (Official invitation bidding package). Primary priority.
+3. **`draftEbidding`**: ร่างเอกสารประกวดราคา (Draft TOR / e-Bidding). Fallback when Invitation is absent.
 
-| Order | Case | Goal |
-| --- | --- | --- |
-| 1 | Case 1 | Verify one known project in dry-run mode |
-| 2 | Case 2 | Verify Local JSON source |
-| 3 | Case 3 | Verify MongoDB source |
-| 4 | Case 4 | Review the complete local-data dry-run |
-| 5 | Case 6 | Perform and verify the first controlled write |
-| 6 | Case 7 | Apply matching Local JSON projects, if intended |
-| 7 | Case 5, then Case 8 | Review and optionally apply the full MongoDB scope |
+---
 
-For a new delivery of approximately 200 TOR projects, begin with a dry-run `--limit 5`, then a larger limited run, and use a longer delay if appropriate. Do not assume the runner imports newly supplied records: the projects must already exist in MongoDB to be updated.
+## 6. What's Next? (Transition to Phase B)
 
-## E. How this differs from downloading ZIPs
+Once Phase A populates `documents` metadata in MongoDB, proceed to **Phase B** to actually download ZIPs and extract their PDFs to disk:
 
-- **This runner:** discovers and persists ZIP **references/metadata** only.
-- **Browser/frontend ZIP download:** call the backend's category-specific `GET /api/gov-projects/.../download` routes.
-- **Future backend PDF extraction:** read saved category metadata and call `nationalEgpAdapter.downloadDocument(metadata)`; the adapter knows whether the upstream request is GET or Legacy Draft POST.
-- A stored `documents.*.downloadUrl` is **not guaranteed to be a clickable URL**.
-
-See `backend/README_DOCUMENT_DOWNLOADS.md` for download endpoint examples and the extraction integration boundary.
+👉 **See [README_DOCUMENT_EXTRACTION_COMMANDS.md](./README_DOCUMENT_EXTRACTION_COMMANDS.md) for Phase B commands.**
