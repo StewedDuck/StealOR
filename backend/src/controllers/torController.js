@@ -118,8 +118,8 @@ async function notifyDraftUpdated(tor) {
         to: user.email,
         subject: email.subject,
         text: email.text,
+        html: email.html,
       });
-
       console.log(
         `Draft updated email sent to ${user.email}: ${tor.projectName}`
       );
