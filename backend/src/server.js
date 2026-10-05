@@ -2,6 +2,9 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const cron = require("node-cron");
+
+const { checkDeadlineReminders, } = require("./services/notifications/deadlineReminderService");
 
 // Import Routes
 const torRoutes = require("./routes/torRoutes");
@@ -10,6 +13,7 @@ const govSpendingRoutes = require("./routes/govSpendingRoutes");
 const govProjectRoutes = require("./routes/govProjectRoutes");
 const commentRoutes = require("./routes/commentRoutes");
 const userRoutes = require("./routes/userRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -25,25 +29,34 @@ app.use("/api/govspending", govSpendingRoutes);
 app.use("/api/gov-projects", govProjectRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/notifications", notificationRoutes );
 
-const { checkDeadlineReminders, } = require("./services/notifications/deadlineReminderService");
-app.post("/api/test/deadline-reminders", async (req, res) => {
-  try {
-    await checkDeadlineReminders();
+app.post(
+  "/api/test/deadline-reminders",
+  async (req, res) => {
+      try {
+          await checkDeadlineReminders();
 
-    return res.json({
-      success: true,
-      message: "Deadline reminder check completed",
-    });
-  } catch (error) {
-    console.error("Deadline reminder test error:", error);
+          return res.json({
+              success: true,
+              message:
+                  "Deadline reminder check completed",
+          });
 
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+      } catch (error) {
+          console.error(
+              "Deadline reminder test error:",
+              error
+          );
+
+          return res.status(500).json({
+              success: false,
+              error: error.message,
+          });
+      }
   }
-});
+);
+
 // Health check
 app.get("/health", (req, res) => {
   res.json({
@@ -55,9 +68,43 @@ app.get("/health", (req, res) => {
 
 // MongoDB Atlas
 mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => console.log("MongoDB Atlas connected"))
-  .catch((err) => console.error("MongoDB connection error:", err.message));
+    .connect(process.env.MONGODB_URI)
+    .then(() => {
+        console.log("MongoDB Atlas connected");
+
+        // Check TOR deadlines every day at 09:00
+        cron.schedule(
+            "0 9 * * *",
+            async () => {
+                try {
+                    console.log(
+                        "Running scheduled deadline reminder check..."
+                    );
+
+                    await checkDeadlineReminders();
+
+                } catch (error) {
+                    console.error(
+                        "Scheduled deadline reminder failed:",
+                        error
+                    );
+                }
+            },
+            {
+                timezone: "Asia/Bangkok",
+            }
+        );
+
+        console.log(
+            "Deadline reminder scheduler started"
+        );
+    })
+    .catch((err) =>
+        console.error(
+            "MongoDB connection error:",
+            err.message
+        )
+    );
 
 // Start Server
 app.listen(PORT, () => {

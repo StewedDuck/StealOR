@@ -29,11 +29,24 @@ const notificationLogSchema = new mongoose.Schema(
             enum: [
                 "deadline_5_days",
                 "deadline_1_day",
-                "new_match",
-                "draft_published",
                 "draft_updated",
             ],
             required: true,
+        },
+
+        title: {
+            type: String,
+            required: true,
+        },
+
+        message: {
+            type: String,
+            default: "",
+        },
+
+        read: {
+            type: Boolean,
+            default: false,
         },
 
         sentAt: {
