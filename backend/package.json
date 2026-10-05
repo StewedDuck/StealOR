@@ -9,14 +9,15 @@
     "test": "node --test",
     "migrate:documents:dry-run": "node scripts/migrateGovProjectDocuments.js",
     "enrich:documents": "node scripts/enrichGovProjectDocuments.js",
-    "extract:documents": "node scripts/extractGovProjectDocuments.js"
+    "extract:documents": "node scripts/extractGovProjectDocuments.js",
+    "smoke:vertex": "node scripts/smokeTestVertexAI.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@google-cloud/vertexai": "^1.12.0",
+    "@google/genai": "^1.52.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
