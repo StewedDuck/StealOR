@@ -10,7 +10,7 @@ import {
     createBookmark,
     deleteBookmark,
     getEgpAnnouncementUrl,
-    getGovProjectDocumentDownloadUrl,
+    getLocalProjectDocuments,
 } from "@/lib/torApi";
 
 import type {
@@ -223,18 +223,55 @@ export default function TorMarketPage() {
     ;
 
     useEffect(() => {
-        getMarketTors()
-        .then(setTors)
-        .catch((err) => {
-            setError(
-            err instanceof Error
-                ? err.message
-                : "โหลด TOR Market ไม่สำเร็จ"
-            );
-        })
-        .finally(() => {
-            setLoading(false);
-        });
+      async function loadMarketTors() {
+        try {
+          setLoading(true);
+          setError("");
+
+          const marketTors = await getMarketTors();
+
+          const checkedTors = await Promise.all(
+            marketTors.map(async (tor) => {
+              // Internal not need to check
+              if (tor.source !== "government" || !tor.projectId) {
+                return tor;
+              }
+
+              try {
+                const localDocuments = await getLocalProjectDocuments(tor.projectId);
+
+                const documents = localDocuments.documents;
+                const availableTypeCount = [
+                  documents.priceEstimate,
+                  documents.draftEbidding,
+                  documents.invitation,
+                ].filter((document) => document.available && document.files.length > 0).length;
+
+                // Gov. need to have as lest 2 type
+                return availableTypeCount >= 2 ? tor : null;
+              } catch (error) {
+                console.error(
+                  `Failed to check local documents for project ${tor.projectId}:`,
+                  error
+                );
+
+                return null;
+              }
+            })
+          );
+
+          const visibleTors = checkedTors.filter((tor): tor is MarketTor => tor !== null);
+
+          setTors(visibleTors);
+        } catch (err) {
+          setError(
+            err instanceof Error ? err.message : "โหลด TOR ไม่สำเร็จ"
+          );
+        } finally {
+          setLoading(false);
+        }
+      }
+      loadMarketTors();
     }, []);
 
     useEffect(() => {
