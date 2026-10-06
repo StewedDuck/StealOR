@@ -6,6 +6,7 @@
 
 # Specifically ignore GCP service account key files
 *gcp-service-account*.json
+/keys/
 
 # Dependencies
 node_modules/

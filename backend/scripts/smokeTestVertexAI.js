@@ -1,6 +1,9 @@
 require("dotenv").config({ quiet: true });
 
-const { getVertexConfig } = require("../src/config/vertex");
+const {
+  VertexConfigurationError,
+  getVertexConfig,
+} = require("../src/config/vertex");
 const {
   formatVertexError,
   runVertexSmokeTest,
@@ -14,7 +17,7 @@ async function main() {
     const response = await runVertexSmokeTest({ config });
     console.log(response);
   } catch (error) {
-    if (error && error.code === "VERTEX_CONFIGURATION_ERROR") {
+    if (error instanceof VertexConfigurationError) {
       console.error(`Vertex AI configuration error: ${error.message}`);
     } else {
       console.error(formatVertexError(error, config));

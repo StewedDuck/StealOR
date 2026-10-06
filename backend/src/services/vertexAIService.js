@@ -47,19 +47,20 @@ function formatVertexError(error, config = {}) {
     status === 401 ||
     normalized.includes("could not load the default credentials") ||
     normalized.includes("application default credentials") ||
+    normalized.includes("credential file") ||
     normalized.includes("invalid_grant") ||
     normalized.includes("unauthenticated")
   ) {
     return [
-      "Vertex AI authentication failed.",
-      "Run: gcloud auth application-default login",
-      "Do not set GOOGLE_APPLICATION_CREDENTIALS when using local user ADC.",
+      "Vertex AI service-account authentication failed.",
+      "Verify GOOGLE_APPLICATION_CREDENTIALS points to a valid, active service-account JSON key.",
       `Original error: ${message}`,
     ].join("\n");
   }
 
   if (
-    normalized.includes("aiplatform.googleapis.com") &&
+    (normalized.includes("aiplatform.googleapis.com") ||
+      normalized.includes("vertex ai api")) &&
     (normalized.includes("disabled") || normalized.includes("has not been used"))
   ) {
     return [
@@ -84,7 +85,7 @@ function formatVertexError(error, config = {}) {
   ) {
     return [
       `The model or region is unavailable (model=${config.model || "unknown"}, location=${config.location || "unknown"}).`,
-      "Check VERTEX_AI_MODEL and GOOGLE_CLOUD_LOCATION against the Vertex AI model availability documentation.",
+      "Check VERTEX_AI_MODEL and VERTEX_AI_LOCATION against the Vertex AI model availability documentation.",
       `Original error: ${message}`,
     ].join("\n");
   }
@@ -92,7 +93,7 @@ function formatVertexError(error, config = {}) {
   if (status === 400 || normalized.includes("invalid argument")) {
     return [
       "Vertex AI rejected the request configuration.",
-      "Check GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, and VERTEX_AI_MODEL.",
+      "Check VERTEX_AI_PROJECT_ID, VERTEX_AI_LOCATION, and VERTEX_AI_MODEL.",
       `Original error: ${message}`,
     ].join("\n");
   }

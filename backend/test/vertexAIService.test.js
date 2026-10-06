@@ -17,16 +17,60 @@ test("Vertex configuration requires a Google Cloud project ID", () => {
     () => getVertexConfig({}),
     (error) =>
       error.code === "VERTEX_CONFIGURATION_ERROR" &&
-      /GOOGLE_CLOUD_PROJECT/.test(error.message)
+      error.reason === "missing_project_id" &&
+      /VERTEX_AI_PROJECT_ID/.test(error.message)
+  );
+});
+
+test("Vertex configuration requires a service-account credential path", () => {
+  assert.throws(
+    () => getVertexConfig({ VERTEX_AI_PROJECT_ID: "stealor-dev" }),
+    (error) =>
+      error.code === "VERTEX_CONFIGURATION_ERROR" &&
+      error.reason === "missing_credential_path" &&
+      /GOOGLE_APPLICATION_CREDENTIALS/.test(error.message)
+  );
+});
+
+test("Vertex configuration rejects a missing service-account key file", () => {
+  assert.throws(
+    () =>
+      getVertexConfig(
+        {
+          VERTEX_AI_PROJECT_ID: "stealor-dev",
+          GOOGLE_APPLICATION_CREDENTIALS: "./keys/missing.json",
+        },
+        {
+          resolvePath: () => "C:\\backend\\keys\\missing.json",
+          fileExists: () => false,
+        }
+      ),
+    (error) =>
+      error.code === "VERTEX_CONFIGURATION_ERROR" &&
+      error.reason === "credential_file_not_found" &&
+      /credential file not found/i.test(error.message)
   );
 });
 
 test("Vertex configuration uses small, stable smoke-test defaults", () => {
-  assert.deepEqual(getVertexConfig({ GOOGLE_CLOUD_PROJECT: "stealor-dev" }), {
-    project: "stealor-dev",
-    location: DEFAULT_LOCATION,
-    model: DEFAULT_MODEL,
-  });
+  assert.deepEqual(
+    getVertexConfig(
+      {
+        VERTEX_AI_PROJECT_ID: "stealor-dev",
+        GOOGLE_APPLICATION_CREDENTIALS: "./keys/sa-key.json",
+      },
+      {
+        resolvePath: () => "resolved-service-account-key.json",
+        fileExists: () => true,
+      }
+    ),
+    {
+      project: "stealor-dev",
+      location: DEFAULT_LOCATION,
+      model: DEFAULT_MODEL,
+      credentialsPath: "resolved-service-account-key.json",
+    }
+  );
 });
 
 test("Vertex client explicitly selects Vertex AI and the stable API", () => {
@@ -88,7 +132,7 @@ test("common Vertex setup errors include actionable guidance", () => {
 
   assert.match(
     formatVertexError(new Error("Could not load the default credentials"), config),
-    /gcloud auth application-default login/
+    /GOOGLE_APPLICATION_CREDENTIALS/
   );
   assert.match(
     formatVertexError(
