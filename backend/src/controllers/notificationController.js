@@ -1,5 +1,4 @@
 const NotificationLog = require("../models/NotificationLog");
-const NotificationLog = require("../models/NotificationLog");
 const GovProject = require("../models/GovProject");
 const Tor = require("../models/Tor");
 
