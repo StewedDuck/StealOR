@@ -4,6 +4,7 @@ const {
   APPLY_CONFIRMATION,
   executeApplyWithBackup,
   parseArgs,
+  requestDiagnosticsDelta,
   resolveProjects,
 } = require("../scripts/enrichGovProjectDocuments");
 
@@ -47,6 +48,64 @@ test("CLI rejects out-of-range delays", () => {
   assert.doesNotThrow(() =>
     parseArgs(["--source", "local", "--delay-ms", "0"])
   );
+});
+
+test("request diagnostics report counters for only the current run", () => {
+  const before = {
+    egpRequestsTotal: 100,
+    rateLimitResponses: 4,
+    rateLimitRetries: 3,
+    successfulRetries: 2,
+    retryExhaustionCount: 1,
+    globalCooldownCount: 4,
+    globalCooldownMs: 70_000,
+    exhaustionRecoveryAttempts: 1,
+    successfulExhaustionRecoveries: 1,
+    rateLimitResponsesByEndpoint: {
+      "GET /approval/final": 4,
+    },
+    retryExhaustionsByEndpoint: {},
+  };
+  const after = {
+    ...before,
+    egpRequestsTotal: 112,
+    rateLimitResponses: 6,
+    rateLimitRetries: 5,
+    successfulRetries: 4,
+    exhaustionRecoveryAttempts: 3,
+    successfulExhaustionRecoveries: 2,
+    rateLimitResponsesByEndpoint: {
+      "GET /approval/final": 5,
+      "GET /announcement/greenBook": 1,
+    },
+    retryExhaustionsByEndpoint: {
+      "GET /announcement/greenBook": 1,
+    },
+    currentRequestIntervalMs: 2_000,
+    cooldownRemainingMs: 0,
+  };
+
+  assert.deepEqual(requestDiagnosticsDelta(before, after), {
+    egpRequestsTotal: 12,
+    rateLimitResponses: 2,
+    rateLimitRetries: 2,
+    successfulRetries: 2,
+    retryExhaustionCount: 0,
+    globalCooldownCount: 0,
+    globalCooldownMs: 0,
+    exhaustionRecoveryAttempts: 2,
+    successfulExhaustionRecoveries: 1,
+    rateLimitResponsesByEndpoint: {
+      "GET /approval/final": 1,
+      "GET /announcement/greenBook": 1,
+    },
+    retryExhaustionsByEndpoint: {
+      "GET /announcement/greenBook": 1,
+    },
+    currentRequestIntervalMs: 2_000,
+    cooldownRemainingMs: 0,
+  });
+  assert.equal(requestDiagnosticsDelta(null, null), null);
 });
 
 test("local source preserves provider order and reports missing records", async () => {

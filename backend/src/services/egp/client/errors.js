@@ -16,6 +16,7 @@ class EgpServiceError extends Error {
     this.code = details.code || "EGP_SERVICE_ERROR";
     this.kind = details.kind || ERROR_KIND.RECOVERABLE;
     this.upstreamStatus = details.upstreamStatus ?? null;
+    this.upstreamEndpoint = details.upstreamEndpoint ?? null;
     this.retryable = Boolean(details.retryable);
     this.details = details.details || {};
   }

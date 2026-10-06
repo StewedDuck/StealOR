@@ -122,6 +122,27 @@ test("merge preserves usable metadata after incomplete available refresh", () =>
   assert.equal(merged.effective.fileId, "stored-id");
 });
 
+test("rate-limited refresh preserves a usable stored Invitation locator", () => {
+  const stored = available("stored-invitation", { sha256: "stored-hash" });
+  const merged = mergeDocumentReference({
+    projectId: PROJECT_ID,
+    category: "invitation",
+    stored,
+    observed: {
+      status: "error",
+      error: {
+        code: "EGP_RATE_LIMITED",
+        kind: "rate_limited",
+        message: "e-GP rate limit exceeded",
+      },
+    },
+  });
+
+  assert.deepEqual(merged.effective, stored);
+  assert.equal(merged.action, "preserved_after_error");
+  assert.equal(merged.discrepancy, "upstream_error");
+});
+
 test("merge stores non-available observations when no usable reference exists", () => {
   const merged = mergeDocumentReference({
     projectId: PROJECT_ID,
@@ -282,6 +303,61 @@ test("planner is sequential, delays between projects, and is metadata-only", asy
   ]);
   assert.equal(result.summary.processed, 2);
   assert.equal(result.summary.planned, 2);
+});
+
+test("batch planning preserves stored metadata for periodic rate-limited categories", async () => {
+  const projectIds = ["69049472497", "69099475279", "69099257828"];
+  const projects = projectIds.map((projectId, index) => ({
+    _id: `mongo-${index}`,
+    project_id: projectId,
+    documents: {
+      priceEstimate: available(`stored-price-${index}`),
+      invitation: available(`stored-invitation-${index}`),
+      draftEbidding: available(`stored-draft-${index}`),
+      selectedProcurementDocument: "invitation",
+    },
+  }));
+  const result = await planDocumentEnrichment(
+    projects,
+    { delayMs: 0 },
+    {
+      async discoverProjectDocuments(projectId) {
+        const index = projectIds.indexOf(projectId);
+        return {
+          documents: discoveryDocuments({
+            invitation:
+              index === 1
+                ? {
+                    status: "error",
+                    error: {
+                      code: "EGP_RATE_LIMITED",
+                      kind: "rate_limited",
+                      message: "e-GP rate limit exceeded",
+                    },
+                  }
+                : available(`fresh-invitation-${index}`),
+          }),
+        };
+      },
+    }
+  );
+
+  const throttled = result.plans[1];
+  assert.equal(throttled.effectiveDocuments.invitation.status, "available");
+  assert.equal(
+    throttled.effectiveDocuments.invitation.fileId,
+    "stored-invitation-1"
+  );
+  assert.equal(throttled.categories.invitation.errorCode, "EGP_RATE_LIMITED");
+  assert.equal(throttled.categories.invitation.errorKind, "rate_limited");
+  assert.equal(throttled.categories.invitation.action, "preserved_after_error");
+  assert.equal(
+    throttled.changedPaths.includes("documents.invitation"),
+    false
+  );
+  assert.equal(result.summary.categoryObserved.invitation.error, 1);
+  assert.equal(result.plans[0].effectiveDocuments.invitation.status, "available");
+  assert.equal(result.plans[2].effectiveDocuments.invitation.status, "available");
 });
 
 test("apply reports optimistic concurrency conflicts and passes upsert false", async () => {

@@ -14,6 +14,21 @@ const {
 } = require("./metadata");
 
 async function requestDraftPayload(projectId, endpoint, itemNo, options) {
+  const cache = options.metadataCache instanceof Map ? options.metadataCache : null;
+  const cacheKey = `process5-draft:${projectId}:${endpoint}:${itemNo ?? ""}`;
+  if (cache?.has(cacheKey)) return cache.get(cacheKey);
+
+  const lookup = requestDraftPayloadUncached(projectId, endpoint, itemNo, options);
+  if (cache) cache.set(cacheKey, lookup);
+  try {
+    return await lookup;
+  } catch (error) {
+    cache?.delete(cacheKey);
+    throw error;
+  }
+}
+
+async function requestDraftPayloadUncached(projectId, endpoint, itemNo, options) {
   const url = new URL(`${APPROVAL_COMMON_PATH}/${endpoint}`, EGP_BASE_URL);
   url.searchParams.set("projectId", projectId);
   if (itemNo !== null) url.searchParams.set("itemNo", String(itemNo));

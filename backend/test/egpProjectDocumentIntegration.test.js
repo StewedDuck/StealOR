@@ -77,7 +77,6 @@ test("real adapter contract produces all normalized project document categories"
     "/egp-oann10-service/pb/a-egp-allt-project/announcement/generateToken",
     "/egp-oann10-service/pb/a-egp-allt-project/announcement/getProjectDetail?projectId=68059426756",
     "/egp-oann10-service/pb/a-egp-allt-project/announcement/greenBook?mode=LINK&methodId=16&tempProjectId=68059426756&pageAnnounceType=D0",
-    "/egp-approval-service/apv-common/infoProcureDocAnnounZipTemp?projectId=68059426756",
     "/egp-approval-service/apv-common/infoProcureDocAnnounZipAdj?projectId=68059426756&itemNo=1",
   ]);
   assert.equal(result.documents.priceEstimate.fileId, "price-file-id");

@@ -33,6 +33,43 @@ Update MongoDB `documents` field (Guarded $set, never overwrites other project f
 - ❌ Does **not** create missing projects in MongoDB (projects must exist).
 - ❌ Does **not** write to MongoDB during **dry-run** mode.
 
+### e-GP request pacing and rate-limit recovery
+
+`--delay-ms` controls the pause between projects. Independently, one shared
+National e-GP coordinator serializes and paces every upstream request. It starts
+at a 500 ms interval and increases the interval up to 4 seconds when e-GP
+throttles. HTTP 429 and the known HTTP-200 `Rate limit exceeded` response both
+trigger a process-wide cooldown (10 s, then 30 s, capped at 60 s, with jitter).
+Each retry re-enters that same coordinator, so one endpoint cannot create an
+independent retry storm. The interval gradually returns toward 500 ms after
+successful requests.
+
+If all three ordinary retries are rate-limited, one bounded recovery attempt
+waits through the final cooldown already triggered by the exhausted burst.
+This specifically avoids marking the current category as failed while only the
+following category benefits from that cooldown. It does not repeat discovery
+or change document classification.
+
+Within one project, the Invitation/Draft shared Process 5 Temp lookup is cached
+and reused. This removes a duplicate request without changing any discovery,
+category-verification, revision-selection, or metadata-preservation rule.
+
+The defaults can be tuned without changing discovery logic:
+
+- `EGP_REQUEST_MIN_INTERVAL_MS`
+- `EGP_REQUEST_MAX_INTERVAL_MS`
+- `EGP_RATE_LIMIT_RETRIES`
+- `EGP_RATE_LIMIT_EXHAUSTION_RECOVERY_RETRIES`
+- `EGP_RATE_LIMIT_COOLDOWN_BASE_MS`
+- `EGP_RATE_LIMIT_COOLDOWN_MAX_MS`
+- `EGP_RATE_LIMIT_RECOVERY_SUCCESSES`
+
+Every runner result includes an `egp` diagnostics object. Its per-run counters
+include total upstream requests, rate-limit responses/retries, successful
+retries, exhausted retries, global cooldown count/duration, and the maximum
+rate-limit streak. It also reports the final adaptive request interval and
+rate-limit/exhaustion counts grouped by HTTP method and endpoint.
+
 ---
 
 ## 2. Quick Command Reference

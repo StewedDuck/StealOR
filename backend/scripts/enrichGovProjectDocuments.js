@@ -4,6 +4,7 @@ const path = require("path");
 const mongoose = require("mongoose");
 const GovProject = require("../src/models/GovProject");
 const { validateProjectId } = require("../src/services/egp/egpDocumentService");
+const { nationalEgpAdapter } = require("../src/services/egp/egpClient");
 const { getLocalFilteredProjects } = require("../src/services/localProjectProvider");
 const {
   applyDocumentEnrichmentPlans,
@@ -20,6 +21,41 @@ const PROJECT_PROJECTION = {
   documents: 1,
   updatedAt: 1,
 };
+const EGP_COUNTER_FIELDS = Object.freeze([
+  "egpRequestsTotal",
+  "rateLimitResponses",
+  "rateLimitRetries",
+  "successfulRetries",
+  "retryExhaustionCount",
+  "globalCooldownCount",
+  "globalCooldownMs",
+  "exhaustionRecoveryAttempts",
+  "successfulExhaustionRecoveries",
+]);
+const EGP_MAP_COUNTER_FIELDS = Object.freeze([
+  "rateLimitResponsesByEndpoint",
+  "retryExhaustionsByEndpoint",
+]);
+
+function requestDiagnosticsDelta(before, after) {
+  if (!after) return null;
+  const result = { ...after };
+  for (const field of EGP_COUNTER_FIELDS) {
+    result[field] = Math.max(0, Number(after[field] || 0) - Number(before?.[field] || 0));
+  }
+  for (const field of EGP_MAP_COUNTER_FIELDS) {
+    const beforeValues = before?.[field] || {};
+    result[field] = Object.fromEntries(
+      Object.entries(after[field] || {})
+        .map(([key, value]) => [
+          key,
+          Math.max(0, Number(value || 0) - Number(beforeValues[key] || 0)),
+        ])
+        .filter(([, value]) => value > 0)
+    );
+  }
+  return result;
+}
 
 function requireValue(argv, index, flag) {
   const value = argv[index + 1];
@@ -253,6 +289,10 @@ async function run(argv = process.argv.slice(2), dependencies = {}) {
 
   await mongo.connect(mongoUri);
   try {
+    const getEgpDiagnostics =
+      dependencies.getEgpDiagnostics ||
+      (() => nationalEgpAdapter.getRequestDiagnostics());
+    const diagnosticsBefore = getEgpDiagnostics();
     const resolved = await resolveProjects(options, {
       collection: model.collection,
       getLocalFilteredProjects: dependencies.getLocalFilteredProjects,
@@ -264,6 +304,10 @@ async function run(argv = process.argv.slice(2), dependencies = {}) {
         discoverProjectDocuments: dependencies.discoverProjectDocuments,
         sleep: dependencies.sleep,
       }
+    );
+    const egpDiagnostics = requestDiagnosticsDelta(
+      diagnosticsBefore,
+      getEgpDiagnostics()
     );
     let applied = null;
     if (options.apply) {
@@ -282,6 +326,7 @@ async function run(argv = process.argv.slice(2), dependencies = {}) {
       source: resolved.sourceSummary,
       missingProjectIds: resolved.missingProjectIds,
       delayMs: planned.delayMs,
+      egp: egpDiagnostics,
       summary: {
         ...planned.summary,
         ...(applied
@@ -329,6 +374,7 @@ if (require.main === module) {
 module.exports = {
   APPLY_CONFIRMATION,
   PROJECT_PROJECTION,
+  requestDiagnosticsDelta,
   executeApplyWithBackup,
   parseArgs,
   resolveProjects,

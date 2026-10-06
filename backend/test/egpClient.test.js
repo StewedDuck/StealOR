@@ -11,6 +11,10 @@ const {
   downloadLegacyZip,
   downloadZip,
 } = require("../src/services/egp/egpClient");
+const {
+  createEgpRequestCoordinator,
+  request,
+} = require("../src/services/egp/client/transport");
 
 test("validateProjectId accepts an 11-digit e-GP id", () => {
   assert.equal(validateProjectId("69089492262"), "69089492262");
@@ -274,6 +278,7 @@ test("access and rate-limit responses stop the lookup chain", async () => {
         getPriceEstimateMetadata("67079622362", {
           fetchImpl,
           maxRetries: 0,
+          maxRateLimitRetries: 0,
           projectServiceApiKey: "test-key",
         }),
       (error) => {
@@ -724,6 +729,449 @@ test("identical filenames with different IDs remain eligible when D0 is present"
   const result = await adapter.discoverInvitation("68059426756");
   assert.equal(result.status, "available");
   assert.equal(result.fileId, "invitation-id");
+});
+
+test("reported D0 Invitation projects and positive control map their final ZIP", async (t) => {
+  const fixtures = [
+    ["69049472497", "c3918846ea6144cc9bc54af654f87186", "69049472497_27092569_3.zip"],
+    ["69099475279", "e8fc5803640042d7a12f31f65eb477f8", "69099475279_27092569_1.zip"],
+    ["69099257828", "db718d01999d4bfdb5eab1a56188d23c", "69099257828_28092569_1.zip"],
+    ["69099014571", "571079984dd44e78bc9a7959805d9734", "69099014571_28092569_2.zip"],
+    ["69019550258", "33d37eb898884aefa0a846119c81f3d6", "69019550258_25092569_3.zip"],
+    ["69099444939", "adfb93a49f4849749069816a3611d045", "69099444939_24092569_1.zip"],
+    ["69099328758", "b287e644cc2f474f968b3bf2906175de", "69099328758_23092569_1.zip"],
+    ["69099283920", "fbc39d9eeba54c95ae12c3acd7fc607b", "69099283920_22092569_1.zip"],
+    ["69049212278", "848db15f4acf46d2935526b60e7c3008", "69049212278_21092569_1.zip"],
+    ["69019529847", "bf717f519a654c1dbf0bed1c5d14354f", "69019529847_30092569_4.zip"],
+  ];
+
+  for (const [projectId, fileId, fileName] of fixtures) {
+    await t.test(projectId, async () => {
+      const adapter = createNationalEgpAdapter({
+        maxRetries: 0,
+        fetchImpl: async (url) => {
+          if (url.pathname.endsWith("infoProcureDocAnnounZip")) {
+            return new Response(
+              JSON.stringify({
+                response: { responseCode: "0" },
+                data: {
+                  projectId,
+                  zipId: fileId,
+                  buildName1: fileName,
+                  buildName2: `${projectId}-announcement-template`,
+                },
+              })
+            );
+          }
+          if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
+            return new Response(
+              JSON.stringify({
+                response: { responseCode: "0" },
+                data: {
+                  projectId,
+                  zipId: `${projectId}-draft-id`,
+                  buildName1: `${projectId}_draft.zip`,
+                  buildName2: `${projectId}-draft-template`,
+                },
+              })
+            );
+          }
+          return invitationEvidenceResponse(url);
+        },
+      });
+
+      const result = await adapter.discoverInvitation(projectId);
+      assert.equal(result.status, "available");
+      assert.equal(result.lookupMethod, LOOKUP_METHOD.INVITATION_APPROVAL_FINAL);
+      assert.equal(result.fileId, fileId);
+      assert.equal(result.fileName, fileName);
+    });
+  }
+});
+
+test("HTTP 200 rate-limit body is retried before valid JSON", async () => {
+  let tokenAttempts = 0;
+  const delays = [];
+  const adapter = createNationalEgpAdapter({
+    maxRetries: 0,
+    maxRateLimitRetries: 1,
+    rateLimitRetryBaseDelayMs: 10,
+    rateLimitRetryMaxDelayMs: 10,
+    randomImpl: () => 0.5,
+    sleepImpl: async (delayMs) => delays.push(delayMs),
+    fetchImpl: async (url) => {
+      if (url.pathname.endsWith("infoProcureDocAnnounZip")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: {
+              zipId: "invitation-id",
+              buildName1: "invitation.zip",
+              buildName2: "invitation-template",
+            },
+          })
+        );
+      }
+      if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
+        return new Response(
+          JSON.stringify({ response: { responseCode: "1" }, data: null })
+        );
+      }
+      if (url.pathname.endsWith("/generateToken") && tokenAttempts++ === 0) {
+        return new Response("Rate limit exceeded. Try again later.");
+      }
+      return invitationEvidenceResponse(url);
+    },
+  });
+
+  const result = await adapter.discoverInvitation("69049472497");
+  assert.equal(result.status, "available");
+  assert.equal(tokenAttempts, 2);
+  assert.deepEqual(delays, [10]);
+});
+
+test("multiple HTTP 200 throttles use bounded exponential backoff", async () => {
+  let requestCount = 0;
+  const delays = [];
+  const result = await getPriceEstimateMetadata("69049472497", {
+    maxRetries: 0,
+    maxRateLimitRetries: 2,
+    rateLimitRetryBaseDelayMs: 1_000,
+    rateLimitRetryMaxDelayMs: 8_000,
+    randomImpl: () => 0.5,
+    sleepImpl: async (delayMs) => delays.push(delayMs),
+    fetchImpl: async () => {
+      requestCount += 1;
+      if (requestCount < 3) {
+        return new Response("Rate limit exceeded. Try again later.");
+      }
+      return new Response(
+        JSON.stringify({
+          response: { responseCode: "0" },
+          data: { zipFileId: "price-id", zipFileName: "price.zip" },
+        }),
+        { headers: { "content-type": "application/json" } }
+      );
+    },
+  });
+
+  assert.equal(result.fileId, "price-id");
+  assert.equal(requestCount, 3);
+  assert.deepEqual(delays, [1_000, 2_000]);
+});
+
+test("rate-limit retry exhaustion remains EGP_RATE_LIMITED", async () => {
+  let requestCount = 0;
+  const delays = [];
+  await assert.rejects(
+    () =>
+      getPriceEstimateMetadata("69049472497", {
+        maxRetries: 0,
+        maxRateLimitRetries: 2,
+        rateLimitRetryBaseDelayMs: 1_000,
+        rateLimitRetryMaxDelayMs: 8_000,
+        randomImpl: () => 0.5,
+        sleepImpl: async (delayMs) => delays.push(delayMs),
+        fetchImpl: async () => {
+          requestCount += 1;
+          return new Response("Rate limit exceeded. Try again later.");
+        },
+      }),
+    (error) =>
+      error.code === "EGP_RATE_LIMITED" &&
+      error.kind === ERROR_KIND.RATE_LIMITED
+  );
+  assert.equal(requestCount, 3);
+  assert.deepEqual(delays, [1_000, 2_000]);
+});
+
+test("shared coordinator applies escalating global cooldown and adaptive pacing", async () => {
+  let now = 0;
+  const delays = [];
+  const coordinator = createEgpRequestCoordinator({
+    minIntervalMs: 500,
+    maxIntervalMs: 4_000,
+    cooldownBaseMs: 10_000,
+    cooldownMaxMs: 60_000,
+    recoverySuccesses: 2,
+    randomImpl: () => 0.5,
+    nowImpl: () => now,
+    sleepImpl: async (delayMs) => {
+      delays.push(delayMs);
+      now += delayMs;
+    },
+  });
+
+  await coordinator.wait();
+  coordinator.recordRequest();
+  coordinator.recordRateLimit();
+  coordinator.recordRateLimitRetry();
+  assert.equal(coordinator.getDiagnostics().currentRequestIntervalMs, 1_000);
+
+  await coordinator.wait();
+  coordinator.recordRequest();
+  coordinator.recordRateLimit();
+  coordinator.recordRateLimitRetry();
+  assert.equal(coordinator.getDiagnostics().currentRequestIntervalMs, 2_000);
+
+  await coordinator.wait();
+  coordinator.recordRequest();
+  coordinator.recordRateLimit();
+  coordinator.recordRetryExhaustion();
+
+  assert.deepEqual(delays, [10_000, 30_000]);
+  assert.deepEqual(coordinator.getDiagnostics(), {
+    egpRequestsTotal: 3,
+    rateLimitResponses: 3,
+    rateLimitRetries: 2,
+    successfulRetries: 0,
+    retryExhaustionCount: 1,
+    globalCooldownCount: 3,
+    globalCooldownMs: 100_000,
+    maxConsecutiveRateLimits: 3,
+    exhaustionRecoveryAttempts: 0,
+    successfulExhaustionRecoveries: 0,
+    rateLimitResponsesByEndpoint: { unknown: 3 },
+    retryExhaustionsByEndpoint: { unknown: 1 },
+    baseRequestIntervalMs: 500,
+    currentRequestIntervalMs: 4_000,
+    maxRequestIntervalMs: 4_000,
+    cooldownRemainingMs: 60_000,
+  });
+
+  coordinator.recordSuccess();
+  coordinator.recordSuccess();
+  assert.equal(coordinator.getDiagnostics().currentRequestIntervalMs, 2_000);
+});
+
+test("all rate-limit retries re-enter the shared coordinator", async () => {
+  let now = 0;
+  const requestTimes = [];
+  const coordinator = createEgpRequestCoordinator({
+    minIntervalMs: 500,
+    maxIntervalMs: 4_000,
+    cooldownBaseMs: 10_000,
+    cooldownMaxMs: 60_000,
+    recoverySuccesses: 10,
+    randomImpl: () => 0.5,
+    nowImpl: () => now,
+    sleepImpl: async (delayMs) => {
+      now += delayMs;
+    },
+  });
+  let attempts = 0;
+
+  const response = await request(new URL("https://example.test/metadata"), {
+    maxRetries: 0,
+    maxRateLimitRetries: 2,
+    requestCoordinator: coordinator,
+    fetchImpl: async () => {
+      requestTimes.push(now);
+      attempts += 1;
+      if (attempts < 3) {
+        return new Response("Rate limit exceeded. Try again later.", {
+          headers: { "content-type": "text/plain" },
+        });
+      }
+      return new Response("{}", {
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+
+  assert.equal(response.ok, true);
+  assert.deepEqual(requestTimes, [0, 10_000, 40_000]);
+  assert.deepEqual(coordinator.getDiagnostics(), {
+    egpRequestsTotal: 3,
+    rateLimitResponses: 2,
+    rateLimitRetries: 2,
+    successfulRetries: 1,
+    retryExhaustionCount: 0,
+    globalCooldownCount: 2,
+    globalCooldownMs: 40_000,
+    maxConsecutiveRateLimits: 2,
+    exhaustionRecoveryAttempts: 0,
+    successfulExhaustionRecoveries: 0,
+    rateLimitResponsesByEndpoint: {
+      "GET /metadata": 2,
+    },
+    retryExhaustionsByEndpoint: {},
+    baseRequestIntervalMs: 500,
+    currentRequestIntervalMs: 2_000,
+    maxRequestIntervalMs: 4_000,
+    cooldownRemainingMs: 0,
+  });
+});
+
+test("final rate-limit recovery waits through the cooldown that ordinary retries triggered", async () => {
+  let now = 0;
+  const requestTimes = [];
+  const coordinator = createEgpRequestCoordinator({
+    minIntervalMs: 500,
+    maxIntervalMs: 4_000,
+    cooldownBaseMs: 10_000,
+    cooldownMaxMs: 60_000,
+    recoverySuccesses: 10,
+    randomImpl: () => 0.5,
+    nowImpl: () => now,
+    sleepImpl: async (delayMs) => {
+      now += delayMs;
+    },
+  });
+  let attempts = 0;
+
+  const response = await request(
+    new URL("https://example.test/egp/approval/final"),
+    {
+      maxRetries: 0,
+      maxRateLimitRetries: 3,
+      maxRateLimitExhaustionRecoveryRetries: 1,
+      requestCoordinator: coordinator,
+      fetchImpl: async () => {
+        requestTimes.push(now);
+        attempts += 1;
+        if (attempts <= 4) {
+          return new Response("Rate limit exceeded. Try again later.", {
+            headers: { "content-type": "text/plain" },
+          });
+        }
+        return new Response("{}", {
+          headers: { "content-type": "application/json" },
+        });
+      },
+    }
+  );
+
+  assert.equal(response.ok, true);
+  assert.deepEqual(requestTimes, [0, 10_000, 40_000, 100_000, 160_000]);
+  const diagnostics = coordinator.getDiagnostics();
+  assert.equal(diagnostics.rateLimitResponses, 4);
+  assert.equal(diagnostics.rateLimitRetries, 4);
+  assert.equal(diagnostics.exhaustionRecoveryAttempts, 1);
+  assert.equal(diagnostics.successfulExhaustionRecoveries, 1);
+  assert.equal(diagnostics.retryExhaustionCount, 0);
+  assert.deepEqual(diagnostics.rateLimitResponsesByEndpoint, {
+    "GET /egp/approval/final": 4,
+  });
+  assert.deepEqual(diagnostics.retryExhaustionsByEndpoint, {});
+});
+
+test("persistent throttling after final recovery records the exact endpoint", async () => {
+  let now = 0;
+  const coordinator = createEgpRequestCoordinator({
+    minIntervalMs: 500,
+    maxIntervalMs: 4_000,
+    cooldownBaseMs: 10_000,
+    cooldownMaxMs: 60_000,
+    randomImpl: () => 0.5,
+    nowImpl: () => now,
+    sleepImpl: async (delayMs) => {
+      now += delayMs;
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      request(new URL("https://example.test/egp/announcement/greenBook"), {
+        maxRetries: 0,
+        maxRateLimitRetries: 3,
+        maxRateLimitExhaustionRecoveryRetries: 1,
+        requestCoordinator: coordinator,
+        fetchImpl: async () =>
+          new Response("Rate limit exceeded. Try again later.", {
+            headers: { "content-type": "text/plain" },
+          }),
+      }),
+    (error) =>
+      error.code === "EGP_RATE_LIMITED" &&
+      error.upstreamEndpoint === "GET /egp/announcement/greenBook"
+  );
+
+  const diagnostics = coordinator.getDiagnostics();
+  assert.equal(diagnostics.egpRequestsTotal, 5);
+  assert.equal(diagnostics.exhaustionRecoveryAttempts, 1);
+  assert.equal(diagnostics.successfulExhaustionRecoveries, 0);
+  assert.equal(diagnostics.retryExhaustionCount, 1);
+  assert.deepEqual(diagnostics.rateLimitResponsesByEndpoint, {
+    "GET /egp/announcement/greenBook": 5,
+  });
+  assert.deepEqual(diagnostics.retryExhaustionsByEndpoint, {
+    "GET /egp/announcement/greenBook": 1,
+  });
+});
+
+test("National e-GP adapter paces requests across discovery calls", async () => {
+  let now = 0;
+  const waits = [];
+  const starts = [];
+  const adapter = createNationalEgpAdapter({
+    minRequestIntervalMs: 100,
+    nowImpl: () => now,
+    pacingSleepImpl: async (delayMs) => {
+      waits.push(delayMs);
+      now += delayMs;
+    },
+    fetchImpl: async () => {
+      starts.push(now);
+      return new Response(
+        JSON.stringify({
+          response: { responseCode: "0" },
+          data: { zipFileId: `price-${starts.length}`, zipFileName: "price.zip" },
+        }),
+        { headers: { "content-type": "application/json" } }
+      );
+    },
+  });
+
+  await adapter.discoverPriceEstimate("69049472497");
+  await adapter.discoverPriceEstimate("69099475279");
+
+  assert.deepEqual(starts, [0, 100]);
+  assert.deepEqual(waits, [100]);
+});
+
+test("shared transport recovers periodic throttling across project requests", async () => {
+  const attempts = new Map();
+  const delays = [];
+  const adapter = createNationalEgpAdapter({
+    maxRetries: 0,
+    maxRateLimitRetries: 1,
+    rateLimitRetryBaseDelayMs: 25,
+    rateLimitRetryMaxDelayMs: 25,
+    randomImpl: () => 0.5,
+    sleepImpl: async (delayMs) => delays.push(delayMs),
+    fetchImpl: async (url) => {
+      const projectId = url.searchParams.get("projectId");
+      const attempt = (attempts.get(projectId) || 0) + 1;
+      attempts.set(projectId, attempt);
+      if (attempt === 1) {
+        return new Response("Rate limit exceeded. Try again later.");
+      }
+      return new Response(
+        JSON.stringify({
+          response: { responseCode: "0" },
+          data: {
+            zipFileId: `price-${projectId}`,
+            zipFileName: `${projectId}.zip`,
+          },
+        }),
+        { headers: { "content-type": "application/json" } }
+      );
+    },
+  });
+  const projectIds = ["69049472497", "69099475279", "69099257828"];
+
+  const results = [];
+  for (const projectId of projectIds) {
+    results.push(await adapter.discoverPriceEstimate(projectId));
+  }
+
+  assert.deepEqual(
+    results.map(({ status }) => status),
+    ["available", "available", "available"]
+  );
+  assert.deepEqual([...attempts.values()], [2, 2, 2]);
+  assert.deepEqual(delays, [25, 25, 25]);
 });
 
 test("draft e-bidding discovery selects the only valid initial ZIP", async () => {

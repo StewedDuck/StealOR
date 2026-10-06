@@ -730,6 +730,44 @@ test("project document discovery does not treat an Invitation error as absence",
   assert.equal(result.documents.selectedProcurementDocument, null);
 });
 
+test("rate-limited Invitation does not corrupt successful sibling categories", async () => {
+  const egpAdapter = {
+    async discoverPriceEstimate(projectId) {
+      return {
+        projectId,
+        status: "available",
+        fileId: "price-id",
+        fileName: "price.zip",
+      };
+    },
+    async discoverInvitation() {
+      throw Object.assign(new Error("e-GP rate limit exceeded"), {
+        code: "EGP_RATE_LIMITED",
+        kind: "rate_limited",
+      });
+    },
+    async discoverDraftEbidding(projectId) {
+      return {
+        projectId,
+        status: "available",
+        fileId: "draft-id",
+        fileName: "draft.zip",
+      };
+    },
+  };
+
+  const result = await discoverProjectDocuments("69049472497", { egpAdapter });
+
+  assert.equal(result.documents.priceEstimate.status, "available");
+  assert.equal(result.documents.priceEstimate.fileId, "price-id");
+  assert.equal(result.documents.invitation.status, "error");
+  assert.equal(result.documents.invitation.error.code, "EGP_RATE_LIMITED");
+  assert.equal(result.documents.invitation.error.kind, "rate_limited");
+  assert.equal(result.documents.draftEbidding.status, "available");
+  assert.equal(result.documents.draftEbidding.fileId, "draft-id");
+  assert.equal(result.documents.selectedProcurementDocument, null);
+});
+
 test("project document discovery normalizes a Price not-found exception", async () => {
   const egpAdapter = {
     async discoverPriceEstimate() {

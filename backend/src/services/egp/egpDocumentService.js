@@ -78,22 +78,23 @@ async function discoverProjectDocuments(projectId, dependencies = {}) {
   const checkedAtValue = dependencies.now ? dependencies.now() : new Date();
   const lastCheckedAt =
     checkedAtValue instanceof Date ? checkedAtValue : new Date(checkedAtValue);
+  const discoveryOptions = { ...dependencies, metadataCache: new Map() };
   const documents = {};
   const discoveries = [
     [
       "priceEstimate",
       DOCUMENT_CATEGORY.PRICE_ESTIMATE,
-      () => adapter.discoverPriceEstimate(safeProjectId, dependencies),
+      () => adapter.discoverPriceEstimate(safeProjectId, discoveryOptions),
     ],
     [
       "invitation",
       DOCUMENT_CATEGORY.INVITATION,
-      () => adapter.discoverInvitation(safeProjectId, dependencies),
+      () => adapter.discoverInvitation(safeProjectId, discoveryOptions),
     ],
     [
       "draftEbidding",
       DOCUMENT_CATEGORY.DRAFT_EBIDDING,
-      () => adapter.discoverDraftEbidding(safeProjectId, dependencies),
+      () => adapter.discoverDraftEbidding(safeProjectId, discoveryOptions),
     ],
   ];
 
