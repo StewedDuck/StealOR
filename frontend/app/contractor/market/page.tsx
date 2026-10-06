@@ -10,7 +10,7 @@ import {
     createBookmark,
     deleteBookmark,
     getEgpAnnouncementUrl,
-    getGovProjectDocumentDownloadUrl,
+    getLocalProjectDocuments,
 } from "@/lib/torApi";
 
 import type {
@@ -31,10 +31,12 @@ import{
     Bookmark,
     Download,
     ExternalLink,
-    Phone
+    Phone,
+    FileText
 } from 'lucide-react'
 import "./market.css";
 import { getUserProfile } from "@/lib/torApi";
+import TORDocumentModal from "@/components/TORDocumentModal";
 
 
 type TypeFilter = "all" | "government" | "internal";
@@ -176,6 +178,9 @@ export default function TorMarketPage() {
     const [error, setError] = useState("");
 
     const [activeTor, setActiveTor] = useState<MarketTorDetail | null>(null);
+
+    const [documentTor, setDocumentTor] = useState<{ projectId: string; projectName: string; } | null>(null);
+
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState("");
     const [savedProjectIds, setSavedProjectIds] = useState<string[]>([]);
@@ -218,18 +223,55 @@ export default function TorMarketPage() {
     ;
 
     useEffect(() => {
-        getMarketTors()
-        .then(setTors)
-        .catch((err) => {
-            setError(
-            err instanceof Error
-                ? err.message
-                : "โหลด TOR Market ไม่สำเร็จ"
-            );
-        })
-        .finally(() => {
-            setLoading(false);
-        });
+      async function loadMarketTors() {
+        try {
+          setLoading(true);
+          setError("");
+
+          const marketTors = await getMarketTors();
+
+          const checkedTors = await Promise.all(
+            marketTors.map(async (tor) => {
+              // Internal not need to check
+              if (tor.source !== "government" || !tor.projectId) {
+                return tor;
+              }
+
+              try {
+                const localDocuments = await getLocalProjectDocuments(tor.projectId);
+
+                const documents = localDocuments.documents;
+                const availableTypeCount = [
+                  documents.priceEstimate,
+                  documents.draftEbidding,
+                  documents.invitation,
+                ].filter((document) => document.available && document.files.length > 0).length;
+
+                // Gov. need to have as lest 2 type
+                return availableTypeCount >= 2 ? tor : null;
+              } catch (error) {
+                console.error(
+                  `Failed to check local documents for project ${tor.projectId}:`,
+                  error
+                );
+
+                return null;
+              }
+            })
+          );
+
+          const visibleTors = checkedTors.filter((tor): tor is MarketTor => tor !== null);
+
+          setTors(visibleTors);
+        } catch (err) {
+          setError(
+            err instanceof Error ? err.message : "โหลด TOR ไม่สำเร็จ"
+          );
+        } finally {
+          setLoading(false);
+        }
+      }
+      loadMarketTors();
     }, []);
 
     useEffect(() => {
@@ -253,6 +295,17 @@ export default function TorMarketPage() {
                 console.error("Load bookmarks error:", err);
             });
     }, [session?.user?.email]);
+
+    console.log("MARKET TORS:", tors);
+
+    console.log(
+        "TORS WITHOUT PROJECT NAME:",
+        tors.filter((tor) => !tor.projectName)
+    );
+
+    const getTorDisplayName = (tor: MarketTor) => {
+      return tor.projectName?.trim() || tor.projectId || "ไม่ระบุชื่อโครงการ";
+    };
 
     const filteredTors = useMemo(() => {
         let result = [...tors];
@@ -323,16 +376,19 @@ export default function TorMarketPage() {
 
         // Sort
         result.sort((a, b) => {
+            const aName = a.projectName ?? "";
+            const bName = b.projectName ?? "";
+
             switch (sortOption) {
                 case "name-asc":
-                return a.projectName.localeCompare(
-                    b.projectName,
+                return aName.localeCompare(
+                  bName,
                     "th"
                 );
 
                 case "name-desc":
-                return b.projectName.localeCompare(
-                    a.projectName,
+                return bName.localeCompare(
+                  aName,
                     "th"
                 );
 
@@ -698,7 +754,7 @@ export default function TorMarketPage() {
                         </div>
 
                         <h2 className="market-card-title">
-                            {tor.projectName}
+                          {getTorDisplayName(tor)}
                         </h2>
 
                         <div className="market-agency">
@@ -725,7 +781,7 @@ export default function TorMarketPage() {
                                 <Tag size={15} />
 
                                 <span>
-                                Software Project
+                                  Software Project
                                 </span>
                             </div>
 
@@ -735,7 +791,7 @@ export default function TorMarketPage() {
                                 <span>
                                     ปิดรับ{" "}
                                     <strong>
-                                    {formatDate(tor.deadline)}
+                                      {formatDate(tor.deadline)}
                                     </strong>
                                 </span>
                             </div>
@@ -763,27 +819,27 @@ export default function TorMarketPage() {
                         {typeof tor.matchPercent === "number" && (
                             <div className="market-match">
                                 <div className="match-circle">
-                                <svg viewBox="0 0 100 100">
-                                    <circle
-                                    className="match-track"
-                                    cx="50"
-                                    cy="50"
-                                    r="40"
-                                    />
+                                  <svg viewBox="0 0 100 100">
+                                      <circle
+                                        className="match-track"
+                                        cx="50"
+                                        cy="50"
+                                        r="40"
+                                      />
 
-                                    <circle
-                                    className="match-progress"
-                                    cx="50"
-                                    cy="50"
-                                    r="40"
-                                    style={{
-                                        strokeDashoffset:
-                                        251 - (251 * tor.matchPercent) / 100,
-                                    }}
-                                    />
-                                </svg>
+                                      <circle
+                                        className="match-progress"
+                                        cx="50"
+                                        cy="50"
+                                        r="40"
+                                        style={{
+                                            strokeDashoffset:
+                                            251 - (251 * tor.matchPercent) / 100,
+                                        }}
+                                      />
+                                  </svg>
 
-                                <span>{tor.matchPercent}%</span>
+                                  <span>{tor.matchPercent}%</span>
                                 </div>
 
                                 <small>ความตรงกัน</small>
@@ -856,7 +912,7 @@ export default function TorMarketPage() {
                                     ไปยังหน้า TOR
                                 </button>
 
-                                <button
+                                {/* <button
                                     type="button"
                                     className="market-action-button"
                                     onClick={() =>
@@ -869,6 +925,20 @@ export default function TorMarketPage() {
                                 >
                                     <Download size={15} />
                                     ดาวน์โหลดเอกสาร
+                                </button> */}
+
+                                <button
+                                  type="button"
+                                  className="market-action-button"
+                                  onClick={() =>
+                                    setDocumentTor({
+                                      projectId: tor.projectId!,
+                                      projectName: tor.projectName,
+                                    })
+                                  }
+                                >
+                                  <FileText size={15} />
+                                  เอกสาร TOR
                                 </button>
                             </>
                         )}
@@ -898,6 +968,15 @@ export default function TorMarketPage() {
                 onClose={() => setActiveTor(null)}
             />
         )}
+
+        {documentTor && (
+          <TORDocumentModal
+            projectId={documentTor.projectId}
+            projectName={documentTor.projectName}
+            onClose={() => setDocumentTor(null)}
+          />
+        )}
+
     </div>
   );
 }

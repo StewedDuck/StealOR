@@ -297,3 +297,88 @@ export async function updateUserProfile(
     }
   );
 }
+
+export type LocalDocumentFile = {
+  fileName: string;
+  url: string;
+};
+
+export type LocalDocumentCategory = {
+  available: boolean;
+  files: LocalDocumentFile[];
+};
+
+export type LocalProjectDocuments = {
+  projectId: string;
+  documents: {
+    priceEstimate: LocalDocumentCategory;
+    invitation: LocalDocumentCategory;
+    draftEbidding: LocalDocumentCategory;
+  };
+};
+
+export async function getLocalProjectDocuments(
+  projectId: string
+): Promise<LocalProjectDocuments> {
+    return request<LocalProjectDocuments>(
+      `/api/gov-projects/${encodeURIComponent(
+        projectId
+      )}/documents/local`
+    );
+  }
+
+export function getLocalDocumentUrl(
+  relativeUrl: string
+) {
+  return `${API_URL}${relativeUrl}`;
+}
+
+export type ContractorNotificationType =
+  | "deadline_5_days"
+  | "deadline_1_day"
+  | "draft_updated";
+
+  export type ContractorNotification = {
+    _id: string;
+    userId: string;
+
+    source: "government" | "internal";
+
+    projectId: string | null;
+    torId: string | null;
+
+    type: ContractorNotificationType;
+
+    title?: string;
+    message?: string;
+
+    torName?: string;
+    torIdentifier?: string;
+
+    read: boolean;
+
+    sentAt: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+
+export async function getContractorNotifications(
+  userId: string
+): Promise<ContractorNotification[]> {
+  return request<ContractorNotification[]>(
+    `/api/notifications?userId=${encodeURIComponent(userId)}`
+  );
+}
+
+
+export async function markContractorNotificationAsRead(
+  notificationId: string
+): Promise<ContractorNotification> {
+  return request<ContractorNotification>(
+    `/api/notifications/${encodeURIComponent(notificationId)}/read`,
+    {
+      method: "PATCH",
+    }
+  );
+}

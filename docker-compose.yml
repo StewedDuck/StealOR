@@ -35,6 +35,7 @@ services:
       - NODE_TLS_REJECT_UNAUTHORIZED=0
     volumes:
       - ./backend/src:/app/src
+      - ./backend/temp:/app/temp
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]

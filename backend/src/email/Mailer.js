@@ -9,7 +9,7 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-async function sendEmail({ to, subject, text }) {
+async function sendEmail({ to, subject, text, html }) {
     if (!to) {
         throw new Error("Email recipient is required");
     }
@@ -19,6 +19,7 @@ async function sendEmail({ to, subject, text }) {
         to,
         subject,
         text,
+        html,
     });
 
     console.log("Email sent: ", info.messageId);

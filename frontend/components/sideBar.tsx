@@ -19,7 +19,7 @@ import {
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { getUserProfile } from "@/lib/torApi";
+import { getUserProfile, getContractorNotifications, } from "@/lib/torApi";
 
 
 type MenuItem = {
@@ -78,7 +78,6 @@ const contractorMenuItems: MenuSection[] = [
                 name: "การแจ้งเตือน",
                 href: "/contractor/notifications",
                 icon: "BellRing",
-                badge : 24,
             },
             {
                 name: "บัญชีของฉัน",
@@ -94,6 +93,11 @@ const projectOwnerMenuItems: MenuSection[] = [
     {
         label: "เจ้าของโครงการ",
         items: [
+            {
+                name: "แดชบอร์ด",
+                href: "/project_own/dashboard",
+                icon: "LayoutDashboard",
+            },
             {
                 name: "สร้าง TOR",
                 href: "/project_own/create_TOR",
@@ -161,10 +165,6 @@ function MenuIcon({
         return <BellRing size={20} />;
     }
 
-    if (icon === "CircleCheckBig") {
-        return <CircleCheckBig size={20} />;
-    }
-
     if (icon === "Plus") {
         return <Plus size={20} />;
     }
@@ -190,6 +190,7 @@ export default function Sidebar () {
     const router = useRouter();
     const { data: session } = useSession();
     const [displayName, setDisplayName] = useState("");
+    const [notificationCount, setNotificationCount] = useState(0);
     const userName = displayName || session?.user?.name || "ผู้ใช้";
     const initials = userName
         .split(" ")
@@ -200,6 +201,7 @@ export default function Sidebar () {
     ;
 
     const isProjectOwner =
+    pathname.startsWith("/project_own/dashboard") ||
     pathname.startsWith("/project_own/create_TOR") ||
     pathname.startsWith("/project_own/draft_TOR") ||
     pathname.startsWith("/project_own/my_TOR") ||
@@ -224,6 +226,39 @@ export default function Sidebar () {
             setDisplayName(session?.user?.name ?? "");
           });
     }, [session?.user?.email, session?.user?.name]);
+
+    useEffect(() => {
+        const email = session?.user?.email;
+    
+        if (!email || isProjectOwner) {
+            setNotificationCount(0);
+            return;
+        }
+    
+        getContractorNotifications(email)
+            .then((notifications) => {
+                const unreadCount =
+                    notifications.filter(
+                        (notification) =>
+                            !notification.read
+                    ).length;
+    
+                setNotificationCount(unreadCount);
+            })
+            .catch((error) => {
+                console.error(
+                    "Failed to load sidebar notifications:",
+                    error
+                );
+    
+                setNotificationCount(0);
+            });
+    
+    }, [
+        session?.user?.email,
+        pathname,
+        isProjectOwner,
+    ]);
 
     return (
         <aside className = "sidebar">
@@ -262,7 +297,7 @@ export default function Sidebar () {
                     className={`role-button ${
                         isProjectOwner ? "active" : ""
                     }`}
-                    onClick={() => router.push("/project_own/create_TOR")}
+                    onClick={() => router.push("/project_own/dashboard")}
                 >
                     เจ้าของโครงการ
                 </button>
@@ -304,10 +339,11 @@ export default function Sidebar () {
                                     <span className="nav-item-name">
                                         {item.name}
                                     </span>
-                                    {item.badge !== undefined && (
-                                        <span className="nav-item-badge">
-                                            {item.badge}
-                                        </span>
+                                    {item.href === "/contractor/notifications" &&
+                                        notificationCount > 0 && (
+                                            <span className="nav-item-badge">
+                                                {notificationCount}
+                                            </span>
                                     )}
                                 </Link>
                             );

@@ -35,9 +35,11 @@ import {
   Tag,
   ChevronDown,
   X,
+  FileText,
 } from "lucide-react";
 import "./saved.css";
 import { getUserProfile } from "@/lib/torApi";
+import TORDocumentModal from "@/components/TORDocumentModal";
 
 type StatusFilter = "all" | "draft" | "published";
 
@@ -198,6 +200,11 @@ export default function SavedPage() {
   const [reviewLoading, setReviewLoading] = useState(false);
 
   const [reviewError, setReviewError] = useState("");
+
+  const [documentTor, setDocumentTor] = useState<{
+    projectId: string;
+    projectName: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -507,7 +514,11 @@ export default function SavedPage() {
             <section className="saved-list">
               {filteredTors.map((tor) => {
                 const deadline = tor.deadline;
-
+                // console.log("SAVED TOR:", {
+                //   projectName: tor.projectName,
+                //   projectId: tor.projectId,
+                //   source: tor.source,
+                // });
                 const daysLeft = getDaysUntil(deadline);
 
                 const almostClosing = isAlmostClosing(deadline);
@@ -537,7 +548,12 @@ export default function SavedPage() {
                         )}
                       </div>
 
-                      <h2 className="saved-card-title">{tor.projectName}</h2>
+                      <h2 className="saved-card-title">
+                        {tor.projectName?.trim() &&
+                        tor.projectName.trim() !== "ไม่ระบุชื่อโครงการ"
+                          ? tor.projectName
+                          : tor.projectId || "ไม่ระบุชื่อโครงการ"}
+                      </h2>
 
                       <div className="saved-agency">
                         <Building2 size={15} />
@@ -681,18 +697,19 @@ export default function SavedPage() {
                               </button>
 
                               <button
-                                type="button"
-                                className="saved-action-button"
-                                onClick={() =>
-                                  window.location.assign(
-                                    getGovProjectDocumentDownloadUrl(
-                                      tor.projectId!,
-                                    ),
-                                  )
-                                }
+                                  type="button"
+                                  className="saved-action-button"
+                                  onClick={() =>
+                                      setDocumentTor({
+                                          projectId: tor.projectId!,
+                                          projectName:
+                                              tor.projectName?.trim() ||
+                                              tor.projectId!,
+                                      })
+                                  }
                               >
-                                <Download size={15} />
-                                ดาวน์โหลดเอกสาร
+                                  <FileText size={15} />
+                                  เอกสาร TOR
                               </button>
                             </>
                           )}
@@ -718,6 +735,14 @@ export default function SavedPage() {
           tor={activeTorDetail}
           onClose={() => setActiveTorDetail(null)}
         />
+      )}
+
+      {documentTor && (
+          <TORDocumentModal
+              projectId={documentTor.projectId}
+              projectName={documentTor.projectName}
+              onClose={() => setDocumentTor(null)}
+          />
       )}
 
       {reviewTor && (
@@ -870,6 +895,7 @@ export default function SavedPage() {
             </div>
           </div>
         </div>
+        
       )}
     </div>
   );

@@ -22,7 +22,7 @@ function getDaysLeft(deadline) {
 async function checkDeadlineReminders() {
     console.log("Checking TOR deadline reminders...");
 
-    const bookmarks = await Bookmark.find({}).limit(1);
+    const bookmarks = await Bookmark.find({});
     console.log(`Found ${bookmarks.length} bookmarks`);
 
     for (const bookmark of bookmarks) {
@@ -78,25 +78,34 @@ async function checkDeadlineReminders() {
 
                     torTitle = tor.projectName;
                     scope = tor.scopeOfWork?.join(", ") || tor.description || "ไม่ระบุขอบเขตงาน";
-                    closeDate = tor.submission_deadline;
+                    closeDate = tor.submissionDeadline;
                     torUrl = `${process.env.APP_URL}/contractor/saved`;
                 }
-                // if (!closeDate) {
-                //     console.log("No closeDate found for:", torTitle);
-                //     continue;
-                // }
-
-                // ===== TEST ONLY =====
-                const daysLeft = 1;
-
-                closeDate = new Date();
-                closeDate.setDate(closeDate.getDate() + daysLeft);
-
-                console.log("TEST deadline:", {
+                if (!closeDate) {
+                    console.log("No closeDate found for:", torTitle);
+                    continue;
+                }
+                
+                const daysLeft = getDaysLeft(closeDate);
+                
+                console.log({
                     torTitle,
                     closeDate,
                     daysLeft,
+                    source: bookmark.source,
                 });
+
+                // ===== TEST ONLY =====
+                // const daysLeft = 1;
+
+                // closeDate = new Date();
+                // closeDate.setDate(closeDate.getDate() + daysLeft);
+
+                // console.log("TEST deadline:", {
+                //     torTitle,
+                //     closeDate,
+                //     daysLeft,
+                // });
                 // =====================
 
                 // const daysLeft = getDaysLeft(closeDate);
@@ -158,11 +167,28 @@ async function checkDeadlineReminders() {
                 await sendEmail({
                     to: user.email,
                     subject: email.subject,
-                    text: email.text
+                    text: email.text,
+                    html: email.html,
                 });
+
+                const torIdentifier =
+                    bookmark.source === "government"
+                        ? bookmark.projectId
+                        : bookmark.torId;
+
+                const title =
+                    daysLeft === 5
+                        ? `TOR ใกล้ปิดรับใน 5 วัน: ${torTitle}`
+                        : `TOR ใกล้ปิดรับใน 1 วัน: ${torTitle}`;
+
+                const message =
+                    `รหัส TOR: ${torIdentifier}`;
 
                 await NotificationLog.create({
                     ...notificationQuery,
+                    title,
+                    message,
+                    read: false,
                     sentAt: new Date(),
                 });
 
