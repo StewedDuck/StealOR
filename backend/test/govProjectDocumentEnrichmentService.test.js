@@ -9,6 +9,7 @@ const {
   applyDocumentEnrichmentPlans,
   buildProjectEnrichmentPlan,
   planDocumentEnrichment,
+  runRateLimitPostPass,
 } = require("../src/services/govProjectDocumentEnrichmentService");
 const {
   getLocalFilteredProjects,
@@ -38,6 +39,17 @@ function discoveryDocuments(overrides = {}) {
   };
 }
 
+function rateLimited() {
+  return {
+    status: "error",
+    error: {
+      code: "EGP_RATE_LIMITED",
+      kind: "rate_limited",
+      message: "e-GP rate limit exceeded",
+    },
+  };
+}
+
 test("current local provider returns the actual 27 records without hard-coded count", async () => {
   const projects = await getLocalFilteredProjects();
   assert.equal(projects.length, 27);
@@ -62,8 +74,23 @@ test("canonical locator identity is stable and category-specific", () => {
   assert.notEqual(first, otherCategory);
 });
 
-test("usable references recognize file IDs and complete Legacy Draft locators", () => {
+test("usable references recognize file IDs, chunked Price, and complete Legacy Draft locators", () => {
   assert.equal(isUsableDocumentReference("invitation", available("id")), true);
+  const chunkedPrice = {
+    status: "available",
+    downloadMethod: "chunked_document",
+    fileId: "fe333a7a-f6d4-4292-93b3-ffa41780d365",
+    fileName: "69099569802_pricebuild.zip",
+  };
+  assert.equal(
+    isUsableDocumentReference("priceEstimate", chunkedPrice),
+    true
+  );
+  assert.equal(isUsableDocumentReference("invitation", chunkedPrice), false);
+  assert.match(
+    canonicalLocatorIdentity("69099569802", "priceEstimate", chunkedPrice),
+    /^sha256:[a-f0-9]{64}$/
+  );
   assert.equal(
     isUsableDocumentReference("invitation", {
       status: "available",
@@ -417,6 +444,218 @@ test("batch planning preserves stored metadata for periodic rate-limited categor
   assert.equal(result.summary.categoryObserved.invitation.error, 1);
   assert.equal(result.plans[0].effectiveDocuments.invitation.status, "available");
   assert.equal(result.plans[2].effectiveDocuments.invitation.status, "available");
+});
+
+test("rate-limit post-pass is skipped when no category was rate-limited", async () => {
+  const projects = [{ _id: "one", project_id: "65077164290", documents: {} }];
+  const planned = await planDocumentEnrichment(projects, { delayMs: 0 }, {
+    discoverProjectDocuments: async () => ({ documents: discoveryDocuments() }),
+  });
+  let retries = 0;
+  let sleeps = 0;
+  const result = await runRateLimitPostPass(
+    planned,
+    projects,
+    { cooldownMs: 25 },
+    {
+      discoverProjectDocuments: async () => {
+        retries += 1;
+        return { documents: discoveryDocuments() };
+      },
+      sleep: async () => {
+        sleeps += 1;
+      },
+    }
+  );
+
+  assert.equal(retries, 0);
+  assert.equal(sleeps, 0);
+  assert.deepEqual(result.postPass, {
+    postPassProjects: 0,
+    postPassCategories: 0,
+    postPassRecovered: 0,
+    postPassStillFailed: 0,
+    postPassCooldownMs: 0,
+  });
+});
+
+test("rate-limit post-pass retries only the affected project and merges only its affected category", async () => {
+  const projects = [
+    { _id: "one", project_id: "65077164290", documents: {} },
+    { _id: "two", project_id: "64117010720", documents: {} },
+  ];
+  const planned = await planDocumentEnrichment(projects, { delayMs: 0 }, {
+    discoverProjectDocuments: async (projectId) => ({
+      documents: discoveryDocuments(
+        projectId === "65077164290"
+          ? {
+              priceEstimate: available("original-price"),
+              invitation: rateLimited(),
+            }
+          : {}
+      ),
+    }),
+  });
+  const calls = [];
+  const sleeps = [];
+  const result = await runRateLimitPostPass(
+    planned,
+    projects,
+    { cooldownMs: 25 },
+    {
+      async discoverProjectDocuments(projectId) {
+        calls.push(projectId);
+        return {
+          documents: discoveryDocuments({
+            priceEstimate: available("retry-price-must-not-replace"),
+            invitation: available("recovered-invitation"),
+          }),
+        };
+      },
+      async sleep(ms) {
+        sleeps.push(ms);
+      },
+    }
+  );
+
+  assert.deepEqual(calls, ["65077164290"]);
+  assert.deepEqual(sleeps, [25]);
+  assert.equal(result.plans[0].effectiveDocuments.invitation.fileId, "recovered-invitation");
+  assert.equal(result.plans[0].effectiveDocuments.priceEstimate.fileId, "original-price");
+  assert.equal(result.plans[1].effectiveDocuments.invitation.fileId, "invitation-id");
+  assert.deepEqual(result.postPass, {
+    postPassProjects: 1,
+    postPassCategories: 1,
+    postPassRecovered: 1,
+    postPassStillFailed: 0,
+    postPassCooldownMs: 25,
+  });
+});
+
+test("rate-limit post-pass accepts a normal not_found recovery", async () => {
+  const projects = [{ _id: "one", project_id: "65077164290", documents: {} }];
+  const planned = await planDocumentEnrichment(projects, { delayMs: 0 }, {
+    discoverProjectDocuments: async () => ({
+      documents: discoveryDocuments({ invitation: rateLimited() }),
+    }),
+  });
+  const result = await runRateLimitPostPass(
+    planned,
+    projects,
+    { cooldownMs: 0 },
+    {
+      discoverProjectDocuments: async () => ({
+        documents: discoveryDocuments({
+          invitation: { status: "not_found", lookupMethod: "invitation_lookup" },
+        }),
+      }),
+    }
+  );
+
+  assert.equal(result.plans[0].categories.invitation.observedStatus, "not_found");
+  assert.equal(result.plans[0].effectiveDocuments.invitation.status, "not_found");
+  assert.equal(result.postPass.postPassRecovered, 1);
+  assert.equal(result.postPass.postPassStillFailed, 0);
+});
+
+test("rate-limit post-pass retains EGP_RATE_LIMITED when the retry still fails", async () => {
+  const projects = [{ _id: "one", project_id: "65077164290", documents: {} }];
+  const planned = await planDocumentEnrichment(projects, { delayMs: 0 }, {
+    discoverProjectDocuments: async () => ({
+      documents: discoveryDocuments({ invitation: rateLimited() }),
+    }),
+  });
+  let retries = 0;
+  const result = await runRateLimitPostPass(
+    planned,
+    projects,
+    { cooldownMs: 0 },
+    {
+      discoverProjectDocuments: async () => {
+        retries += 1;
+        return { documents: discoveryDocuments({ invitation: rateLimited() }) };
+      },
+    }
+  );
+
+  assert.equal(retries, 1);
+  assert.equal(result.plans[0].categories.invitation.observedStatus, "error");
+  assert.equal(
+    result.plans[0].categories.invitation.errorCode,
+    "EGP_RATE_LIMITED"
+  );
+  assert.equal(result.postPass.postPassRecovered, 0);
+  assert.equal(result.postPass.postPassStillFailed, 1);
+});
+
+test("rate-limit post-pass retries each affected project once and skips the rest", async () => {
+  const projectIds = ["65077164290", "64117010720", "69049472497"];
+  const projects = projectIds.map((projectId) => ({
+    _id: projectId,
+    project_id: projectId,
+    documents: {},
+  }));
+  const planned = await planDocumentEnrichment(projects, { delayMs: 0 }, {
+    discoverProjectDocuments: async (projectId) => ({
+      documents: discoveryDocuments({
+        invitation:
+          projectId === "64117010720" ? available("healthy") : rateLimited(),
+      }),
+    }),
+  });
+  const calls = [];
+  const result = await runRateLimitPostPass(
+    planned,
+    projects,
+    { cooldownMs: 0 },
+    {
+      discoverProjectDocuments: async (projectId) => {
+        calls.push(projectId);
+        return {
+          documents: discoveryDocuments({ invitation: available(`recovered-${projectId}`) }),
+        };
+      },
+    }
+  );
+
+  assert.deepEqual(calls, ["65077164290", "69049472497"]);
+  assert.equal(result.postPass.postPassProjects, 2);
+  assert.equal(result.postPass.postPassCategories, 2);
+  assert.equal(result.postPass.postPassRecovered, 2);
+});
+
+test("rate-limit post-pass is bounded and does not retry a failed retry", async () => {
+  const projects = [{ _id: "one", project_id: "65077164290", documents: {} }];
+  const planned = await planDocumentEnrichment(projects, { delayMs: 0 }, {
+    discoverProjectDocuments: async () => ({
+      documents: discoveryDocuments({
+        invitation: rateLimited(),
+        draftEbidding: rateLimited(),
+      }),
+    }),
+  });
+  let retries = 0;
+  const result = await runRateLimitPostPass(
+    planned,
+    projects,
+    { cooldownMs: 0 },
+    {
+      discoverProjectDocuments: async () => {
+        retries += 1;
+        return {
+          documents: discoveryDocuments({
+            invitation: rateLimited(),
+            draftEbidding: rateLimited(),
+          }),
+        };
+      },
+    }
+  );
+
+  assert.equal(retries, 1);
+  assert.equal(result.postPass.postPassProjects, 1);
+  assert.equal(result.postPass.postPassCategories, 2);
+  assert.equal(result.postPass.postPassStillFailed, 2);
 });
 
 test("apply reports optimistic concurrency conflicts and passes upsert false", async () => {

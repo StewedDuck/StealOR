@@ -9,10 +9,12 @@ const {
   validateProjectId,
   validateFileId,
   validateLegacyFileName,
+  validateUuidDocumentId,
 } = require("./validation");
 const { request, readMetadataJson } = require("./transport");
 const { createDocumentMetadata } = require("./metadata");
 const { encryptAnnouncementData } = require("./publicAnnouncement");
+const { getChunkedDocumentInfo } = require("./downloads");
 
 async function getPrimaryPriceEstimateMetadata(projectId, options) {
   const url = new URL(
@@ -78,7 +80,22 @@ async function getFallbackPriceEstimateMetadata(projectId, options) {
   });
 }
 
-async function getLegacyPriceEstimateMetadata(projectId, options) {
+async function getPublicPriceEvidence(projectId, options) {
+  const cache = options.metadataCache instanceof Map ? options.metadataCache : null;
+  const cacheKey = `public-price-evidence:${projectId}`;
+  if (cache?.has(cacheKey)) return cache.get(cacheKey);
+
+  const lookup = getPublicPriceEvidenceUncached(projectId, options);
+  if (cache) cache.set(cacheKey, lookup);
+  try {
+    return await lookup;
+  } catch (error) {
+    cache?.delete(cacheKey);
+    throw error;
+  }
+}
+
+async function getPublicPriceEvidenceUncached(projectId, options) {
   const tokenUrl = new URL(`${ANNOUNCEMENT_PATH}/generateToken`, EGP_BASE_URL);
   const firstKey = encryptAnnouncementData({ projectId });
   const key = encryptAnnouncementData(firstKey);
@@ -141,10 +158,26 @@ async function getLegacyPriceEstimateMetadata(projectId, options) {
     "legacy green-book"
   );
   const records = greenBookPayload?.data?.greenBookAnnouncementTypeLinkDto;
+  return { token, detail, greenBookPayload, records };
+}
+
+function legacyPriceRecord(records, projectId) {
   if (!Array.isArray(records)) return null;
-  const record = records.find(
-    (item) => item?.announceType === "BOQ" && item?.priceBuildName
-  );
+  return records.find((item) => {
+    if (item?.announceType !== "BOQ" || !item?.priceBuildName) return false;
+    try {
+      validateLegacyFileName(item.priceBuildName, projectId);
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  });
+}
+
+async function getLegacyPriceEstimateMetadata(projectId, options) {
+  const evidence = await getPublicPriceEvidence(projectId, options);
+  if (!evidence) return null;
+  const record = legacyPriceRecord(evidence.records, projectId);
   if (!record) return null;
 
   return createDocumentMetadata({
@@ -155,20 +188,111 @@ async function getLegacyPriceEstimateMetadata(projectId, options) {
   });
 }
 
+function unresolvedChunkError(message) {
+  return new EgpServiceError(message, 502, {
+    code: "EGP_PRICE_CHUNK_UNRESOLVED",
+    kind: ERROR_KIND.INVALID_RESPONSE,
+  });
+}
+
+async function getChunkedPriceEstimateMetadata(projectId, options) {
+  const evidence = await getPublicPriceEvidence(projectId, options);
+  if (!evidence) return null;
+  const records = evidence.records;
+  if (!Array.isArray(records)) return null;
+  const record = records.find(
+    (item) => item?.announceType === "BOQ" && item?.priceBuildName
+  );
+  if (!record) return null;
+  if (legacyPriceRecord([record], projectId)) return null;
+
+  if (String(evidence.greenBookPayload?.response?.responseCode ?? "") !== "0") {
+    throw unresolvedChunkError(
+      "e-GP did not confirm a complete Price Estimate document list"
+    );
+  }
+  if (String(record.projectId || "") !== projectId) {
+    throw unresolvedChunkError(
+      "e-GP Price Estimate evidence belongs to another project"
+    );
+  }
+  const documentId = validateUuidDocumentId(record.priceBuildName);
+  const detail = evidence.detail;
+  if (
+    String(detail?.projectId || "") !== projectId ||
+    String(detail?.announceType || "").toUpperCase() !== "BOQ" ||
+    String(detail?.projectStatus || "").toUpperCase() !== "A"
+  ) {
+    throw unresolvedChunkError(
+      "e-GP Price Estimate evidence has an unsupported publication state"
+    );
+  }
+
+  const procurementUrl = new URL(
+    `${ANNOUNCEMENT_PATH}/getProcurementDetail`,
+    EGP_BASE_URL
+  );
+  procurementUrl.searchParams.set("projectId", projectId);
+  const procurementResponse = await request(procurementUrl, {
+    ...options,
+    headers: {
+      ...options.headers,
+      "X-Announcement-Token": evidence.token,
+      noToken: "noToken",
+      noDataProfile: "noDataProfile",
+    },
+  });
+  const procurementPayload = await readMetadataJson(
+    procurementResponse,
+    "chunked Price procurement state"
+  );
+  const procurement = procurementPayload?.data;
+  if (
+    String(procurementPayload?.response?.responseCode ?? "") !== "0" ||
+    String(procurement?.projectId || "") !== projectId ||
+    String(procurement?.typeProject || "") !== "9" ||
+    String(procurement?.flowAgencyFlag || "").toUpperCase() !== "Y" ||
+    String(procurement?.flowAgencyType || "").toUpperCase() !== "A"
+  ) {
+    throw unresolvedChunkError(
+      "e-GP Price Estimate uses an unsupported procurement state"
+    );
+  }
+
+  const chunkInfo = await getChunkedDocumentInfo(
+    projectId,
+    documentId,
+    options
+  );
+  return createDocumentMetadata({
+    projectId,
+    fileId: documentId,
+    fileName: chunkInfo.fileName,
+    lookupMethod: LOOKUP_METHOD.PRICE_GREEN_BOOK_CHUNK,
+    downloadMethod: DOWNLOAD_METHOD.CHUNKED_DOCUMENT,
+  });
+}
+
 async function discoverPriceEstimateMetadata(projectId, options = {}) {
   const safeProjectId = validateProjectId(projectId);
+  const discoveryOptions = {
+    ...options,
+    metadataCache:
+      options.metadataCache instanceof Map ? options.metadataCache : new Map(),
+  };
   const attempts = [];
   const strategies = [
     [LOOKUP_METHOD.PRICE_PRIMARY, getPrimaryPriceEstimateMetadata],
     [LOOKUP_METHOD.PRICE_PROJECT_SERVICE, getFallbackPriceEstimateMetadata],
     [LOOKUP_METHOD.PRICE_LEGACY_GREEN_BOOK, getLegacyPriceEstimateMetadata],
+    [LOOKUP_METHOD.PRICE_GREEN_BOOK_CHUNK, getChunkedPriceEstimateMetadata],
   ];
 
   // Each strategy is isolated so a recoverable failure in one undocumented
   // endpoint cannot prevent the next known lookup from being attempted.
   for (const [lookupMethod, strategy] of strategies) {
     try {
-      const metadata = await strategy(safeProjectId, options);
+      const metadata = await strategy(safeProjectId, discoveryOptions);
       if (metadata) {
         attempts.push({ lookupMethod, outcome: "available" });
         return { ...metadata, lookupAttempts: attempts };
@@ -181,7 +305,10 @@ async function discoverPriceEstimateMetadata(projectId, options = {}) {
         code: error.code || "EGP_SERVICE_ERROR",
         kind: error.kind || ERROR_KIND.RECOVERABLE,
       });
-      if (!canContinueLookup(error)) {
+      if (
+        lookupMethod === LOOKUP_METHOD.PRICE_GREEN_BOOK_CHUNK ||
+        !canContinueLookup(error)
+      ) {
         error.details = { ...error.details, lookupAttempts: attempts };
         throw error;
       }

@@ -7,10 +7,13 @@ const { validateProjectId } = require("../src/services/egp/egpDocumentService");
 const { nationalEgpAdapter } = require("../src/services/egp/egpClient");
 const { getLocalFilteredProjects } = require("../src/services/localProjectProvider");
 const {
+  DEFAULT_POST_PASS_COOLDOWN_MS,
   applyDocumentEnrichmentPlans,
   boundedDelay,
+  boundedPostPassCooldown,
   planDocumentEnrichment,
   referencesEqual,
+  runRateLimitPostPass,
 } = require("../src/services/govProjectDocumentEnrichmentService");
 const { DOCUMENT_KEYS } = require("../src/services/egp/documentReferencePolicy");
 
@@ -297,9 +300,32 @@ async function run(argv = process.argv.slice(2), dependencies = {}) {
       collection: model.collection,
       getLocalFilteredProjects: dependencies.getLocalFilteredProjects,
     });
-    const planned = await planDocumentEnrichment(
+    let planned = await planDocumentEnrichment(
       resolved.projects,
       { delayMs: options.delayMs },
+      {
+        discoverProjectDocuments: dependencies.discoverProjectDocuments,
+        sleep: dependencies.sleep,
+      }
+    );
+    const diagnosticsBeforePostPass = getEgpDiagnostics();
+    const configuredPostPassCooldownMs = boundedPostPassCooldown(
+      dependencies.postPassCooldownMs ??
+        process.env.EGP_POST_PASS_COOLDOWN_MS ??
+        DEFAULT_POST_PASS_COOLDOWN_MS
+    );
+    const activeCoordinatorCooldownMs = Math.ceil(
+      Number(diagnosticsBeforePostPass?.cooldownRemainingMs || 0)
+    );
+    planned = await runRateLimitPostPass(
+      planned,
+      resolved.projects,
+      {
+        cooldownMs: Math.max(
+          configuredPostPassCooldownMs,
+          activeCoordinatorCooldownMs
+        ),
+      },
       {
         discoverProjectDocuments: dependencies.discoverProjectDocuments,
         sleep: dependencies.sleep,
@@ -326,6 +352,7 @@ async function run(argv = process.argv.slice(2), dependencies = {}) {
       source: resolved.sourceSummary,
       missingProjectIds: resolved.missingProjectIds,
       delayMs: planned.delayMs,
+      postPass: planned.postPass,
       egp: egpDiagnostics,
       summary: {
         ...planned.summary,

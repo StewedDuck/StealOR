@@ -191,6 +191,188 @@ test("getPriceEstimateMetadata uses the legacy green-book fallback", async () =>
   });
 });
 
+function chunkedPriceDiscoveryFetch({ projectId, documentId, fileName, fileSize }) {
+  return async (url, options = {}) => {
+    if (url.pathname.endsWith("/infoDocPriceestZipHis")) {
+      return new Response(
+        JSON.stringify({ response: { responseCode: "0" }, data: null })
+      );
+    }
+    if (url.pathname.endsWith("/listProjectPriceBuildZipByProjectId")) {
+      return new Response(
+        JSON.stringify({ response: { responseCode: "0" }, data: [] })
+      );
+    }
+    if (url.pathname.endsWith("/generateToken")) {
+      return new Response(JSON.stringify({ data: "announcement-token" }));
+    }
+    if (url.pathname.endsWith("/getProjectDetail")) {
+      return new Response(
+        JSON.stringify({
+          data: {
+            projectId,
+            methodId: "22",
+            announceType: "BOQ",
+            projectStatus: "A",
+            isSect7: false,
+          },
+        })
+      );
+    }
+    if (url.pathname.endsWith("/greenBook")) {
+      return new Response(
+        JSON.stringify({
+          response: { responseCode: "0" },
+          data: {
+            greenBookAnnouncementTypeLinkDto: [
+              { projectId, announceType: "BOQ", priceBuildName: documentId },
+            ],
+          },
+        })
+      );
+    }
+    if (url.pathname.endsWith("/getProcurementDetail")) {
+      return new Response(
+        JSON.stringify({
+          response: { responseCode: "0" },
+          data: {
+            projectId,
+            typeProject: "9",
+            flowAgencyFlag: "Y",
+            flowAgencyType: "A",
+          },
+        })
+      );
+    }
+    if (url.pathname.endsWith("/download-file-info")) {
+      assert.equal(options.method, "POST");
+      assert.deepEqual(JSON.parse(options.body), { docId: documentId });
+      return new Response(
+        JSON.stringify({
+          response: { responseCode: "0" },
+          data: {
+            chunkInfo: {
+              projectId,
+              docId: documentId,
+              docType: "zip",
+              fileName,
+              chunkCount: fileSize > 2_000_000 ? 2 : 1,
+              fileSize,
+            },
+          },
+        })
+      );
+    }
+    throw new Error(`Unexpected test URL: ${url}`);
+  };
+}
+
+for (const fixture of [
+  {
+    projectId: "69099569802",
+    documentId: "fe333a7a-f6d4-4292-93b3-ffa41780d365",
+    fileName: "69099569802_pricebuild_2_25690928135834.zip",
+    fileSize: 1_296_074,
+  },
+  {
+    projectId: "69099641591",
+    documentId: "77f8795e-e9a9-4a9a-a1a9-029ef10b8f45",
+    fileName: "69099641591_pricebuild_2_25691002134424.zip",
+    fileSize: 2_242_768,
+  },
+]) {
+  test(`${fixture.projectId} discovers Price Estimate through the authoritative chunk flow`, async () => {
+    const result = await getPriceEstimateMetadata(fixture.projectId, {
+      fetchImpl: chunkedPriceDiscoveryFetch(fixture),
+      projectServiceApiKey: "test-project-service-key",
+    });
+
+    assert.equal(result.status, "available");
+    assert.equal(result.lookupMethod, LOOKUP_METHOD.PRICE_GREEN_BOOK_CHUNK);
+    assert.equal(result.downloadMethod, DOWNLOAD_METHOD.CHUNKED_DOCUMENT);
+    assert.equal(result.fileId, fixture.documentId);
+    assert.equal(result.fileName, fixture.fileName);
+    assert.equal(
+      result.downloadUrl,
+      `https://process5.gprocurement.go.th/egp-agpc01-web/common/download/${fixture.projectId}/${fixture.documentId}`
+    );
+    assert.deepEqual(
+      result.lookupAttempts.map(({ lookupMethod, outcome }) => ({
+        lookupMethod,
+        outcome,
+      })),
+      [
+        { lookupMethod: LOOKUP_METHOD.PRICE_PRIMARY, outcome: "not_found" },
+        {
+          lookupMethod: LOOKUP_METHOD.PRICE_PROJECT_SERVICE,
+          outcome: "not_found",
+        },
+        {
+          lookupMethod: LOOKUP_METHOD.PRICE_LEGACY_GREEN_BOOK,
+          outcome: "not_found",
+        },
+        {
+          lookupMethod: LOOKUP_METHOD.PRICE_GREEN_BOOK_CHUNK,
+          outcome: "available",
+        },
+      ]
+    );
+  });
+}
+
+test("authoritative BOQ with an invalid UUID is an error, not not_found", async () => {
+  const projectId = "69099569802";
+  await assert.rejects(
+    () =>
+      getPriceEstimateMetadata(projectId, {
+        fetchImpl: chunkedPriceDiscoveryFetch({
+          projectId,
+          documentId: "not-a-uuid",
+          fileName: "unused.zip",
+          fileSize: 100,
+        }),
+        projectServiceApiKey: "test-project-service-key",
+      }),
+    (error) => {
+      assert.equal(error.code, "EGP_INVALID_CHUNK_DOCUMENT");
+      assert.equal(error.kind, ERROR_KIND.INVALID_RESPONSE);
+      assert.equal(error.details.lookupAttempts.at(-1).outcome, "error");
+      return true;
+    }
+  );
+});
+
+test("authoritative BOQ with an unresolvable UUID is an error, not not_found", async () => {
+  const projectId = "69099569802";
+  const documentId = "fe333a7a-f6d4-4292-93b3-ffa41780d365";
+  const normalFetch = chunkedPriceDiscoveryFetch({
+    projectId,
+    documentId,
+    fileName: "unused.zip",
+    fileSize: 100,
+  });
+  await assert.rejects(
+    () =>
+      getPriceEstimateMetadata(projectId, {
+        fetchImpl: async (url, options) => {
+          if (url.pathname.endsWith("/download-file-info")) {
+            return new Response(
+              JSON.stringify({ response: { responseCode: "404" }, data: null })
+            );
+          }
+          return normalFetch(url, options);
+        },
+        projectServiceApiKey: "test-project-service-key",
+      }),
+    (error) => {
+      assert.equal(error.code, "EGP_INVALID_CHUNK_DOCUMENT");
+      assert.equal(error.kind, ERROR_KIND.INVALID_RESPONSE);
+      assert.equal(error.details.lookupAttempts.at(-1).outcome, "error");
+      return true;
+    }
+  );
+});
+
 test("recoverable primary failures continue to the project-service fallback", async () => {
   for (const primaryFailure of ["timeout", "http-500", "invalid-json"]) {
     let requestCount = 0;
@@ -343,6 +525,157 @@ test("National e-GP adapter hides the legacy download mechanism from callers", a
   assert.equal(requests.length, 1);
   assert.equal(requests[0].hostname, "process3.gprocurement.go.th");
   assert.deepEqual(result, zip);
+});
+
+test("National e-GP adapter assembles a bounded chunked Price ZIP", async () => {
+  const projectId = "69099641591";
+  const documentId = "77f8795e-e9a9-4a9a-a1a9-029ef10b8f45";
+  const zip = Buffer.from("PK\u0003\u0004chunked-price-zip");
+  const chunks = [zip.subarray(0, 8), zip.subarray(8)];
+  const requests = [];
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url, options) => {
+      requests.push({ url, options });
+      if (url.pathname.endsWith("/download-file-info")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: {
+              chunkInfo: {
+                projectId,
+                docId: documentId,
+                docType: "zip",
+                fileName: `${projectId}_pricebuild.zip`,
+                chunkCount: chunks.length,
+                fileSize: zip.length,
+              },
+            },
+          })
+        );
+      }
+      const requested = JSON.parse(options.body).chunkInfoDetail;
+      const chunk = chunks[requested.chunkNo - 1];
+      return new Response(
+        JSON.stringify({
+          response: { responseCode: "0" },
+          data: {
+            chunkInfoDetail: {
+              docId: documentId,
+              chunkNo: requested.chunkNo,
+              data: chunk.toString("base64"),
+            },
+          },
+        })
+      );
+    },
+  });
+
+  const result = await adapter.downloadDocument({
+    projectId,
+    fileId: documentId,
+    fileName: `${projectId}_pricebuild.zip`,
+    downloadMethod: DOWNLOAD_METHOD.CHUNKED_DOCUMENT,
+  });
+
+  assert.deepEqual(result, zip);
+  assert.equal(requests.length, 3);
+  assert.deepEqual(JSON.parse(requests[0].options.body), { docId: documentId });
+  assert.deepEqual(JSON.parse(requests[1].options.body), {
+    chunkInfoDetail: { chunkNo: 1, docId: documentId },
+  });
+  assert.deepEqual(JSON.parse(requests[2].options.body), {
+    chunkInfoDetail: { chunkNo: 2, docId: documentId },
+  });
+});
+
+test("chunked Price download enforces declared size and ZIP signature", async () => {
+  const projectId = "69099569802";
+  const documentId = "fe333a7a-f6d4-4292-93b3-ffa41780d365";
+  for (const fixture of [
+    { payload: Buffer.from("PKshort"), declaredSize: 20, code: "EGP_INVALID_CHUNK_DOCUMENT" },
+    { payload: Buffer.from("not-a-zip"), declaredSize: 9, code: "EGP_INVALID_ZIP" },
+  ]) {
+    const adapter = createNationalEgpAdapter({
+      fetchImpl: async (url, options) => {
+        if (url.pathname.endsWith("/download-file-info")) {
+          return new Response(
+            JSON.stringify({
+              response: { responseCode: "0" },
+              data: {
+                chunkInfo: {
+                  projectId,
+                  docId: documentId,
+                  docType: "zip",
+                  fileName: `${projectId}_pricebuild.zip`,
+                  chunkCount: 1,
+                  fileSize: fixture.declaredSize,
+                },
+              },
+            })
+          );
+        }
+        assert.equal(JSON.parse(options.body).chunkInfoDetail.chunkNo, 1);
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: {
+              chunkInfoDetail: { data: fixture.payload.toString("base64") },
+            },
+          })
+        );
+      },
+    });
+
+    await assert.rejects(
+      () =>
+        adapter.downloadDocument({
+          projectId,
+          fileId: documentId,
+          fileName: `${projectId}_pricebuild.zip`,
+          downloadMethod: DOWNLOAD_METHOD.CHUNKED_DOCUMENT,
+        }),
+      (error) => error.code === fixture.code
+    );
+  }
+});
+
+test("chunked Price download rejects declared files above the configured bound", async () => {
+  let requestCount = 0;
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async () => {
+      requestCount += 1;
+      return new Response(
+        JSON.stringify({
+          response: { responseCode: "0" },
+          data: {
+            chunkInfo: {
+              projectId: "69099569802",
+              docId: "fe333a7a-f6d4-4292-93b3-ffa41780d365",
+              docType: "zip",
+              fileName: "69099569802_pricebuild.zip",
+              chunkCount: 1,
+              fileSize: 101,
+            },
+          },
+        })
+      );
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      adapter.downloadDocument(
+        {
+          projectId: "69099569802",
+          fileId: "fe333a7a-f6d4-4292-93b3-ffa41780d365",
+          fileName: "69099569802_pricebuild.zip",
+          downloadMethod: DOWNLOAD_METHOD.CHUNKED_DOCUMENT,
+        },
+        { maxBytes: 100 }
+      ),
+    (error) => error.code === "EGP_INVALID_CHUNK_DOCUMENT"
+  );
+  assert.equal(requestCount, 1);
 });
 
 test("adapter downloads a Legacy Draft through the verified anonymous POST contract", async () => {

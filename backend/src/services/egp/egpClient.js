@@ -31,6 +31,7 @@ const {
 } = require("./client/draftDiscovery");
 const {
   isStaleDocumentReferenceError,
+  downloadChunkedZip,
   downloadZip,
   downloadLegacyZip,
   downloadLegacyDraftZip,
@@ -173,6 +174,9 @@ function createNationalEgpAdapter(defaultOptions = {}) {
     // controllers therefore do not need to understand the Process 3 fallback.
     downloadDocument(metadata, options = {}) {
       const requestOptions = mergeRequestOptions(options);
+      if (metadata?.downloadMethod === DOWNLOAD_METHOD.CHUNKED_DOCUMENT) {
+        return downloadChunkedZip(metadata, requestOptions);
+      }
       if (
         metadata?.downloadMethod === DOWNLOAD_METHOD.LEGACY_DRAFT_TRANSFER
       ) {
@@ -220,6 +224,7 @@ module.exports = {
   nationalEgpAdapter,
   getPriceEstimateMetadata,
   downloadZip,
+  downloadChunkedZip,
   downloadLegacyDraftZip,
   downloadLegacyZip,
 };

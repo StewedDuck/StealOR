@@ -4,6 +4,7 @@ const EGP_LEGACY_FILE_BASE_URL = "https://file.gprocurement.go.th";
 const ANNOUNCEMENT_PATH =
   "/egp-oann10-service/pb/a-egp-allt-project/announcement";
 const APPROVAL_COMMON_PATH = "/egp-approval-service/apv-common";
+const CHUNKED_DOCUMENT_PATH = "/egp-aobj19-service/pb/chunk-ext";
 
 // Real e-GP price archives can be around 50 MB and the service can stream slowly.
 // Keep both values bounded, but high enough for those observed public files.
@@ -37,10 +38,12 @@ const LOOKUP_METHOD = Object.freeze({
   PRICE_PRIMARY: "price_primary",
   PRICE_PROJECT_SERVICE: "price_project_service",
   PRICE_LEGACY_GREEN_BOOK: "price_legacy_green_book",
+  PRICE_GREEN_BOOK_CHUNK: "price_green_book_chunk",
 });
 
 const DOWNLOAD_METHOD = Object.freeze({
   FILE_ID: "file_id",
+  CHUNKED_DOCUMENT: "chunked_document",
   LEGACY_DRAFT_TRANSFER: "legacy_draft_transfer",
   LEGACY_FILENAME: "legacy_filename",
 });
@@ -59,6 +62,7 @@ module.exports = {
   EGP_LEGACY_FILE_BASE_URL,
   ANNOUNCEMENT_PATH,
   APPROVAL_COMMON_PATH,
+  CHUNKED_DOCUMENT_PATH,
   DEFAULT_MAX_DOWNLOAD_BYTES,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_MAX_RETRIES,

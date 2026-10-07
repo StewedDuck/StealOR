@@ -84,6 +84,14 @@ function createCandidateDiagnostic(candidate) {
 }
 
 function buildDocumentDownloadUrl(metadata) {
+  if (metadata.downloadMethod === DOWNLOAD_METHOD.CHUNKED_DOCUMENT) {
+    const url = new URL("/egp-agpc01-web/common/download/", EGP_BASE_URL);
+    url.pathname += `${encodeURIComponent(metadata.projectId)}/${encodeURIComponent(
+      metadata.fileId
+    )}`;
+    return url.toString();
+  }
+
   if (metadata.downloadMethod === DOWNLOAD_METHOD.LEGACY_DRAFT_TRANSFER) {
     return new URL(
       LEGACY_DRAFT_TRANSFER_PATH,

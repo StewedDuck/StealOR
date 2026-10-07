@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { LOOKUP_METHOD } = require("./client/constants");
+const { DOWNLOAD_METHOD, LOOKUP_METHOD } = require("./client/constants");
 
 const DOCUMENT_KEYS = Object.freeze([
   "priceEstimate",
@@ -74,6 +74,13 @@ function isUsableDocumentReference(category, input, projectId = null) {
   if (reference.status !== "available") return false;
 
   const method = inferredDownloadMethod(reference);
+  if (method === DOWNLOAD_METHOD.CHUNKED_DOCUMENT) {
+    return (
+      category === "priceEstimate" &&
+      safeFileId(reference.fileId) &&
+      safeZipName(reference.fileName)
+    );
+  }
   if (method === "file_id") return safeFileId(reference.fileId);
   if (method === "legacy_filename") {
     const expectedSuffix = projectId ? `_${projectId}.zip` : ".zip";
@@ -105,7 +112,10 @@ function locatorParts(projectId, category, input) {
   if (!isUsableDocumentReference(category, reference, projectId)) return null;
   const method = inferredDownloadMethod(reference);
 
-  if (method === "file_id") {
+  if (
+    method === DOWNLOAD_METHOD.FILE_ID ||
+    method === DOWNLOAD_METHOD.CHUNKED_DOCUMENT
+  ) {
     return ["v1", projectId, category, method, reference.fileId];
   }
   if (method === "legacy_filename") {

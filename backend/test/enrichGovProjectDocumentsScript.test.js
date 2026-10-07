@@ -6,6 +6,7 @@ const {
   parseArgs,
   requestDiagnosticsDelta,
   resolveProjects,
+  run,
 } = require("../scripts/enrichGovProjectDocuments");
 
 test("CLI is dry-run by default and requires one explicit source", () => {
@@ -209,4 +210,106 @@ test("successful apply creates backup before writes", async () => {
   assert.deepEqual(order, ["backup", "write", "verify"]);
   assert.equal(result.backupPath, "backup.json");
   assert.equal(result.apply.matched, 1);
+});
+
+test("runner applies a category recovered by the bounded rate-limit post-pass", async () => {
+  const projectId = "69099444939";
+  const project = { _id: "mongo-id", project_id: projectId, documents: {} };
+  let discoveryCalls = 0;
+  let writtenDocuments = null;
+  let disconnected = false;
+  const collection = {
+    find() {
+      return {
+        sort() {
+          return this;
+        },
+        async toArray() {
+          return [project];
+        },
+      };
+    },
+    async updateOne(_filter, update) {
+      writtenDocuments = Object.fromEntries(
+        Object.entries(update.$set)
+          .filter(([key]) => key.startsWith("documents."))
+          .map(([key, value]) => [key.slice("documents.".length), value])
+      );
+      return { matchedCount: 1, modifiedCount: 1 };
+    },
+    async findOne() {
+      return { documents: writtenDocuments };
+    },
+  };
+  const originalLog = console.log;
+  console.log = () => {};
+  try {
+    const output = await run(
+      [
+        "--source",
+        "mongo",
+        "--all",
+        "--apply",
+        "--confirm",
+        APPLY_CONFIRMATION,
+      ],
+      {
+        mongoUri: "mongodb://test.invalid/database",
+        mongoose: {
+          connect: async () => {},
+          disconnect: async () => {
+            disconnected = true;
+          },
+        },
+        GovProject: { collection },
+        postPassCooldownMs: 0,
+        getEgpDiagnostics: () => ({ cooldownRemainingMs: 0 }),
+        async discoverProjectDocuments() {
+          discoveryCalls += 1;
+          return {
+            documents: {
+              priceEstimate: { status: "not_found" },
+              invitation:
+                discoveryCalls === 1
+                  ? {
+                      status: "error",
+                      error: {
+                        code: "EGP_RATE_LIMITED",
+                        kind: "rate_limited",
+                        message: "e-GP rate limit exceeded",
+                      },
+                    }
+                  : {
+                      status: "available",
+                      source: "national_egp",
+                      lookupMethod: "invitation_approval_final",
+                      downloadMethod: "file_id",
+                      fileId: "recovered-file-id",
+                      fileName: `${projectId}.zip`,
+                    },
+              draftEbidding: { status: "not_found" },
+              selectedProcurementDocument: null,
+            },
+          };
+        },
+        fs: {
+          mkdir: async () => {},
+          writeFile: async () => {},
+        },
+        backupDirectory: "test-backups",
+        now: () => new Date("2026-10-07T00:00:00.000Z"),
+      }
+    );
+
+    assert.equal(discoveryCalls, 2);
+    assert.equal(output.postPass.postPassRecovered, 1);
+    assert.equal(output.postPass.postPassStillFailed, 0);
+    assert.equal(writtenDocuments.invitation.status, "available");
+    assert.equal(writtenDocuments.invitation.fileId, "recovered-file-id");
+    assert.equal(writtenDocuments.selectedProcurementDocument, "invitation");
+    assert.equal(output.verification[0].verified, true);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.equal(disconnected, true);
 });
