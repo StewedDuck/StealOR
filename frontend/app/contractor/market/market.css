@@ -82,28 +82,26 @@
 
 /*  FILTERS  */
 .market-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  padding: 16px;
+
+  background: #FCFCFA;
+
+  border: 1px solid #E1E4E6;
+  border-radius: 14px;
+}
+
+/* Search row */
+.market-filter-search-row {
+  width: 100%;
+}
+
+.market-filter-search-row .market-search {
   width: 100%;
   box-sizing: border-box;
-
-  display: grid;
-
-  grid-template-columns:
-    minmax(240px, 2fr)
-    minmax(140px, 1fr)
-    minmax(120px, 0.8fr)
-    minmax(130px, 0.9fr)
-    minmax(150px, 1fr)
-    auto;
-
-  gap: 10px;
-
-  padding: 14px 16px;
-
-  background: #fcfcfa;
-  border: 1px solid #dde2e5;
-  border-radius: 12px;
-
-  margin-bottom: 14px;
 }
 
 .market-search {
@@ -140,6 +138,25 @@
 
 .market-search input::placeholder {
   color: #8c969f;
+}
+
+/* Filters row */
+.market-filter-options-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(160px, 1.15fr)
+    minmax(135px, 0.9fr)
+    minmax(135px, 0.9fr)
+    minmax(135px, 0.85fr)
+    minmax(210px, 1.4fr)
+    auto;
+
+  gap: 10px;
+
+  align-items: center;
+
+  width: 100%;
 }
 
 .filter-select {
@@ -180,6 +197,18 @@
   pointer-events: none;
 
   color: #64717c;
+}
+
+/* Make dropdown fit its grid column */
+.market-filter-options-row .filter-dropdown {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Reset button */
+.market-filter-options-row .reset-filter {
+  white-space: nowrap;
+  height: 42px;
 }
 
 .reset-filter {
@@ -587,7 +616,6 @@
 }
 
 /* RESPONSIVE */
-
 /* Laptop / smaller desktop */
 @media (max-width: 1400px) {
   .market-filters {

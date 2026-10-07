@@ -5,7 +5,6 @@
 }
 
 /*  MAIN  */
-
 .saved-main {
   margin-left: 260px;
   min-width: 0;
@@ -13,7 +12,6 @@
 }
 
 /*  HEADER */
-
 .saved-header {
   min-height: 80px;
   padding: 16px 32px;
@@ -95,7 +93,6 @@
 }
 
 /*  CONTENT  */
-
 .saved-content {
   width: 100%;
   box-sizing: border-box;
@@ -104,30 +101,31 @@
 }
 
 /* TOOLBAR  */
-
 .saved-toolbar {
   width: 100%;
   box-sizing: border-box;
 
   display: flex;
-  align-items: center;
+  flex-direction: column;
 
-  gap: 12px;
+  gap: 10px;
 
   padding: 14px 16px;
 
   background: #fcfcfa;
+
   border: 1px solid #dde2e5;
   border-radius: 12px;
 
   margin-bottom: 14px;
 }
 
+/* Search */
 .saved-search {
   width: 100%;
-  max-width: 520px;
-  min-width: 0;
-  height: 38px;
+  height: 40px;
+
+  box-sizing: border-box;
 
   display: flex;
   align-items: center;
@@ -161,50 +159,66 @@
   color: #8c969f;
 }
 
-.saved-filter-select {
-  position: relative;
+/* Filter row */
+.saved-filter-row {
+  display: grid;
 
-  width: 170px;
-  height: 38px;
+  grid-template-columns:
+    minmax(125px, 0.9fr)
+    minmax(150px, 1fr)
+    minmax(145px, 1fr)
+    minmax(145px, 1fr)
+    minmax(135px, 0.9fr)
+    auto;
 
-  flex-shrink: 0;
-}
+  gap: 10px;
 
-.saved-filter-select select {
+  align-items: center;
+
   width: 100%;
-  height: 100%;
-
-  appearance: none;
-
-  padding: 0 34px 0 12px;
-
-  border: 1px solid #d9dee2;
-  border-radius: 8px;
-
-  background: #f8f9f8;
-  color: #43505c;
-
-  font-size: 12px;
-
-  outline: none;
-  cursor: pointer;
 }
 
-.saved-filter-select svg {
-  position: absolute;
+.saved-filter-row .filter-dropdown {
+  width: 100%;
+  min-width: 0;
+}
 
-  right: 10px;
-  top: 50%;
+.saved-reset-filter {
+  height: 42px;
 
-  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 
-  pointer-events: none;
+  gap: 7px;
 
-  color: #64717c;
+  padding: 0 15px;
+
+  border: 1px solid #d6dde3;
+  border-radius: 9px;
+
+  background: #fcfcfa;
+
+  color: #46535f;
+
+  font-size: 13px;
+  font-weight: 500;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.saved-reset-filter:hover {
+  background: #f3f5f6;
+  border-color: #bcc8d1;
 }
 
 /*  RESULT COUNT */
-
 .saved-result-count {
   margin: 12px 2px;
 
@@ -223,7 +237,6 @@
 }
 
 /*  LIST  */
-
 .saved-list {
   width: 100%;
 
@@ -233,7 +246,6 @@
 }
 
 /*  CARD  */
-
 .saved-card {
   width: 100%;
   min-width: 0;
@@ -270,8 +282,7 @@
   min-width: 0;
 }
 
-/*  TOP / BADGES */
-
+/* TOP / BADGES */
 .saved-card-top {
   display: flex;
   align-items: center;
@@ -319,7 +330,6 @@
 }
 
 /*  TITLE */
-
 .saved-card-title {
   margin: 0 0 7px;
 
@@ -334,7 +344,6 @@
 }
 
 /*  AGENCY  */
-
 .saved-agency {
   display: flex;
   align-items: center;
@@ -348,7 +357,6 @@
 }
 
 /*  META */
-
 .saved-card-meta {
   display: flex;
   align-items: center;
@@ -429,7 +437,6 @@
 }
 
 /*  MATCH */
-
 .saved-match {
   display: flex;
   flex-direction: column;
@@ -528,7 +535,6 @@
 }
 
 /*  ACTIONS */
-
 .saved-card-actions {
   display: flex;
   flex-direction: column;
@@ -595,7 +601,6 @@
 }
 
 /*  MESSAGE / EMPTY */
-
 .saved-message {
   min-height: 220px;
 
@@ -673,7 +678,6 @@
 }
 
 /*  LOADING */
-
 .saved-loading-overlay {
   position: fixed;
 
@@ -704,7 +708,6 @@
 }
 
 /*  RESPONSIVE  */
-
 /* Laptop / smaller desktop */
 @media (max-width: 1250px) {
   .saved-card {
@@ -723,17 +726,13 @@
     padding: 24px;
   }
 
-  .saved-toolbar {
-    flex-wrap: wrap;
+  .saved-filter-row {
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
   }
-
-  .saved-search {
-    max-width: none;
-    flex: 1 1 300px;
-  }
-
-  .saved-filter-select {
-    flex: 0 0 170px;
+  
+  .saved-reset-filter {
+    width: 100%;
   }
 
   .saved-card {
@@ -774,21 +773,15 @@
   }
 
   .saved-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-
     padding: 12px;
   }
-
-  .saved-search {
-    width: 100%;
-    max-width: none;
-    flex: none;
+  
+  .saved-filter-row {
+    grid-template-columns: 1fr;
   }
-
-  .saved-filter-select {
+  
+  .saved-reset-filter {
     width: 100%;
-    flex: none;
   }
 
   .saved-card {
@@ -813,7 +806,6 @@
 }
 
 /* REVIEW MODAL */
-
 .draft-modal-overlay {
   position: fixed;
   inset: 0;
@@ -878,7 +870,6 @@
 }
 
 /* Comments */
-
 .review-list {
   margin-bottom: 18px;
 
@@ -961,7 +952,6 @@
 }
 
 /* Textarea */
-
 .review-modal textarea {
   width: 100%;
 
@@ -991,7 +981,6 @@
 }
 
 /* Error */
-
 .review-error {
   margin: 0 0 12px;
 
@@ -1001,7 +990,6 @@
 }
 
 /* Actions */
-
 .review-modal-actions {
   display: flex;
 
