@@ -33,8 +33,9 @@ test("real adapter contract produces all normalized project document categories"
         JSON.stringify({
           response: { responseCode: "0" },
           data: {
+            projectId: "68059426756",
             zipId: "invitation-file-id",
-            buildName1: "invitation.zip",
+            buildName1: "68059426756_02012568_1.zip",
             buildName2: "announcement-template-id",
           },
         })
@@ -45,8 +46,10 @@ test("real adapter contract produces all normalized project document categories"
         JSON.stringify({
           response: { responseCode: "0" },
           data: {
+            projectId: "68059426756",
             zipId: "draft-file-id",
-            buildName1: "draft.zip",
+            buildName1: "68059426756_01012568.zip",
+            buildName2: "draft-template-id",
           },
         })
       );
@@ -126,8 +129,11 @@ function publicInvitationEvidenceResponse(
   url,
   hasInvitation = false,
   hasDraft = true,
-  draftType = "B0"
+  draftType = "B0",
+  draftAnnounceDate = "2099-12-30T17:00:00.000Z",
+  invitationAnnounceDate = "2099-12-30T17:00:00.000Z"
 ) {
+  const projectId = url.searchParams.get("tempProjectId");
   if (url.pathname.endsWith("/generateToken")) {
     return jsonResponse({ data: "announcement-token" });
   }
@@ -148,20 +154,24 @@ function publicInvitationEvidenceResponse(
           ...(hasDraft
             ? [
                 {
+                  projectId,
                   announceType: draftType,
                   announceTypeDesc: "ร่างเอกสารประกวดราคา(e-Bidding)",
                   templateType: "D1",
                   announceFlag: "A",
+                  announceDate: draftAnnounceDate,
                 },
               ]
             : []),
           ...(hasInvitation
             ? [
                 {
+                  projectId,
                   announceType: "D0",
                   announceTypeDesc: "ประกาศเชิญชวน",
                   templateType: "D2",
                   announceFlag: "A",
+                  announceDate: invitationAnnounceDate,
                 },
               ]
             : []),
@@ -259,7 +269,13 @@ test("six false-positive Invitations fall back to the correct Draft", async (t) 
             return adjusted
               ? jsonResponse({
                   response: { responseCode: "0" },
-                  data: [{ zipId: adjusted[0], buildName1: adjusted[1] }],
+                  data: [{
+                    projectId: fixture.projectId,
+                    itemNo,
+                    zipId: adjusted[0],
+                    buildName1: adjusted[1],
+                    buildName2: `draft-template-${itemNo}`,
+                  }],
                 })
               : confirmedMissingResponse();
           }
@@ -376,8 +392,45 @@ test("D0-only projects reject a Temp locator that aliases the Invitation", async
 test("authoritative B0/B3 evidence preserves legitimate Invitation and Draft cases", async (t) => {
   const fixtures = [
     {
+      projectId: "69049472497",
+      draftType: "B3",
+      draftAnnounceDate: "2026-09-10T17:00:00.000Z",
+      invitationAnnounceDate: "2026-09-28T17:00:00.000Z",
+      invitation: [
+        "c3918846ea6144cc9bc54af654f87186",
+        "69049472497_27092569_3.zip",
+        "ad0336f8-47c1-4cdb-b4c1-b2c23cb140e7",
+      ],
+      draft: [
+        "fe5c53acd0344a02af6d79280a57b20f",
+        "69049472497_01052569.zip",
+        "8779aa31-7095-4669-b14e-d17f94d1b705",
+      ],
+      adjusted: [
+        [
+          "0e3118419f1f430b97fa490de326403d",
+          "69049472497_10082569_1.zip",
+          "3b3b36f3-dcf4-4911-9ae1-583ebede8772",
+        ],
+        [
+          "a97880b9f3a3495c9ab5a8dd843304f9",
+          "69049472497_11092569_2.zip",
+          "7b4cef2c-2717-49d3-96c6-71580bc8f761",
+        ],
+        [
+          "c3918846ea6144cc9bc54af654f87186",
+          "69049472497_27092569_3.zip",
+          "ad0336f8-47c1-4cdb-b4c1-b2c23cb140e7",
+        ],
+      ],
+      expectedRevision: 2,
+      expectedCandidateCount: 3,
+    },
+    {
       projectId: "69019529847",
       draftType: "B3",
+      draftAnnounceDate: "2026-09-17T17:00:00.000Z",
+      invitationAnnounceDate: "2026-09-29T17:00:00.000Z",
       invitation: [
         "bf717f519a654c1dbf0bed1c5d14354f",
         "69019529847_30092569_4.zip",
@@ -421,9 +474,12 @@ test("authoritative B0/B3 evidence preserves legitimate Invitation and Draft cas
             return jsonResponse({
               response: { responseCode: "0" },
               data: {
+                projectId: fixture.projectId,
                 zipId: fixture.invitation[0],
                 buildName1: fixture.invitation[1],
-                buildName2: `${fixture.projectId}-invitation-template`,
+                buildName2:
+                  fixture.invitation[2] ||
+                  `${fixture.projectId}-invitation-template`,
               },
             });
           }
@@ -431,18 +487,29 @@ test("authoritative B0/B3 evidence preserves legitimate Invitation and Draft cas
             return jsonResponse({
               response: { responseCode: "0" },
               data: {
+                projectId: fixture.projectId,
                 zipId: fixture.draft[0],
                 buildName1: fixture.draft[1],
-                buildName2: `${fixture.projectId}-draft-template`,
+                buildName2:
+                  fixture.draft[2] || `${fixture.projectId}-draft-template`,
               },
             });
           }
           if (url.pathname.endsWith("infoProcureDocAnnounZipAdj")) {
-            const adjusted = fixture.adjusted[Number(url.searchParams.get("itemNo")) - 1];
+            const itemNo = Number(url.searchParams.get("itemNo"));
+            const adjusted = fixture.adjusted[itemNo - 1];
             return adjusted
               ? jsonResponse({
                   response: { responseCode: "0" },
-                  data: [{ zipId: adjusted[0], buildName1: adjusted[1] }],
+                  data: [{
+                    projectId: fixture.projectId,
+                    itemNo,
+                    zipId: adjusted[0],
+                    buildName1: adjusted[1],
+                    buildName2:
+                      adjusted[2] ||
+                      `${fixture.projectId}-draft-template-${itemNo}`,
+                  }],
                 })
               : confirmedMissingResponse();
           }
@@ -450,7 +517,9 @@ test("authoritative B0/B3 evidence preserves legitimate Invitation and Draft cas
             url,
             true,
             true,
-            fixture.draftType
+            fixture.draftType,
+            fixture.draftAnnounceDate,
+            fixture.invitationAnnounceDate
           );
           if (evidence) return evidence;
           throw new Error(`Unexpected request: ${url}`);
@@ -465,6 +534,10 @@ test("authoritative B0/B3 evidence preserves legitimate Invitation and Draft cas
       assert.equal(result.documents.invitation.fileId, fixture.invitation[0]);
       assert.equal(result.documents.draftEbidding.status, "available");
       assert.equal(result.documents.draftEbidding.revision, fixture.expectedRevision);
+      assert.equal(
+        result.documents.draftEbidding.candidateCount,
+        fixture.expectedCandidateCount ?? fixture.adjusted.length + 1
+      );
       assert.equal(
         result.documents.draftEbidding.fileId,
         fixture.expectedRevision === 0

@@ -265,11 +265,27 @@ test("no-PDF and corrupt archives fail without leaving staging directories", asy
   });
 });
 
-test("rejects archives over the PDF count limit and cleans staging", async () => {
+test("accepts an archive at the 50-PDF count limit", async () => {
   await withTemporaryDirectory(async (temporaryDirectory) => {
     const stagingDirectory = path.join(temporaryDirectory, "stage");
     const zip = createStoredZip(
-      Array.from({ length: 21 }, (_, index) => ({
+      Array.from({ length: 50 }, (_, index) => ({
+        name: `document-${index + 1}.pdf`,
+        content: "%PDF-1.7",
+      }))
+    );
+
+    const result = await stagePdfArchive(zip, { stagingDirectory });
+
+    assert.equal(result.pdfs.length, 50);
+  });
+});
+
+test("rejects archives over the 50-PDF count limit and cleans staging", async () => {
+  await withTemporaryDirectory(async (temporaryDirectory) => {
+    const stagingDirectory = path.join(temporaryDirectory, "stage");
+    const zip = createStoredZip(
+      Array.from({ length: 51 }, (_, index) => ({
         name: `document-${index + 1}.pdf`,
         content: "%PDF-1.7",
       }))

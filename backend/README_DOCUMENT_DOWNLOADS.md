@@ -181,5 +181,5 @@ async function downloadDocumentBuffer(projectId, category) {
 
 - 🔒 **Never expose e-GP credentials or API keys** to frontend or browser clients.
 - 🔒 **Never construct legacy POST forms in frontend code**; always let the backend handle it.
-- 🛡️ **Archives are validated before extraction**: zip traversal checks, max file limits (20 PDFs, 100 MiB), and `%PDF-` signature checks are enforced.
+- 🛡️ **Archives are validated before extraction**: zip traversal checks, max file limits (50 PDFs, 100 MiB total uncompressed PDF data), and `%PDF-` signature checks are enforced.
 - 🧹 **Zero leftovers**: Phase B removes temporary `.zip` files once PDFs are verified.
