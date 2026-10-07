@@ -1,0 +1,152 @@
+.multi-filter-dropdown {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+/* TRIGGER */
+.multi-filter-trigger {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  padding: 0 12px;
+  box-sizing: border-box;
+
+  border: 1px solid #d6dde3;
+  border-radius: 9px;
+
+  background: #fcfcfa;
+  color: #46535f;
+
+  font-size: 13px;
+  font-weight: 500;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.multi-filter-trigger:hover {
+  border-color: #aeb8c2;
+}
+
+.multi-filter-trigger.open {
+  border-color: #8d9aa6;
+  box-shadow: 0 0 0 3px rgba(70, 83, 95, 0.08);
+}
+
+.multi-filter-trigger-label {
+  min-width: 0;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multi-filter-chevron {
+  flex-shrink: 0;
+
+  transition: transform 0.18s ease;
+}
+
+.multi-filter-chevron.open {
+  transform: rotate(180deg);
+}
+
+/* DROPDOWN MENU */
+.multi-filter-menu {
+  position: absolute;
+
+  top: calc(100% + 6px);
+  left: 0;
+
+  z-index: 100;
+
+  width: 100%;
+  min-width: 220px;
+
+  padding: 6px;
+  box-sizing: border-box;
+
+  border: 1px solid #dfe4e8;
+  border-radius: 10px;
+
+  background: #fcfcfa;
+
+  box-shadow:
+    0 10px 30px rgba(31, 41, 51, 0.1),
+    0 2px 8px rgba(31, 41, 51, 0.06);
+}
+
+/* OPTION */
+.multi-filter-option {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  padding: 9px 10px;
+  box-sizing: border-box;
+
+  border: none;
+  border-radius: 7px;
+
+  background: transparent;
+  color: #46535f;
+
+  font-size: 13px;
+  font-weight: 500;
+
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.multi-filter-option:hover {
+  background: #f3f5f4;
+}
+
+/* CHECKBOX */
+.multi-filter-checkbox {
+  width: 17px;
+  height: 17px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+
+  border: 1px solid #c8d0d7;
+  border-radius: 4px;
+
+  background: #fcfcfa;
+}
+
+.multi-filter-option.selected
+.multi-filter-checkbox {
+  border-color: #46535f;
+  background: #46535f;
+  color: #ffffff;
+}
+
+/* OPTION TEXT */
+.multi-filter-option-label {
+  min-width: 0;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

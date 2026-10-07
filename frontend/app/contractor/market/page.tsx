@@ -20,6 +20,7 @@ import type {
 import { useSession } from "next-auth/react";
 import TorDetailModal from "@/components/TORDetail";
 import FilterDropdown from "@/components/FilterDropdown";
+import MultiSelectFilterDropdown from "@/components/MultiSelectFilterDropdown";
 
 import {
   Tag,
@@ -60,6 +61,11 @@ type YearFilter =
   | "2"
   | "3"
   | "older";
+
+type DocumentType =
+  | "priceEstimate"
+  | "draftEbidding"
+  | "invitation";
 
 type SortOption =
   | "name-asc"
@@ -374,20 +380,23 @@ const sortOptions: {
   },
 ];
 
-// hidden project IDs that should not be displayed in the market
-const HIDDEN_PROJECT_IDS = new Set([
-  "69099568419",
-  "69079454736",
-  "69049472497",
-  "69099475279",
-  "69099257828",
-  "69099014571",
-  "69019550258",
-  "69099444939",
-  "69099328758",
-  "69099283920",
-  "69049212278",
-]);
+const documentTypeOptions: {
+  value: DocumentType;
+  label: string;
+}[] = [
+  {
+    value: "priceEstimate",
+    label: "ประกาศราคากลาง",
+  },
+  {
+    value: "draftEbidding",
+    label: "ร่างเอกสารประกวดราคา",
+  },
+  {
+    value: "invitation",
+    label: "ประกาศเชิญชวน",
+  },
+];
 
 export default function TorMarketPage() {
     const [tors, setTors] = useState<MarketTor[]>([]);
@@ -395,6 +404,8 @@ export default function TorMarketPage() {
     const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
     const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
     const [yearFilter, setYearFilter] =  useState<YearFilter>("all");
+    const [projectDocumentTypes, setProjectDocumentTypes] = useState<Record<string, DocumentType[]>>({});
+    const [documentTypeFilter, setDocumentTypeFilter] = useState<DocumentType[]>([]);
     const [sortOption, setSortOption] = useState<SortOption>("name-asc");
     const [budgetFilter, setBudgetFilter] = useState("all");
     const [loading, setLoading] = useState(true);
@@ -495,48 +506,85 @@ export default function TorMarketPage() {
 
           const marketTors = await getMarketTors();
 
-          const checkedTors = await Promise.all(
-            marketTors.map(async (tor) => {
-              // Internal not need to check
-              if (tor.source !== "government" || !tor.projectId) {
-                return tor;
-              }
+          const documentTypeEntries =
+            await Promise.all(
+              marketTors.map(async (tor) => {
+                // Internal ไม่มี local Government documents
+                if (
+                  tor.source !== "government" || !tor.projectId
+                ) {
+                  return null;
+                }
 
-              try {
-                const localDocuments = await getLocalProjectDocuments(tor.projectId);
+                try {
+                  const localDocuments =
+                    await getLocalProjectDocuments(
+                      tor.projectId
+                    );
 
-                const documents = localDocuments.documents;
-                const availableTypeCount = [
-                  documents.priceEstimate,
-                  documents.draftEbidding,
-                  documents.invitation,
-                ].filter((document) => document.available && document.files.length > 0).length;
+                  const documents =
+                    localDocuments.documents;
 
-                // Gov. need to have as lest 2 type
-                return availableTypeCount >= 2 ? tor : null;
-              } catch (error) {
-                console.error(
-                  `Failed to check local documents for project ${tor.projectId}:`,
-                  error
-                );
+                  const availableTypes: DocumentType[] =
+                    [];
 
-                return null;
-              }
-            })
-          );
+                  if (
+                    documents.priceEstimate.available &&
+                    documents.priceEstimate.files.length > 0
+                  ) {
+                    availableTypes.push(
+                      "priceEstimate"
+                    );
+                  }
 
-          const visibleTors = checkedTors.filter((tor): tor is MarketTor => tor !== null);
-          // const visibleTors = checkedTors
-          //   .filter((tor): tor is MarketTor => tor !== null)
-          //   .filter((tor) => {
-          //     if (tor.source !== "government" || !tor.projectId) {
-          //       return true;
-          //     }
+                  if (
+                    documents.draftEbidding.available &&
+                    documents.draftEbidding.files.length > 0
+                  ) {
+                    availableTypes.push(
+                      "draftEbidding"
+                    );
+                  }
 
-          //     return !HIDDEN_PROJECT_IDS.has(tor.projectId);
-          //   });
+                  if (
+                    documents.invitation.available &&
+                    documents.invitation.files.length > 0
+                  ) {
+                    availableTypes.push(
+                      "invitation"
+                    );
+                  }
 
-          setTors(visibleTors);
+                  return [
+                    tor.projectId,
+                    availableTypes,
+                  ] as const;
+
+                } catch (error) {
+                  console.error(
+                    `Failed to check local documents for project ${tor.projectId}:`,
+                    error
+                  );
+
+                  return [
+                    tor.projectId,
+                    [],
+                  ] as const;
+                }
+              })
+            );
+
+          const documentTypeMap: Record< string, DocumentType[] > = {};
+
+          documentTypeEntries.forEach((entry) => {
+            if (!entry) return;
+            const [projectId, types] = entry;
+            documentTypeMap[projectId] = [...types];
+          });
+
+          setProjectDocumentTypes(documentTypeMap);
+
+          setTors(marketTors);
 
         } catch (err) {
           setError(
@@ -722,9 +770,28 @@ export default function TorMarketPage() {
                 if (budgetFilter === "over100m") {
                 return budget > 100_000_000;
                 }
-
                 return true;
-            });
+            }
+          );
+        }
+
+        // Document Type
+        if (documentTypeFilter.length > 0) {
+          result = result.filter((tor) => {
+            if (
+              tor.source !== "government" || !tor.projectId
+            ) {
+              return false;
+            }
+
+            const availableTypes =  projectDocumentTypes[tor.projectId] ?? [];
+
+            // AND:
+            return documentTypeFilter.every(
+              (selectedType) =>
+                availableTypes.includes(selectedType)
+            );
+          });
         }
 
         // Sort
@@ -759,19 +826,21 @@ export default function TorMarketPage() {
 
                 default:
                 return 0;
+              }
             }
-        });
-
+          );
         return result;
-    }, [
+      }, [
         tors,
         query,
         typeFilter,
         timeFilter,
         yearFilter,
         budgetFilter,
+        documentTypeFilter,
+        projectDocumentTypes,
         sortOption,
-    ]);
+      ]);
 
     function resetFilters() {
         setQuery("");
@@ -779,6 +848,7 @@ export default function TorMarketPage() {
         setTimeFilter("all");
         setYearFilter("all");
         setBudgetFilter("all");
+        setDocumentTypeFilter([]);
         setSortOption("name-asc");
     }
 
@@ -945,6 +1015,14 @@ export default function TorMarketPage() {
                 options={yearOptions}
                 onChange={setYearFilter}
                 className="year-filter-dropdown"
+              />
+
+              {/* Document Type */}
+              <MultiSelectFilterDropdown
+                values={documentTypeFilter}
+                options={documentTypeOptions}
+                onChange={setDocumentTypeFilter}
+                placeholder="ประเภทเอกสาร"
               />
               
               {/* Sort */}
