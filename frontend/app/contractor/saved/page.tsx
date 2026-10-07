@@ -251,11 +251,11 @@ export default function SavedPage() {
     },
     {
       value: "government",
-      label: "TOR ราชการ",
+      label: "Government",
     },
     {
       value: "internal",
-      label: "TOR ภายใน",
+      label: "Internal",
     },
   ];
 
