@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const GovProject = require("../src/models/GovProject");
 const {
+  LOOKUP_METHOD,
   createNationalEgpAdapter,
 } = require("../src/services/egp/egpClient");
 const {
@@ -76,7 +77,7 @@ test("real adapter contract produces all normalized project document categories"
     "/egp-approval-service/apv-common/infoProcureDocAnnounZipTemp?projectId=68059426756",
     "/egp-oann10-service/pb/a-egp-allt-project/announcement/generateToken",
     "/egp-oann10-service/pb/a-egp-allt-project/announcement/getProjectDetail?projectId=68059426756",
-    "/egp-oann10-service/pb/a-egp-allt-project/announcement/greenBook?mode=LINK&methodId=16&tempProjectId=68059426756&pageAnnounceType=D0",
+    "/egp-oann10-service/pb/a-egp-allt-project/announcement/greenBook?mode=LINK&methodId=16&tempProjectId=68059426756&pageAnnounceType=B0",
     "/egp-approval-service/apv-common/infoProcureDocAnnounZipAdj?projectId=68059426756&itemNo=1",
   ]);
   assert.equal(result.documents.priceEstimate.fileId, "price-file-id");
@@ -121,7 +122,12 @@ function priceResponse(projectId) {
   });
 }
 
-function publicInvitationEvidenceResponse(url, hasInvitation = false) {
+function publicInvitationEvidenceResponse(
+  url,
+  hasInvitation = false,
+  hasDraft = true,
+  draftType = "B0"
+) {
   if (url.pathname.endsWith("/generateToken")) {
     return jsonResponse({ data: "announcement-token" });
   }
@@ -129,7 +135,7 @@ function publicInvitationEvidenceResponse(url, hasInvitation = false) {
     return jsonResponse({
       data: {
         methodId: "16",
-        announceType: hasInvitation ? "D0" : "B0",
+        announceType: hasDraft ? draftType : "D0",
         isSect7: false,
       },
     });
@@ -139,7 +145,26 @@ function publicInvitationEvidenceResponse(url, hasInvitation = false) {
       response: { responseCode: 0 },
       data: {
         greenBookAnnouncementTypeLinkDto: [
-          { announceType: hasInvitation ? "D0" : "B0" },
+          ...(hasDraft
+            ? [
+                {
+                  announceType: draftType,
+                  announceTypeDesc: "ร่างเอกสารประกวดราคา(e-Bidding)",
+                  templateType: "D1",
+                  announceFlag: "A",
+                },
+              ]
+            : []),
+          ...(hasInvitation
+            ? [
+                {
+                  announceType: "D0",
+                  announceTypeDesc: "ประกาศเชิญชวน",
+                  templateType: "D2",
+                  announceFlag: "A",
+                },
+              ]
+            : []),
         ],
       },
     });
@@ -159,6 +184,7 @@ test("six false-positive Invitations fall back to the correct Draft", async (t) 
         ["8d76e185e6de454bbcede4dfa39c353e", "69059292256_02102569_2.zip"],
       ],
       expectedRevision: 2,
+      draftType: "B3",
     },
     {
       projectId: "69109005145",
@@ -237,7 +263,12 @@ test("six false-positive Invitations fall back to the correct Draft", async (t) 
                 })
               : confirmedMissingResponse();
           }
-          const evidence = publicInvitationEvidenceResponse(url);
+          const evidence = publicInvitationEvidenceResponse(
+            url,
+            false,
+            true,
+            fixture.draftType || "B0"
+          );
           if (evidence) return evidence;
           throw new Error(`Unexpected request: ${url}`);
         },
@@ -263,6 +294,184 @@ test("six false-positive Invitations fall back to the correct Draft", async (t) 
         result.documents.selectedProcurementDocument,
         "draftEbidding"
       );
+    });
+  }
+});
+
+test("D0-only projects reject a Temp locator that aliases the Invitation", async (t) => {
+  const fixtures = [
+    {
+      projectId: "67049364890",
+      fileId: "6122a17e6fc44f70925cf99c6d4dfccc",
+      fileName: "67049364890_24042567.zip",
+      templateId: "4ec1fe8a-d261-4157-9c05-22f0310513b9",
+    },
+    {
+      projectId: "66119199555",
+      fileId: "e960180563274470b5845e1ba6045165",
+      fileName: "66119199555_16112566.zip",
+      templateId: "invitation-template-66119199555",
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    await t.test(fixture.projectId, async () => {
+      let adjustedRequests = 0;
+      const sharedData = {
+        projectId: fixture.projectId,
+        zipId: fixture.fileId,
+        buildName1: fixture.fileName,
+        buildName2: fixture.templateId,
+      };
+      const adapter = createNationalEgpAdapter({
+        maxRetries: 0,
+        fetchImpl: async (url) => {
+          if (url.pathname.endsWith("infoDocPriceestZipHis")) {
+            return priceResponse(fixture.projectId);
+          }
+          if (
+            url.pathname.endsWith("infoProcureDocAnnounZip") ||
+            url.pathname.endsWith("infoProcureDocAnnounZipTemp")
+          ) {
+            return jsonResponse({
+              response: { responseCode: "0" },
+              data: sharedData,
+            });
+          }
+          if (url.pathname.endsWith("infoProcureDocAnnounZipAdj")) {
+            adjustedRequests += 1;
+            return confirmedMissingResponse();
+          }
+          const evidence = publicInvitationEvidenceResponse(
+            url,
+            true,
+            false
+          );
+          if (evidence) return evidence;
+          throw new Error(`Unexpected request: ${url}`);
+        },
+      });
+
+      const result = await discoverProjectDocuments(fixture.projectId, {
+        egpAdapter: adapter,
+      });
+
+      assert.equal(result.documents.priceEstimate.status, "available");
+      assert.equal(result.documents.invitation.status, "available");
+      assert.equal(result.documents.invitation.fileId, fixture.fileId);
+      assert.equal(result.documents.invitation.fileName, fixture.fileName);
+      assert.equal(result.documents.draftEbidding.status, "not_found");
+      assert.equal(
+        result.documents.draftEbidding.lookupMethod,
+        LOOKUP_METHOD.DRAFT_PUBLIC_CATEGORY
+      );
+      assert.equal(result.documents.draftEbidding.fileId, null);
+      assert.equal(result.documents.draftEbidding.fileName, null);
+      assert.equal(result.documents.selectedProcurementDocument, "invitation");
+      assert.equal(adjustedRequests, 0);
+    });
+  }
+});
+
+test("authoritative B0/B3 evidence preserves legitimate Invitation and Draft cases", async (t) => {
+  const fixtures = [
+    {
+      projectId: "69019529847",
+      draftType: "B3",
+      invitation: [
+        "bf717f519a654c1dbf0bed1c5d14354f",
+        "69019529847_30092569_4.zip",
+      ],
+      draft: [
+        "9361e9239ab74d11a32bae96453e40eb",
+        "69019529847_17072569.zip",
+      ],
+      adjusted: [
+        ["10a6af160f074d0993275c7ba5bf9792", "69019529847_17082569_1.zip"],
+        ["29827a87a9064611afc082ca786877b9", "69019529847_08092569_2.zip"],
+        ["b5be5a66fe434d7187a8d398bf969d51", "69019529847_18092569_3.zip"],
+      ],
+      expectedRevision: 3,
+    },
+    {
+      projectId: "67049068372",
+      draftType: "B0",
+      invitation: [
+        "d59e6c48226e4b649fba481124d40398",
+        "67049068372_03052567_1.zip",
+      ],
+      draft: [
+        "95c168cdb7784ebc81f72c946752f7db",
+        "67049068372_24042567.zip",
+      ],
+      adjusted: [],
+      expectedRevision: 0,
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    await t.test(fixture.projectId, async () => {
+      const adapter = createNationalEgpAdapter({
+        maxRetries: 0,
+        fetchImpl: async (url) => {
+          if (url.pathname.endsWith("infoDocPriceestZipHis")) {
+            return priceResponse(fixture.projectId);
+          }
+          if (url.pathname.endsWith("infoProcureDocAnnounZip")) {
+            return jsonResponse({
+              response: { responseCode: "0" },
+              data: {
+                zipId: fixture.invitation[0],
+                buildName1: fixture.invitation[1],
+                buildName2: `${fixture.projectId}-invitation-template`,
+              },
+            });
+          }
+          if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
+            return jsonResponse({
+              response: { responseCode: "0" },
+              data: {
+                zipId: fixture.draft[0],
+                buildName1: fixture.draft[1],
+                buildName2: `${fixture.projectId}-draft-template`,
+              },
+            });
+          }
+          if (url.pathname.endsWith("infoProcureDocAnnounZipAdj")) {
+            const adjusted = fixture.adjusted[Number(url.searchParams.get("itemNo")) - 1];
+            return adjusted
+              ? jsonResponse({
+                  response: { responseCode: "0" },
+                  data: [{ zipId: adjusted[0], buildName1: adjusted[1] }],
+                })
+              : confirmedMissingResponse();
+          }
+          const evidence = publicInvitationEvidenceResponse(
+            url,
+            true,
+            true,
+            fixture.draftType
+          );
+          if (evidence) return evidence;
+          throw new Error(`Unexpected request: ${url}`);
+        },
+      });
+
+      const result = await discoverProjectDocuments(fixture.projectId, {
+        egpAdapter: adapter,
+      });
+
+      assert.equal(result.documents.invitation.status, "available");
+      assert.equal(result.documents.invitation.fileId, fixture.invitation[0]);
+      assert.equal(result.documents.draftEbidding.status, "available");
+      assert.equal(result.documents.draftEbidding.revision, fixture.expectedRevision);
+      assert.equal(
+        result.documents.draftEbidding.fileId,
+        fixture.expectedRevision === 0
+          ? fixture.draft[0]
+          : fixture.adjusted[fixture.expectedRevision - 1][0]
+      );
+      assert.equal(result.documents.selectedProcurementDocument, "invitation");
     });
   }
 });

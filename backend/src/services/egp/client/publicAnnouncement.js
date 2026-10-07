@@ -49,6 +49,22 @@ function tokenHeaders(token, options) {
 }
 
 async function getPublicAnnouncementDocumentList(projectId, options = {}) {
+  const cache =
+    options.metadataCache instanceof Map ? options.metadataCache : null;
+  const cacheKey = `public-announcement-documents:${projectId}`;
+  if (cache?.has(cacheKey)) return cache.get(cacheKey);
+
+  const lookup = getPublicAnnouncementDocumentListUncached(projectId, options);
+  if (cache) cache.set(cacheKey, lookup);
+  try {
+    return await lookup;
+  } catch (error) {
+    cache?.delete(cacheKey);
+    throw error;
+  }
+}
+
+async function getPublicAnnouncementDocumentListUncached(projectId, options) {
   const tokenUrl = new URL(`${ANNOUNCEMENT_PATH}/generateToken`, EGP_BASE_URL);
   const firstKey = encryptAnnouncementData({ projectId });
   const key = encryptAnnouncementData(firstKey);
@@ -135,7 +151,67 @@ async function getPublicAnnouncementDocumentList(projectId, options = {}) {
   return records;
 }
 
+function getDraftCategoryState(records) {
+  if (!Array.isArray(records)) {
+    throw draftCategoryVerificationError(
+      "e-GP returned an incomplete Draft category document list"
+    );
+  }
+
+  let hasUnknownDraftRepresentation = false;
+  for (const record of records) {
+    const announceType = String(record?.announceType || "")
+      .trim()
+      .toUpperCase();
+    const templateType = String(record?.templateType || "")
+      .trim()
+      .toUpperCase();
+    const announceFlag = String(record?.announceFlag || "")
+      .trim()
+      .toUpperCase();
+    const description = String(record?.announceTypeDesc || "").trim();
+    const isKnownDraftType = announceType === "B0" || announceType === "B3";
+    const isDraftDescription = description.includes("ร่างเอกสารประกวดราคา");
+    const isDraftLike =
+      /^B\d+$/.test(announceType) ||
+      templateType === "D1" ||
+      isDraftDescription;
+
+    if (
+      isKnownDraftType &&
+      templateType === "D1" &&
+      announceFlag === "A"
+    ) {
+      return "available";
+    }
+
+    const isKnownInactiveDraft =
+      isKnownDraftType &&
+      templateType === "D1" &&
+      announceFlag !== "" &&
+      announceFlag !== "A";
+    if (isDraftLike && !isKnownInactiveDraft) {
+      hasUnknownDraftRepresentation = true;
+    }
+  }
+
+  if (hasUnknownDraftRepresentation) {
+    throw draftCategoryVerificationError(
+      "e-GP returned an unrecognized Draft category representation"
+    );
+  }
+  return "not_found";
+}
+
+function draftCategoryVerificationError(message) {
+  return new EgpServiceError(message, 502, {
+    code: "EGP_DRAFT_CATEGORY_UNVERIFIED",
+    kind: ERROR_KIND.RECOVERABLE,
+  });
+}
+
 module.exports = {
   encryptAnnouncementData,
+  getDraftCategoryState,
   getPublicAnnouncementDocumentList,
 };

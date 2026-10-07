@@ -480,7 +480,45 @@ function invitationEvidenceResponse(url, { hasInvitation = true } = {}) {
         response: { responseCode: 0 },
         data: {
           greenBookAnnouncementTypeLinkDto: [
-            { announceType: hasInvitation ? "D0" : "B0" },
+            hasInvitation
+              ? { announceType: "D0", templateType: "D2", announceFlag: "A" }
+              : {
+                  announceType: "B0",
+                  announceTypeDesc: "ร่างเอกสารประกวดราคา(e-Bidding)",
+                  templateType: "D1",
+                  announceFlag: "A",
+                },
+          ],
+        },
+      })
+    );
+  }
+  return null;
+}
+
+function draftCategoryEvidenceResponse(url, draftType = "B0") {
+  if (url.pathname.endsWith("/generateToken")) {
+    return new Response(JSON.stringify({ data: "announcement-token" }));
+  }
+  if (url.pathname.endsWith("/getProjectDetail")) {
+    return new Response(
+      JSON.stringify({
+        data: { methodId: "16", announceType: draftType, isSect7: false },
+      })
+    );
+  }
+  if (url.pathname.endsWith("/greenBook")) {
+    return new Response(
+      JSON.stringify({
+        response: { responseCode: 0 },
+        data: {
+          greenBookAnnouncementTypeLinkDto: [
+            {
+              announceType: draftType,
+              announceTypeDesc: "ร่างเอกสารประกวดราคา(e-Bidding)",
+              templateType: "D1",
+              announceFlag: "A",
+            },
           ],
         },
       })
@@ -1179,6 +1217,8 @@ test("draft e-bidding discovery selects the only valid initial ZIP", async () =>
   const adapter = createNationalEgpAdapter({
     fetchImpl: async (url) => {
       requested.push(url);
+      const evidence = draftCategoryEvidenceResponse(url);
+      if (evidence) return evidence;
       if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
         return new Response(
           JSON.stringify({
@@ -1202,7 +1242,7 @@ test("draft e-bidding discovery selects the only valid initial ZIP", async () =>
 
   const result = await adapter.discoverDraftEbidding("68059426756");
 
-  assert.equal(requested.length, 2);
+  assert.equal(requested.length, 5);
   assert.equal(result.category, DOCUMENT_CATEGORY.DRAFT_EBIDDING);
   assert.equal(result.status, "available");
   assert.equal(result.lookupMethod, LOOKUP_METHOD.DRAFT_TEMP);
@@ -1212,9 +1252,98 @@ test("draft e-bidding discovery selects the only valid initial ZIP", async () =>
   assert.equal(result.candidateCount, 1);
 });
 
+test("complete D0-only evidence rejects a Temp locator as Draft", async () => {
+  let process5Requests = 0;
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) => {
+      const evidence = invitationEvidenceResponse(url);
+      if (evidence) return evidence;
+      process5Requests += 1;
+      return new Response(
+        JSON.stringify({
+          response: { responseCode: "0" },
+          data: {
+            zipId: "invitation-alias-id",
+            buildName1: "invitation-alias.zip",
+          },
+        })
+      );
+    },
+  });
+
+  const result = await adapter.discoverDraftEbidding("67049364890");
+
+  assert.equal(result.status, "not_found");
+  assert.equal(result.lookupMethod, LOOKUP_METHOD.DRAFT_PUBLIC_CATEGORY);
+  assert.equal(result.fileId, null);
+  assert.equal(process5Requests, 0);
+});
+
+test("unknown Draft-like GreenBook evidence remains an error", async () => {
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) => {
+      if (url.pathname.endsWith("/generateToken")) {
+        return new Response(JSON.stringify({ data: "announcement-token" }));
+      }
+      if (url.pathname.endsWith("/getProjectDetail")) {
+        return new Response(
+          JSON.stringify({ data: { methodId: "16", announceType: "B2" } })
+        );
+      }
+      if (url.pathname.endsWith("/greenBook")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: 0 },
+            data: {
+              greenBookAnnouncementTypeLinkDto: [
+                {
+                  announceType: "B2",
+                  templateType: "D1",
+                  announceFlag: "A",
+                },
+              ],
+            },
+          })
+        );
+      }
+      throw new Error(`Unexpected Process 5 request: ${url}`);
+    },
+  });
+
+  await assert.rejects(
+    () => adapter.discoverDraftEbidding("67049364890"),
+    (error) => error.code === "EGP_DRAFT_CATEGORY_UNVERIFIED"
+  );
+});
+
+test("incomplete Draft category evidence remains an error", async () => {
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) => {
+      if (url.pathname.endsWith("/generateToken")) {
+        return new Response(JSON.stringify({ data: "announcement-token" }));
+      }
+      if (url.pathname.endsWith("/getProjectDetail")) {
+        return new Response(
+          JSON.stringify({ data: { methodId: "16", announceType: "D0" } })
+        );
+      }
+      return new Response(
+        JSON.stringify({ response: { responseCode: 0 }, data: {} })
+      );
+    },
+  });
+
+  await assert.rejects(
+    () => adapter.discoverDraftEbidding("67049364890"),
+    (error) => error.code === "EGP_DRAFT_CATEGORY_UNVERIFIED"
+  );
+});
+
 test("draft e-bidding discovery selects the highest explicit revision", async () => {
   const adapter = createNationalEgpAdapter({
     fetchImpl: async (url) => {
+      const evidence = draftCategoryEvidenceResponse(url, "B3");
+      if (evidence) return evidence;
       if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
         return new Response(
           JSON.stringify({
@@ -1260,6 +1389,8 @@ test("draft e-bidding discovery selects the highest explicit revision", async ()
 test("draft e-bidding discovery reports conflicting latest ZIPs as ambiguous", async () => {
   const adapter = createNationalEgpAdapter({
     fetchImpl: async (url) => {
+      const evidence = draftCategoryEvidenceResponse(url);
+      if (evidence) return evidence;
       if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
         return new Response(
           JSON.stringify({ response: { responseCode: "1" }, data: null })
@@ -1295,6 +1426,8 @@ test("draft e-bidding discovery does not select when the revision cap is reached
   const adapter = createNationalEgpAdapter({
     maxDraftRevisions: 1,
     fetchImpl: async (url) => {
+      const evidence = draftCategoryEvidenceResponse(url);
+      if (evidence) return evidence;
       if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
         return new Response(
           JSON.stringify({
@@ -1351,6 +1484,8 @@ test("confirmed Process 5 absence falls back to one Legacy Draft", async () => {
   const adapter = createNationalEgpAdapter({
     fetchImpl: async (url) => {
       requested.push(url);
+      const evidence = draftCategoryEvidenceResponse(url);
+      if (evidence) return evidence;
       if (!url.pathname.endsWith("getTorZipList")) {
         return confirmedMissingDraftResponse();
       }
@@ -1371,7 +1506,7 @@ test("confirmed Process 5 absence falls back to one Legacy Draft", async () => {
 
   const result = await adapter.discoverDraftEbidding("64117010720");
 
-  assert.equal(requested.length, 4);
+  assert.equal(requested.length, 7);
   assert.equal(result.status, "available");
   assert.equal(result.lookupMethod, LOOKUP_METHOD.DRAFT_LEGACY_PUBLIC);
   assert.equal(result.downloadMethod, DOWNLOAD_METHOD.LEGACY_DRAFT_TRANSFER);
@@ -1423,10 +1558,13 @@ test("multiple Legacy Drafts select the newest timestamp and retain its source l
     }),
   ];
   const adapter = createNationalEgpAdapter({
-    fetchImpl: async (url) =>
-      url.pathname.endsWith("getTorZipList")
+    fetchImpl: async (url) => {
+      const evidence = draftCategoryEvidenceResponse(url);
+      if (evidence) return evidence;
+      return url.pathname.endsWith("getTorZipList")
         ? legacyDraftResponse(records)
-        : confirmedMissingDraftResponse(),
+        : confirmedMissingDraftResponse();
+    },
   });
 
   const result = await adapter.discoverDraftEbidding(projectId);
@@ -1448,10 +1586,13 @@ test("multiple Legacy Drafts select the newest timestamp and retain its source l
 
 test("Process 5 and Legacy Draft confirmed absence returns not_found", async () => {
   const adapter = createNationalEgpAdapter({
-    fetchImpl: async (url) =>
-      url.pathname.endsWith("getTorZipList")
+    fetchImpl: async (url) => {
+      const evidence = draftCategoryEvidenceResponse(url);
+      if (evidence) return evidence;
+      return url.pathname.endsWith("getTorZipList")
         ? legacyDraftResponse([])
-        : confirmedMissingDraftResponse(),
+        : confirmedMissingDraftResponse();
+    },
   });
 
   const result = await adapter.discoverDraftEbidding("67079622362");
@@ -1468,10 +1609,13 @@ test("Process 5 and Legacy Draft confirmed absence returns not_found", async () 
 test("Legacy Draft discovery failure remains an error", async () => {
   const adapter = createNationalEgpAdapter({
     maxRetries: 0,
-    fetchImpl: async (url) =>
-      url.pathname.endsWith("getTorZipList")
+    fetchImpl: async (url) => {
+      const evidence = draftCategoryEvidenceResponse(url);
+      if (evidence) return evidence;
+      return url.pathname.endsWith("getTorZipList")
         ? new Response("forbidden", { status: 403 })
-        : confirmedMissingDraftResponse(),
+        : confirmedMissingDraftResponse();
+    },
   });
 
   await assert.rejects(
@@ -1506,6 +1650,8 @@ test("conflicting newest Legacy Draft candidates return ambiguous", async () => 
   ];
   const adapter = createNationalEgpAdapter({
     fetchImpl: async (url) => {
+      const evidence = draftCategoryEvidenceResponse(url);
+      if (evidence) return evidence;
       if (!url.pathname.endsWith("getTorZipList")) {
         return confirmedMissingDraftResponse();
       }

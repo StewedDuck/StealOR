@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { LOOKUP_METHOD } = require("./client/constants");
 
 const DOCUMENT_KEYS = Object.freeze([
   "priceEstimate",
@@ -210,6 +211,20 @@ function mergeDocumentReference({ projectId, category, stored, observed }) {
           ? "refreshed_same_locator"
           : "replaced_locator"
         : "accepted_available",
+      discrepancy: null,
+      storedLocatorIdentity,
+      observedLocatorIdentity,
+    };
+  }
+
+  const isAuthoritativeDraftAbsence =
+    category === "draftEbidding" &&
+    observedReference.status === "not_found" &&
+    observedReference.lookupMethod === LOOKUP_METHOD.DRAFT_PUBLIC_CATEGORY;
+  if (isAuthoritativeDraftAbsence) {
+    return {
+      effective: observedReference,
+      action: "accepted_authoritative_not_found",
       discrepancy: null,
       storedLocatorIdentity,
       observedLocatorIdentity,

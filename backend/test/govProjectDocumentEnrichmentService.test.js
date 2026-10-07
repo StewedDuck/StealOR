@@ -122,6 +122,65 @@ test("merge preserves usable metadata after incomplete available refresh", () =>
   assert.equal(merged.effective.fileId, "stored-id");
 });
 
+test("authoritative Draft-category absence replaces a stored false-positive locator", () => {
+  const stored = available("stale-draft-id", { sha256: "stale-hash" });
+  const observed = {
+    status: "not_found",
+    source: "national_egp",
+    lookupMethod: "draft_public_category",
+    downloadMethod: "file_id",
+    fileId: null,
+    fileName: null,
+    downloadUrl: null,
+  };
+  const merged = mergeDocumentReference({
+    projectId: PROJECT_ID,
+    category: "draftEbidding",
+    stored,
+    observed,
+  });
+
+  assert.deepEqual(merged.effective, observed);
+  assert.equal(merged.action, "accepted_authoritative_not_found");
+  assert.equal(merged.discrepancy, null);
+});
+
+test("authoritative Draft absence removes the stale Draft while retaining Invitation selection", () => {
+  const project = {
+    _id: "mongo-id",
+    project_id: "67049364890",
+    documents: {
+      priceEstimate: available("price-id"),
+      invitation: available("invitation-id"),
+      draftEbidding: available("invitation-id"),
+      selectedProcurementDocument: "invitation",
+    },
+  };
+  const discovery = {
+    documents: discoveryDocuments({
+      draftEbidding: {
+        status: "not_found",
+        source: "national_egp",
+        lookupMethod: "draft_public_category",
+        downloadMethod: "file_id",
+        fileId: null,
+        fileName: null,
+        downloadUrl: null,
+      },
+    }),
+  };
+
+  const plan = buildProjectEnrichmentPlan(project, discovery);
+
+  assert.equal(plan.effectiveDocuments.draftEbidding.status, "not_found");
+  assert.equal(plan.effectiveSelection, "invitation");
+  assert.equal(
+    plan.categories.draftEbidding.action,
+    "accepted_authoritative_not_found"
+  );
+  assert.ok(plan.changedPaths.includes("documents.draftEbidding"));
+});
+
 test("rate-limited refresh preserves a usable stored Invitation locator", () => {
   const stored = available("stored-invitation", { sha256: "stored-hash" });
   const merged = mergeDocumentReference({

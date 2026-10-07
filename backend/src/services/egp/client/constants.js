@@ -31,6 +31,7 @@ const DOCUMENT_CATEGORY = Object.freeze({
 const LOOKUP_METHOD = Object.freeze({
   DRAFT_ADJUSTED: "draft_approval_adjusted",
   DRAFT_LEGACY_PUBLIC: "draft_legacy_public",
+  DRAFT_PUBLIC_CATEGORY: "draft_public_category",
   DRAFT_TEMP: "draft_approval_temp",
   INVITATION_APPROVAL_FINAL: "invitation_approval_final",
   PRICE_PRIMARY: "price_primary",
