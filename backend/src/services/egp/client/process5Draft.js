@@ -45,15 +45,178 @@ async function requestDraftPayloadUncached(projectId, endpoint, itemNo, options)
   return readMetadataJson(response, "draft e-bidding");
 }
 
+function parseProcess5BuildDate(projectId, fileName, revision) {
+  const escapedProjectId = projectId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const suffix = revision === 0 ? "" : `_${revision}`;
+  const match = String(fileName || "").match(
+    new RegExp(
+      `^${escapedProjectId}_(\\d{2})(\\d{2})(\\d{4})${suffix}\\.zip$`,
+      "i"
+    )
+  );
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]) - 543;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return year * 10_000 + month * 100 + day;
+}
+
 function normalizeDraftCandidate(projectId, record, revision, lookupMethod) {
-  if (!record?.zipId || !record?.buildName1) return null;
+  if (
+    !record?.zipId ||
+    !record?.buildName1 ||
+    !record?.buildName2 ||
+    String(record.projectId || "") !== projectId ||
+    (revision > 0 && Number(record.itemNo) !== revision)
+  ) {
+    return null;
+  }
+  const fileName = validateZipFileName(record.buildName1);
+  const buildDateKey = parseProcess5BuildDate(projectId, fileName, revision);
+  if (!buildDateKey) return null;
   return {
     projectId,
     fileId: validateFileId(record.zipId),
-    fileName: validateZipFileName(record.buildName1),
+    fileName,
+    templateId: validateFileId(record.buildName2),
+    buildDateKey,
     revision,
     lookupMethod,
   };
+}
+
+function bangkokDateKey(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts.map(({ type, value: part }) => [type, part])
+  );
+  return (
+    Number(values.year) * 10_000 +
+    Number(values.month) * 100 +
+    Number(values.day)
+  );
+}
+
+function draftRevisionVerificationError(message) {
+  return new EgpServiceError(message, 502, {
+    code: "EGP_DRAFT_REVISION_UNVERIFIED",
+    kind: ERROR_KIND.INVALID_RESPONSE,
+  });
+}
+
+function activePublicRecord(record, projectId, announceType) {
+  return (
+    String(record?.projectId || "").trim() === projectId &&
+    String(record?.announceType || "").trim().toUpperCase() === announceType &&
+    String(record?.announceFlag || "").trim().toUpperCase() === "A"
+  );
+}
+
+function authoritativeDraftPublication(projectId, publicDocuments) {
+  const records = publicDocuments
+    .filter((record) => {
+      const announceType = String(record?.announceType || "")
+        .trim()
+        .toUpperCase();
+      return (
+        activePublicRecord(record, projectId, announceType) &&
+        (announceType === "B0" || announceType === "B3") &&
+        String(record?.templateType || "").trim().toUpperCase() === "D1"
+      );
+    })
+    .map((record) => ({ record, dateKey: bangkokDateKey(record.announceDate) }));
+  if (records.length === 0 || records.some(({ dateKey }) => !dateKey)) {
+    throw draftRevisionVerificationError(
+      "e-GP returned incomplete Draft publication metadata"
+    );
+  }
+  return records.sort((left, right) => right.dateKey - left.dateKey)[0];
+}
+
+function sameCompleteLocator(candidate, record) {
+  return (
+    candidate.fileId === String(record?.zipId || "").trim() &&
+    candidate.fileName === String(record?.buildName1 || "").trim() &&
+    candidate.templateId === String(record?.buildName2 || "").trim()
+  );
+}
+
+async function verifyDraftCandidates(
+  projectId,
+  candidates,
+  publicDocuments,
+  options
+) {
+  if (candidates.length === 0) return candidates;
+  if (!Array.isArray(publicDocuments)) {
+    throw draftRevisionVerificationError(
+      "e-GP did not provide Draft publication metadata"
+    );
+  }
+  const publication = authoritativeDraftPublication(projectId, publicDocuments);
+  const afterPublication = candidates.filter(
+    ({ buildDateKey }) => buildDateKey > publication.dateKey
+  );
+  if (afterPublication.length === 0) return candidates;
+
+  const hasPublishedInvitation = publicDocuments.some((record) =>
+    activePublicRecord(record, projectId, "D0")
+  );
+  if (!hasPublishedInvitation) {
+    throw draftRevisionVerificationError(
+      "e-GP returned a Draft candidate after the authoritative Draft publication"
+    );
+  }
+
+  const finalPayload = await requestDraftPayload(
+    projectId,
+    "infoProcureDocAnnounZip",
+    null,
+    options
+  );
+  if (
+    responseCode(finalPayload) !== "0" ||
+    String(finalPayload?.data?.projectId || "") !== projectId ||
+    !finalPayload?.data?.zipId ||
+    !finalPayload?.data?.buildName1 ||
+    !finalPayload?.data?.buildName2
+  ) {
+    throw draftRevisionVerificationError(
+      "e-GP did not provide a verifiable final Invitation locator"
+    );
+  }
+  const aliases = new Set();
+  for (const candidate of afterPublication) {
+    if (!sameCompleteLocator(candidate, finalPayload.data)) {
+      throw draftRevisionVerificationError(
+        "e-GP returned an unrecognized post-publication Draft candidate"
+      );
+    }
+    aliases.add(candidate);
+  }
+  const verified = candidates.filter((candidate) => !aliases.has(candidate));
+  if (verified.length === 0) {
+    throw draftRevisionVerificationError(
+      "e-GP did not return a verifiable Draft revision"
+    );
+  }
+  return verified;
 }
 
 function responseCode(payload) {
@@ -137,7 +300,7 @@ function selectDraftCandidate(projectId, candidates, reachedRevisionLimit) {
   });
 }
 
-async function getDraftEbiddingMetadata(projectId, options) {
+async function getDraftEbiddingMetadata(projectId, options, publicDocuments) {
   const candidates = [];
   const attempts = [];
   const initialPayload = await requestDraftPayload(
@@ -217,8 +380,14 @@ async function getDraftEbiddingMetadata(projectId, options) {
     reachedRevisionLimit = itemNo === maxRevisions;
   }
 
+  const verifiedCandidates = await verifyDraftCandidates(
+    projectId,
+    candidates,
+    publicDocuments,
+    options
+  );
   return {
-    ...selectDraftCandidate(projectId, candidates, reachedRevisionLimit),
+    ...selectDraftCandidate(projectId, verifiedCandidates, reachedRevisionLimit),
     lookupAttempts: attempts,
   };
 }

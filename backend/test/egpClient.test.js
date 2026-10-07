@@ -830,6 +830,7 @@ function invitationEvidenceResponse(url, { hasInvitation = true } = {}) {
 }
 
 function draftCategoryEvidenceResponse(url, draftType = "B0") {
+  const projectId = url.searchParams.get("tempProjectId");
   if (url.pathname.endsWith("/generateToken")) {
     return new Response(JSON.stringify({ data: "announcement-token" }));
   }
@@ -847,10 +848,12 @@ function draftCategoryEvidenceResponse(url, draftType = "B0") {
         data: {
           greenBookAnnouncementTypeLinkDto: [
             {
+              projectId,
               announceType: draftType,
               announceTypeDesc: "ร่างเอกสารประกวดราคา(e-Bidding)",
               templateType: "D1",
               announceFlag: "A",
+              announceDate: "2099-12-30T17:00:00.000Z",
             },
           ],
         },
@@ -1557,8 +1560,10 @@ test("draft e-bidding discovery selects the only valid initial ZIP", async () =>
           JSON.stringify({
             response: { responseCode: "0" },
             data: {
+              projectId: "68059426756",
               zipId: "draft-initial-id",
               buildName1: "68059426756_30052568.zip",
+              buildName2: "draft-initial-template",
             },
           })
         );
@@ -1681,7 +1686,12 @@ test("draft e-bidding discovery selects the highest explicit revision", async ()
         return new Response(
           JSON.stringify({
             response: { responseCode: "0" },
-            data: { zipId: "draft-0", buildName1: "draft-0.zip" },
+            data: {
+              projectId: "68059426756",
+              zipId: "draft-0",
+              buildName1: "68059426756_01012568.zip",
+              buildName2: "draft-template-0",
+            },
           })
         );
       }
@@ -1693,11 +1703,11 @@ test("draft e-bidding discovery selects the highest explicit revision", async ()
             response: { responseCode: "0" },
             data: [
               {
-                // The upstream item's own itemNo is deliberately unhelpful;
-                // selection must use the explicit revision requested in the URL.
-                itemNo: 0,
+                projectId: "68059426756",
+                itemNo,
                 zipId: `draft-${itemNo}`,
-                buildName1: `draft-${itemNo}.zip`,
+                buildName1: `68059426756_0${itemNo + 1}012568_${itemNo}.zip`,
+                buildName2: `draft-template-${itemNo}`,
               },
             ],
           })
@@ -1719,6 +1729,206 @@ test("draft e-bidding discovery selects the highest explicit revision", async ()
   assert.equal(result.candidateCount, 3);
 });
 
+test("Draft discovery rejects adjusted metadata for a different requested revision", async () => {
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) => {
+      const evidence = draftCategoryEvidenceResponse(url, "B3");
+      if (evidence) return evidence;
+      if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
+        return new Response(
+          JSON.stringify({ response: { responseCode: "1" }, data: null })
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          response: { responseCode: "0" },
+          data: [{
+            projectId: "68059426756",
+            itemNo: 2,
+            zipId: "wrong-revision",
+            buildName1: "68059426756_02012568_1.zip",
+            buildName2: "wrong-revision-template",
+          }],
+        })
+      );
+    },
+  });
+
+  await assert.rejects(
+    () => adapter.discoverDraftEbidding("68059426756"),
+    (error) => error.code === "EGP_INVALID_DRAFT_RESPONSE"
+  );
+});
+
+test("an unrecognized post-publication Draft candidate remains an error", async () => {
+  const projectId = "68059426756";
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) => {
+      if (url.pathname.endsWith("/generateToken")) {
+        return new Response(JSON.stringify({ data: "announcement-token" }));
+      }
+      if (url.pathname.endsWith("/getProjectDetail")) {
+        return new Response(
+          JSON.stringify({ data: { methodId: "16", announceType: "D0" } })
+        );
+      }
+      if (url.pathname.endsWith("/greenBook")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: {
+              greenBookAnnouncementTypeLinkDto: [
+                {
+                  projectId,
+                  announceType: "B3",
+                  templateType: "D1",
+                  announceFlag: "A",
+                  announceDate: "2026-01-01T17:00:00.000Z",
+                },
+                {
+                  projectId,
+                  announceType: "D0",
+                  templateType: "D2",
+                  announceFlag: "A",
+                  announceDate: "2026-01-09T17:00:00.000Z",
+                },
+              ],
+            },
+          })
+        );
+      }
+      if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: {
+              projectId,
+              zipId: "draft-0",
+              buildName1: `${projectId}_02012569.zip`,
+              buildName2: "draft-template-0",
+            },
+          })
+        );
+      }
+      if (url.pathname.endsWith("infoProcureDocAnnounZipAdj")) {
+        const itemNo = Number(url.searchParams.get("itemNo"));
+        return itemNo === 1
+          ? new Response(
+              JSON.stringify({
+                response: { responseCode: "0" },
+                data: [{
+                  projectId,
+                  itemNo,
+                  zipId: "unknown-post-publication",
+                  buildName1: `${projectId}_05012569_1.zip`,
+                  buildName2: "unknown-template",
+                }],
+              })
+            )
+          : new Response(
+              JSON.stringify({ response: { responseCode: "1" }, data: null })
+            );
+      }
+      if (url.pathname.endsWith("infoProcureDocAnnounZip")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: {
+              projectId,
+              zipId: "verified-invitation",
+              buildName1: `${projectId}_10012569_2.zip`,
+              buildName2: "verified-invitation-template",
+            },
+          })
+        );
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    },
+  });
+
+  await assert.rejects(
+    () => adapter.discoverDraftEbidding(projectId),
+    (error) => error.code === "EGP_DRAFT_REVISION_UNVERIFIED"
+  );
+});
+
+test("locator equality does not reject a Draft published within the B3 boundary", async () => {
+  const projectId = "68059426756";
+  let finalLocatorRequests = 0;
+  const adapter = createNationalEgpAdapter({
+    fetchImpl: async (url) => {
+      if (url.pathname.endsWith("/generateToken")) {
+        return new Response(JSON.stringify({ data: "announcement-token" }));
+      }
+      if (url.pathname.endsWith("/getProjectDetail")) {
+        return new Response(
+          JSON.stringify({ data: { methodId: "16", announceType: "D0" } })
+        );
+      }
+      if (url.pathname.endsWith("/greenBook")) {
+        return new Response(
+          JSON.stringify({
+            response: { responseCode: "0" },
+            data: {
+              greenBookAnnouncementTypeLinkDto: [
+                {
+                  projectId,
+                  announceType: "B3",
+                  templateType: "D1",
+                  announceFlag: "A",
+                  announceDate: "2026-01-01T17:00:00.000Z",
+                },
+                {
+                  projectId,
+                  announceType: "D0",
+                  templateType: "D2",
+                  announceFlag: "A",
+                  announceDate: "2026-01-09T17:00:00.000Z",
+                },
+              ],
+            },
+          })
+        );
+      }
+      if (url.pathname.endsWith("infoProcureDocAnnounZipTemp")) {
+        return new Response(
+          JSON.stringify({ response: { responseCode: "1" }, data: null })
+        );
+      }
+      if (url.pathname.endsWith("infoProcureDocAnnounZipAdj")) {
+        const itemNo = Number(url.searchParams.get("itemNo"));
+        return itemNo === 1
+          ? new Response(
+              JSON.stringify({
+                response: { responseCode: "0" },
+                data: [{
+                  projectId,
+                  itemNo,
+                  zipId: "shared-category-file",
+                  buildName1: `${projectId}_02012569_1.zip`,
+                  buildName2: "shared-category-template",
+                }],
+              })
+            )
+          : new Response(
+              JSON.stringify({ response: { responseCode: "1" }, data: null })
+            );
+      }
+      if (url.pathname.endsWith("infoProcureDocAnnounZip")) {
+        finalLocatorRequests += 1;
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    },
+  });
+
+  const result = await adapter.discoverDraftEbidding(projectId);
+
+  assert.equal(result.status, "available");
+  assert.equal(result.revision, 1);
+  assert.equal(result.fileId, "shared-category-file");
+  assert.equal(finalLocatorRequests, 0);
+});
+
 test("draft e-bidding discovery reports conflicting latest ZIPs as ambiguous", async () => {
   const adapter = createNationalEgpAdapter({
     fetchImpl: async (url) => {
@@ -1734,8 +1944,20 @@ test("draft e-bidding discovery reports conflicting latest ZIPs as ambiguous", a
           JSON.stringify({
             response: { responseCode: "0" },
             data: [
-              { zipId: "conflict-a", buildName1: "conflict-a.zip" },
-              { zipId: "conflict-b", buildName1: "conflict-b.zip" },
+              {
+                projectId: "68059426756",
+                itemNo: 1,
+                zipId: "conflict-a",
+                buildName1: "68059426756_02012568_1.zip",
+                buildName2: "conflict-template-a",
+              },
+              {
+                projectId: "68059426756",
+                itemNo: 1,
+                zipId: "conflict-b",
+                buildName1: "68059426756_02012568_1.zip",
+                buildName2: "conflict-template-b",
+              },
             ],
           })
         );
@@ -1765,14 +1987,25 @@ test("draft e-bidding discovery does not select when the revision cap is reached
         return new Response(
           JSON.stringify({
             response: { responseCode: "0" },
-            data: { zipId: "draft-0", buildName1: "draft-0.zip" },
+            data: {
+              projectId: "68059426756",
+              zipId: "draft-0",
+              buildName1: "68059426756_01012568.zip",
+              buildName2: "draft-template-0",
+            },
           })
         );
       }
       return new Response(
         JSON.stringify({
           response: { responseCode: "0" },
-          data: [{ zipId: "draft-1", buildName1: "draft-1.zip" }],
+          data: [{
+            projectId: "68059426756",
+            itemNo: 1,
+            zipId: "draft-1",
+            buildName1: "68059426756_02012568_1.zip",
+            buildName2: "draft-template-1",
+          }],
         })
       );
     },

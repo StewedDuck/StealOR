@@ -35,7 +35,11 @@ async function discoverDraftEbiddingMetadata(projectId, options) {
     );
   }
 
-  const process5 = await getDraftEbiddingMetadata(projectId, options);
+  const process5 = await getDraftEbiddingMetadata(
+    projectId,
+    options,
+    publicDocuments
+  );
   if (process5.status !== "not_found") return process5;
 
   const attempts = [...(process5.lookupAttempts || [])];
