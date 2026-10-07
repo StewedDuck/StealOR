@@ -40,7 +40,7 @@ import TORDocumentModal from "@/components/TORDocumentModal";
 
 
 type TypeFilter = "all" | "government" | "internal";
-type TimeFilter = "all" | "new" | "closing";
+type TimeFilter = "all" | "new" | "closing" | "closed";
 type SortOption = "name-asc" | "name-desc" | "newest" | "oldest";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
@@ -123,6 +123,12 @@ function isAlmostClosing(value?: string | null) {
   return days !== null && days >= 0 && days <= 7;
 }
 
+function isClosed(value?: string | null) {
+  const days = getDaysUntil(value);
+
+  return days !== null && days < 0;
+}
+
 function getTimeLabel(value?: string | null) {
   const days = getDaysUntil(value);
 
@@ -166,14 +172,10 @@ function getStatusClass(status: string) {
 export default function TorMarketPage() {
     const [tors, setTors] = useState<MarketTor[]>([]);
     const [query, setQuery] = useState("");
-    const [typeFilter, setTypeFilter] =
-        useState<TypeFilter>("all");
-    const [timeFilter, setTimeFilter] =
-        useState<TimeFilter>("all");
-    const [sortOption, setSortOption] =
-        useState<SortOption>("name-asc");
-    const [budgetFilter, setBudgetFilter] =
-        useState("all");
+    const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+    const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+    const [sortOption, setSortOption] = useState<SortOption>("name-asc");
+    const [budgetFilter, setBudgetFilter] = useState("all");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -341,6 +343,12 @@ export default function TorMarketPage() {
             result = result.filter((tor) =>
                 isAlmostClosing(tor.deadline)
             );
+        }
+
+        if (timeFilter === "closed") {
+          result = result.filter((tor) =>
+            isClosed(tor.deadline)
+          );
         }
 
         // Budget
@@ -631,11 +639,15 @@ export default function TorMarketPage() {
                 </option>
 
                 <option value="new">
-                  New Today
+                  มาใหม่
                 </option>
 
                 <option value="closing">
-                  Almost Closing
+                  ใกล้ปิดรับ
+                </option>
+
+                <option value="closed">
+                  ปิดรับแล้ว
                 </option>
               </select>
 
@@ -722,8 +734,8 @@ export default function TorMarketPage() {
                 tor.deadline
               );
 
-              const almostClosing =
-                isAlmostClosing(tor.deadline);
+              const almostClosing = isAlmostClosing(tor.deadline);
+              const closed = isClosed(tor.deadline);
 
             return (
                 <article
@@ -739,11 +751,15 @@ export default function TorMarketPage() {
                             </span>
 
                             <span
-                                className={`market-badge ${getStatusClass(
-                                tor.status
-                                )}`}
+                              className={`market-badge ${
+                                closed
+                                  ? "status-closed"
+                                  : getStatusClass(tor.status)
+                              }`}
                             >
-                                {tor.status || "เปิดรับ"}
+                              {closed
+                                ? "ปิดรับแล้ว"
+                                : tor.status || "เปิดรับ"}
                             </span>
 
                             {tor.projectId && (
@@ -796,15 +812,17 @@ export default function TorMarketPage() {
                                 </span>
                             </div>
 
-                            {almostClosing &&
-                                daysLeft !== null && (
-                                    <span className="closing-badge">
-                                        {daysLeft === 0
-                                        ? "ปิดวันนี้"
-                                        : `${daysLeft} วันคงเหลือ`}
-                                    </span>
-                                )
-                            }
+                            {timeLabel && (almostClosing || closed) && (
+                              <span
+                                className={
+                                  closed
+                                    ? "closed-badge"
+                                    : "closing-badge"
+                                }
+                              >
+                                {timeLabel}
+                              </span>
+                            )}
                         </div>
 
                         {tor.description && (

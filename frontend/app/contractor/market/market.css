@@ -74,7 +74,6 @@
 }
 
 /*  CONTENT  */
-
 .market-content {
   width: 100%;
   box-sizing: border-box;
@@ -82,7 +81,6 @@
 }
 
 /*  FILTERS  */
-
 .market-filters {
   width: 100%;
   box-sizing: border-box;
@@ -214,7 +212,6 @@
 }
 
 /*  RESULT COUNT  */
-
 .market-result-count {
   margin: 12px 2px;
 
@@ -223,7 +220,6 @@
 }
 
 /*  LIST */
-
 .market-list {
   width: 100%;
 
@@ -233,7 +229,6 @@
 }
 
 /*  CARD */
-
 .market-card {
   width: 100%;
   min-width: 0;
@@ -270,7 +265,6 @@
 }
 
 /*  BADGES */
-
 .market-card-top {
   display: flex;
   align-items: center;
@@ -318,7 +312,6 @@
 }
 
 /*  TITLE  */
-
 .market-card-title {
   margin: 0 0 7px;
 
@@ -333,7 +326,6 @@
 }
 
 /*  AGENCY  */
-
 .market-agency {
   display: flex;
   align-items: center;
@@ -347,7 +339,6 @@
 }
 
 /*  META */
-
 .market-card-meta {
   display: flex;
   align-items: center;
@@ -422,7 +413,6 @@
 }
 
 /*  MATCH */
-
 .market-match {
   display: flex;
   flex-direction: column;
@@ -506,7 +496,6 @@
 }
 
 /*  ACTIONS */
-
 .market-card-actions {
   display: flex;
   flex-direction: column;
@@ -557,7 +546,6 @@
 }
 
 /* MESSAGE */
-
 .market-message {
   min-height: 220px;
 
@@ -581,6 +569,21 @@
 
 .market-message.error {
   color: #a05252;
+}
+
+.closed-badge {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 4px 9px;
+
+  border-radius: 999px;
+
+  background: #F3E5E5;
+  color: #A65353;
+
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* RESPONSIVE */

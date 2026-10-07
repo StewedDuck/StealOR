@@ -10,7 +10,7 @@ const notificationLogSchema = new mongoose.Schema(
 
         source: {
             type: String,
-            enum: ["government", "internal"],
+            enum: ["government", "internal", "verification"],
             required: true,
         },
 
@@ -24,12 +24,21 @@ const notificationLogSchema = new mongoose.Schema(
             default: null,
         },
 
+        verificationId: {
+            type: String,
+            default: null,
+        },
+
         type: {
             type: String,
             enum: [
                 "deadline_5_days",
                 "deadline_1_day",
                 "draft_updated",
+
+                "identity_verification_requested",
+                "identity_verification_approved",
+                "identity_verification_rejected"
             ],
             required: true,
         },
@@ -65,6 +74,7 @@ notificationLogSchema.index(
         source: 1,
         projectId: 1,
         torId: 1,
+        verificationId: 1,
         type: 1,
     },
     {

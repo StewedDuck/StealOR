@@ -371,7 +371,6 @@ export async function getContractorNotifications(
   );
 }
 
-
 export async function markContractorNotificationAsRead(
   notificationId: string
 ): Promise<ContractorNotification> {
@@ -381,4 +380,252 @@ export async function markContractorNotificationAsRead(
       method: "PATCH",
     }
   );
+}
+
+
+export type VerificationStatus =
+    | "not_required"
+    | "pending"
+    | "approved"
+    | "rejected";
+
+
+export type MyVerification = {
+    verificationStatus: VerificationStatus;
+
+    verificationReason: string | null;
+
+    verification: {
+        id: string;
+        status: "pending" | "approved" | "rejected";
+        rejectionReason: string | null;
+        submittedAt: string;
+        reviewedAt: string | null;
+    } | null;
+};
+
+
+export async function getMyVerification(
+    userId: string
+): Promise<MyVerification> {
+
+    return request<MyVerification>(
+        `/api/verifications/me/${encodeURIComponent(userId)}`
+    );
+}
+
+
+export async function submitIdentityVerification(data: {
+    userId: string;
+    citizenId: string;
+    laserCode: string;
+    email: string;
+    phone: string;
+    document: File;
+}) {
+    const formData = new FormData();
+
+    formData.append("userId", data.userId);
+    formData.append("citizenId", data.citizenId);
+    formData.append("laserCode", data.laserCode);
+    formData.append("email", data.email);
+    formData.append("phone", data.phone);
+
+    formData.append(
+        "document",
+        data.document
+    );
+
+    const response = await fetch(
+        `${API_URL}/api/verifications`,
+        {
+            method: "POST",
+            body: formData,
+        }
+    );
+
+    const contentType = response.headers.get("content-type");
+
+    if (
+        !contentType?.includes(
+            "application/json"
+        )
+    ) {
+        const text = await response.text();
+
+        console.error(
+            "Verification API returned non-JSON:",
+            response.status,
+            text
+        );
+
+        throw new Error(
+            `Verification API error (${response.status})`
+        );
+    }
+
+    const result = await response.json();
+
+    if (!response.ok) {
+        throw new Error(
+            result.error ||
+            "Failed to submit verification"
+        );
+    }
+
+  return result.data;
+}
+
+// ===============================
+// Admin Identity Verification
+// ===============================
+
+export type AdminVerificationStatus =
+    | "pending"
+    | "approved"
+    | "rejected";
+
+export type AdminVerificationListItem = {
+    id: string;
+
+    owner: {
+        id: string;
+        name: string;
+        email: string;
+        image: string | null;
+    } | null;
+
+    phone: string;
+
+    status: AdminVerificationStatus;
+
+    rejectionReason: string | null;
+
+    submittedAt: string;
+
+    reviewedAt: string | null;
+};
+
+export type AdminVerificationDetail = {
+    id: string;
+
+    owner: {
+        id: string;
+        name: string;
+        email: string;
+        image: string | null;
+    } | null;
+
+    citizenId: string;
+    laserCode: string;
+    email: string;
+    phone: string;
+
+    document: {
+        fileName: string;
+        mimeType: string;
+        size: number;
+        url: string;
+    };
+
+    status: AdminVerificationStatus;
+
+    rejectionReason: string | null;
+
+    reviewedBy: string | null;
+
+    submittedAt: string;
+
+    reviewedAt: string | null;
+};
+
+
+export async function getAdminVerifications(
+    adminId: string,
+    status?: AdminVerificationStatus
+): Promise<AdminVerificationListItem[]> {
+
+    const params =
+        new URLSearchParams({
+            adminId,
+        });
+
+    if (status) {
+        params.set("status", status);
+    }
+
+    return request<AdminVerificationListItem[]>(
+        `/api/verifications/admin?${params.toString()}`
+    );
+}
+
+
+export async function getAdminVerificationById(
+    verificationId: string,
+    adminId: string
+): Promise<AdminVerificationDetail> {
+
+    return request<AdminVerificationDetail>(
+        `/api/verifications/admin/${encodeURIComponent(
+            verificationId
+        )}?adminId=${encodeURIComponent(adminId)}`
+    );
+}
+
+
+export async function approveIdentityVerification(
+    verificationId: string,
+    adminId: string
+) {
+
+    return request<{
+        id: string;
+        status: "approved";
+        reviewedAt: string;
+    }>(
+        `/api/verifications/admin/${encodeURIComponent(
+            verificationId
+        )}/approve`,
+        {
+            method: "PATCH",
+
+            body: JSON.stringify({
+                adminId,
+            }),
+        }
+    );
+}
+
+
+export async function rejectIdentityVerification(
+    verificationId: string,
+    adminId: string,
+    reason: string
+) {
+
+    return request<{
+        id: string;
+        status: "rejected";
+        rejectionReason: string;
+        reviewedAt: string;
+    }>(
+        `/api/verifications/admin/${encodeURIComponent(
+            verificationId
+        )}/reject`,
+        {
+            method: "PATCH",
+
+            body: JSON.stringify({
+                adminId,
+                reason,
+            }),
+        }
+    );
+}
+
+
+export function getVerificationDocumentUrl(
+    relativeUrl: string
+) {
+    return `${API_URL}${relativeUrl}`;
 }

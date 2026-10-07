@@ -28,3 +28,6 @@ out/
 *gcp-service-account*.json
 *.serviceaccount.json
 backend/keys/
+
+# personal information of projectowner
+uploads/verifications/

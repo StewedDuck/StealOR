@@ -123,9 +123,7 @@ async function markNotificationAsRead(req, res) {
             await NotificationLog.findByIdAndUpdate(
                 id,
                 {
-                    $set: {
-                        read: true,
-                    },
+                    $set: { read: true, },
                 },
                 {
                     new: true,
