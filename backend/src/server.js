@@ -14,6 +14,7 @@ const govProjectRoutes = require("./routes/govProjectRoutes");
 const commentRoutes = require("./routes/commentRoutes");
 const userRoutes = require("./routes/userRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const verificationRoutes = require("./routes/verificationRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -30,6 +31,7 @@ app.use("/api/gov-projects", govProjectRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes );
+app.use("/api/verifications", verificationRoutes);
 
 app.post(
   "/api/test/deadline-reminders",

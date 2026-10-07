@@ -1,5 +1,4 @@
 const NotificationLog = require("../models/NotificationLog");
-const NotificationLog = require("../models/NotificationLog");
 const GovProject = require("../models/GovProject");
 const Tor = require("../models/Tor");
 
@@ -124,9 +123,7 @@ async function markNotificationAsRead(req, res) {
             await NotificationLog.findByIdAndUpdate(
                 id,
                 {
-                    $set: {
-                        read: true,
-                    },
+                    $set: { read: true, },
                 },
                 {
                     new: true,
