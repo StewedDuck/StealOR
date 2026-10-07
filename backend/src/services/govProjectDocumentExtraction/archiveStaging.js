@@ -13,7 +13,10 @@ const {
 } = require("./errors");
 
 const MAX_ARCHIVE_ENTRIES = 1_000;
-const MAX_PDF_COUNT = 20;
+// Official Invitation packages can contain a standard document set plus many
+// separately uploaded TOR attachments. Keep bounded per-file overhead while
+// leaving the independent 100 MiB aggregate extraction limit in force.
+const MAX_PDF_COUNT = 50;
 const MAX_TOTAL_PDF_BYTES = 100 * 1024 * 1024;
 
 function normalizedArchivePath(entryPath) {

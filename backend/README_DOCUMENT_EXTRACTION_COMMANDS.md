@@ -20,7 +20,7 @@ Validate stored locator (file_id, legacy_filename, or legacy_draft_transfer)
 Download ZIP buffer via e-GP Adapter -> temp/zips/{projectId}/{category}.zip (.part first)
   │
   ▼
-Inspect ZIP Central Directory (Path traversal check, max 20 PDFs, 100 MiB limit)
+Inspect ZIP Central Directory (Path traversal check, max 50 PDFs, 100 MiB limit)
   │
   ▼
 Stage PDFs in temp/pdfs/.staging/{runId}/ & validate '%PDF-' signature + SHA-256
