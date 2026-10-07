@@ -374,6 +374,21 @@ const sortOptions: {
   },
 ];
 
+// hidden project IDs that should not be displayed in the market
+const HIDDEN_PROJECT_IDS = new Set([
+  "69099568419",
+  "69079454736",
+  "69049472497",
+  "69099475279",
+  "69099257828",
+  "69099014571",
+  "69019550258",
+  "69099444939",
+  "69099328758",
+  "69099283920",
+  "69049212278",
+]);
+
 export default function TorMarketPage() {
     const [tors, setTors] = useState<MarketTor[]>([]);
     const [query, setQuery] = useState("");
@@ -511,8 +526,18 @@ export default function TorMarketPage() {
           );
 
           const visibleTors = checkedTors.filter((tor): tor is MarketTor => tor !== null);
+          // const visibleTors = checkedTors
+          //   .filter((tor): tor is MarketTor => tor !== null)
+          //   .filter((tor) => {
+          //     if (tor.source !== "government" || !tor.projectId) {
+          //       return true;
+          //     }
+
+          //     return !HIDDEN_PROJECT_IDS.has(tor.projectId);
+          //   });
 
           setTors(visibleTors);
+
         } catch (err) {
           setError(
             err instanceof Error ? err.message : "โหลด TOR ไม่สำเร็จ"
