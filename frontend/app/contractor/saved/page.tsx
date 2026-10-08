@@ -1028,13 +1028,13 @@ export default function SavedPage() {
                         </button>
                       ) : (
                         <>
-                          <button
+                          {/* <button
                             type="button"
                             className="saved-action-button primary"
                           >
                             <Phone size={15} />
                             ติดต่อเจ้าของโครงการ
-                          </button>
+                          </button> */}
 
                           {tor.source === "government" && tor.projectId && (
                             <>

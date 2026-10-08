@@ -298,16 +298,16 @@ const typeOptions: {
   {
     value: "internal",
     label: "Internal",
-  },
-  {
-    value: "tor_preparation",
-    label: "จัดทำ TOR",
-    dividerBefore: true,
-  },
-  {
-    value: "invitation",
-    label: "หนังสือเชิญชวน/ประกาศเชิญชวน",
-  },
+  }
+  // {
+  //   value: "tor_preparation",
+  //   label: "จัดทำ TOR",
+  //   dividerBefore: true,
+  // },
+  // {
+  //   value: "invitation",
+  //   label: "หนังสือเชิญชวน/ประกาศเชิญชวน",
+  // },
 ];
 
 
@@ -1255,13 +1255,13 @@ export default function TorMarketPage() {
                                 : "บันทึก"}
                         </button>
 
-                        <button
+                        {/* <button
                             type="button"
                             className="market-action-button primary"
                         >
                             <Phone size={15} />
                             ติดต่อเจ้าของโครงการ
-                        </button>
+                        </button> */}
 
                         {tor.source === "government" && tor.projectId && (
                             <>
