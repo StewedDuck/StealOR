@@ -20,7 +20,7 @@ import {
   deleteComment,
   type Comment,
 } from "@/lib/torApi";
-
+import FilterDropdown from "@/components/FilterDropdown";
 import type { SavedTor, MarketTorDetail, Tor } from "@/types/tor";
 
 import {
@@ -35,11 +35,44 @@ import {
   Tag,
   ChevronDown,
   X,
+  FileText,
+  RotateCcw,
 } from "lucide-react";
 import "./saved.css";
 import { getUserProfile } from "@/lib/torApi";
+import TORDocumentModal from "@/components/TORDocumentModal";
 
-type StatusFilter = "all" | "draft" | "published";
+type SourceFilter = 
+  | 'all'
+  | 'government'
+  | 'internal';
+
+type StatusFilter = 
+  | "all"
+  | "draft"
+  | "published"
+  | "closed";
+
+type BudgetFilter =
+  | "all"
+  | "under1m"
+  | "1m-10m"
+  | "10m-100m"
+  | "over100m"; 
+
+type TimeFilter =
+  | "all"
+  | "new"
+  | "closing"
+  | "closed";
+
+type YearFilter =
+  | "all"
+  | "current"
+  | "1"
+  | "2"
+  | "3"
+  | "older";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
   day: "2-digit",
@@ -140,13 +173,203 @@ function getStatusClass(status: string) {
   return "status-open";
 }
 
+function getCurrentBuddhistYear() {
+  return new Date().getFullYear() + 543;
+}
+
+function getShortBuddhistYear(yearsAgo: number) {
+  return (getCurrentBuddhistYear() - yearsAgo) % 100;
+}
+
+function getSavedTorYear(tor: SavedTor): number | null {
+  if (tor.source === "government") {
+    if (!tor.projectId || tor.projectId.length < 2) {
+      return null;
+    }
+    const shortYear = Number(
+      tor.projectId.slice(0, 2),
+    );
+    if (Number.isNaN(shortYear)) {
+      return null;
+    }
+    return 2500 + shortYear;
+  }
+
+  // Internal: ใช้ createdAt
+  if (!tor.createdAt) {
+    return null;
+  }
+  const createdAt = new Date(tor.createdAt);
+
+  if (Number.isNaN(createdAt.getTime())) {
+    return null;
+  }
+  return createdAt.getFullYear() + 543;
+}
+
 export default function SavedPage() {
   const { data: session } = useSession();
   const { showToast } = useToast();
-
   const userId = session?.user?.email ?? null;
-
   const [displayName, setDisplayName] = useState("");
+  const userName = displayName || session?.user?.name || "ผู้ใช้";
+  const initials = userName
+    .split(" ")
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+  const [savedTors, setSavedTors] = useState<SavedTor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [activeTorDetail, setActiveTorDetail] = useState<MarketTorDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [budgetFilter, setBudgetFilter] = useState<BudgetFilter>("all");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+  const [yearFilter, setYearFilter] = useState<YearFilter>("all");
+  const [reviewTor, setReviewTor] = useState<Tor | null>(null);
+  const [reviewText, setReviewText] = useState("");
+  const [reviews, setReviews] = useState<Comment[]>([]);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  const [documentTor, setDocumentTor] = useState<{
+    projectId: string;
+    projectName: string;
+  } | null>(null);
+
+  const sourceOptions: {
+    value: SourceFilter;
+    label: string;
+  }[] = [
+    {
+      value: "all",
+      label: "ทุกแหล่ง",
+    },
+    {
+      value: "government",
+      label: "Government",
+    },
+    {
+      value: "internal",
+      label: "Internal",
+    },
+  ];
+
+  const statusOptions: {
+    value: StatusFilter;
+    label: string;
+  }[] = [
+    {
+      value: "all",
+      label: "ทุกสถานะ",
+    },
+    {
+      value: "draft",
+      label: "ฉบับร่าง",
+    },
+    {
+      value: "published",
+      label: "เปิดรับ / Published",
+    },
+    {
+      value: "closed",
+      label: "ปิดรับแล้ว",
+    },
+  ];
+
+
+  const budgetOptions: {
+    value: BudgetFilter;
+    label: string;
+  }[] = [
+    {
+      value: "all",
+      label: "ทุกงบประมาณ",
+    },
+    {
+      value: "under1m",
+      label: "ต่ำกว่า 1M",
+    },
+    {
+      value: "1m-10m",
+      label: "1M - 10M",
+    },
+    {
+      value: "10m-100m",
+      label: "10M - 100M",
+    },
+    {
+      value: "over100m",
+      label: "มากกว่า 100M",
+    },
+  ];
+
+  const timeOptions: {
+    value: TimeFilter;
+    label: string;
+  }[] = [
+    {
+      value: "all",
+      label: "ทุกช่วงเวลา",
+    },
+    {
+      value: "new",
+      label: "มาใหม่วันนี้",
+    },
+    {
+      value: "closing",
+      label: "ใกล้ปิดรับ",
+    },
+    {
+      value: "closed",
+      label: "ปิดรับแล้ว",
+    },
+  ];
+
+  const yearOptions: {
+    value: YearFilter;
+    label: string;
+  }[] = [
+    {
+      value: "all",
+      label: "ทุกปี",
+    },
+    {
+      value: "current",
+      label: `ปีนี้ (${getShortBuddhistYear(0)
+        .toString()
+        .padStart(2, "0")})`,
+    },
+    {
+      value: "1",
+      label: `1 ปีที่แล้ว (${getShortBuddhistYear(1)
+        .toString()
+        .padStart(2, "0")})`,
+    },
+    {
+      value: "2",
+      label: `2 ปีที่แล้ว (${getShortBuddhistYear(2)
+        .toString()
+        .padStart(2, "0")})`,
+    },
+    {
+      value: "3",
+      label: `3 ปีที่แล้ว (${getShortBuddhistYear(3)
+        .toString()
+        .padStart(2, "0")})`,
+    },
+    {
+      value: "older",
+      label: `4 ปีขึ้นไป (≤${getShortBuddhistYear(4)
+        .toString()
+        .padStart(2, "0")})`,
+    },
+  ];
+
   useEffect(() => {
     const email = session?.user?.email;
 
@@ -162,42 +385,6 @@ export default function SavedPage() {
         setDisplayName(session?.user?.name ?? "");
       });
   }, [session?.user?.email, session?.user?.name]);
-
-  const userName = displayName || session?.user?.name || "ผู้ใช้";
-
-  const initials = userName
-    .split(" ")
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
-  const [savedTors, setSavedTors] = useState<SavedTor[]>([]);
-
-  const [loading, setLoading] = useState(true);
-
-  const [error, setError] = useState("");
-
-  const [query, setQuery] = useState("");
-
-  const [removingId, setRemovingId] = useState<string | null>(null);
-
-  const [activeTorDetail, setActiveTorDetail] =
-    useState<MarketTorDetail | null>(null);
-
-  const [detailLoading, setDetailLoading] = useState(false);
-
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-
-  const [reviewTor, setReviewTor] = useState<Tor | null>(null);
-
-  const [reviewText, setReviewText] = useState("");
-
-  const [reviews, setReviews] = useState<Comment[]>([]);
-
-  const [reviewLoading, setReviewLoading] = useState(false);
-
-  const [reviewError, setReviewError] = useState("");
 
   useEffect(() => {
     if (!userId) {
@@ -247,9 +434,8 @@ export default function SavedPage() {
   const filteredTors = useMemo(() => {
     let result = [...savedTors];
 
-    // SEARCH
+      // SEARCH  
     const keyword = query.trim().toLocaleLowerCase("th");
-
     if (keyword) {
       result = result.filter((tor) =>
         `${tor.projectName}
@@ -260,24 +446,164 @@ export default function SavedPage() {
           .includes(keyword),
       );
     }
-
-    // STATUS FILTER
+  
+    // SOURCE  
+    if (sourceFilter !== "all") {
+      result = result.filter(
+        (tor) => tor.source === sourceFilter,
+      );
+    }
+  
+    // STATUS  
     if (statusFilter !== "all") {
       result = result.filter((tor) => {
+        const status = tor.status?.toLowerCase() ?? "";
+        const days = getDaysUntil(tor.deadline);
         if (statusFilter === "draft") {
-          return tor.source === "internal";
+          return (
+            tor.source === "internal" &&
+            status === "draft"
+          );
         }
-
+  
         if (statusFilter === "published") {
-          return tor.source === "government";
+          // not draft and deadline
+          return (
+            status !== "draft" &&
+            (days === null || days >= 0)
+          );
         }
-
+  
+        if (statusFilter === "closed") {
+          return (
+            days !== null &&
+            days < 0
+          );
+        }
+        return true;
+      });
+    }
+  
+    // BUDGET  
+    if (budgetFilter !== "all") {
+      result = result.filter((tor) => {
+        const budget = tor.budget;
+  
+        if (budget == null) {
+          return false;
+        }
+  
+        if (budgetFilter === "under1m") {
+          return budget < 1_000_000;
+        }
+  
+        if (budgetFilter === "1m-10m") {
+          return (
+            budget >= 1_000_000 &&
+            budget < 10_000_000
+          );
+        }
+  
+        if (budgetFilter === "10m-100m") {
+          return (
+            budget >= 10_000_000 &&
+            budget < 100_000_000
+          );
+        }
+  
+        if (budgetFilter === "over100m") {
+          return budget >= 100_000_000;
+        }
         return true;
       });
     }
 
+    // TIME  
+    if (timeFilter !== "all") {
+      result = result.filter((tor) => {
+        const days = getDaysUntil(tor.deadline);
+  
+        if (timeFilter === "closing") {
+          return (
+            days !== null &&
+            days >= 0 &&
+            days <= 7
+          );
+        }
+  
+        if (timeFilter === "closed") {
+          return (
+            days !== null &&
+            days < 0
+          );
+        }
+
+        if (timeFilter === "new") {
+          if (!tor.createdAt) {
+            return false;
+          }
+          const createdAt = new Date(tor.createdAt);
+          if (
+            Number.isNaN(
+              createdAt.getTime(),
+            )
+          ) {
+            return false;
+          }
+          const today = new Date();
+  
+          return (
+            createdAt.getFullYear() === today.getFullYear() &&
+            createdAt.getMonth() === today.getMonth() &&
+            createdAt.getDate() === today.getDate()
+          );
+        }
+        return true;
+      });
+    }
+  
+    // YEAR  
+    if (yearFilter !== "all") {
+      const currentYear = getCurrentBuddhistYear();
+  
+      result = result.filter((tor) => {
+        const torYear = getSavedTorYear(tor);
+        if (torYear === null) {
+          return false;
+        }
+  
+        if (yearFilter === "current") {
+          return torYear === currentYear;
+        }
+  
+        if (yearFilter === "1") {
+          return torYear === currentYear - 1;
+        }
+  
+        if (yearFilter === "2") {
+          return torYear === currentYear - 2;
+        }
+  
+        if (yearFilter === "3") {
+          return torYear === currentYear - 3;
+        }
+  
+        if (yearFilter === "older") {
+          return torYear <= currentYear - 4;
+        }
+        return true;
+      });
+    }
     return result;
-  }, [savedTors, query, statusFilter]);
+  }, [
+    savedTors,
+    query,
+    sourceFilter,
+    statusFilter,
+    budgetFilter,
+    timeFilter,
+    yearFilter,
+  ]);
 
   async function handleRemoveBookmark(tor: SavedTor) {
     if (!userId) {
@@ -417,6 +743,15 @@ export default function SavedPage() {
     }
   }
 
+  function resetFilters() {
+    setQuery("");
+    setSourceFilter("all");
+    setStatusFilter("all");
+    setBudgetFilter("all");
+    setTimeFilter("all");
+    setYearFilter("all");
+  }
+
   return (
     <div className="saved-page">
       <Sidebar />
@@ -440,30 +775,59 @@ export default function SavedPage() {
 
         <div className="saved-content">
           <section className="saved-toolbar">
+            {/* search */}
             <div className="saved-search">
               <Search size={18} />
-
               <input
                 type="text"
                 placeholder="ค้นหา TOR ตามชื่อหรือหน่วยงาน..."
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) =>
+                  setQuery(event.target.value)
+                }
               />
             </div>
 
-            <div className="saved-filter-select">
-              <select
-                value={statusFilter}
-                onChange={(event) =>
-                  setStatusFilter(event.target.value as StatusFilter)
-                }
-              >
-                <option value="all">สถานะทั้งหมด</option>
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-              </select>
+            {/* Filter */}
+            <div className="saved-filter-row">
+              <FilterDropdown
+                value={sourceFilter}
+                options={sourceOptions}
+                onChange={setSourceFilter}
+              />
 
-              <ChevronDown size={15} />
+              <FilterDropdown
+                value={statusFilter}
+                options={statusOptions}
+                onChange={setStatusFilter}
+              />
+
+              <FilterDropdown
+                value={budgetFilter}
+                options={budgetOptions}
+                onChange={setBudgetFilter}
+              />
+
+              <FilterDropdown
+                value={timeFilter}
+                options={timeOptions}
+                onChange={setTimeFilter}
+              />
+
+              <FilterDropdown
+                value={yearFilter}
+                options={yearOptions}
+                onChange={setYearFilter}
+              />
+
+              <button
+                type="button"
+                className="saved-reset-filter"
+                onClick={resetFilters}
+              >
+                <RotateCcw size={16} />
+                <span>ล้างตัวกรอง</span>
+              </button>
             </div>
           </section>
 
@@ -507,7 +871,11 @@ export default function SavedPage() {
             <section className="saved-list">
               {filteredTors.map((tor) => {
                 const deadline = tor.deadline;
-
+                // console.log("SAVED TOR:", {
+                //   projectName: tor.projectName,
+                //   projectId: tor.projectId,
+                //   source: tor.source,
+                // });
                 const daysLeft = getDaysUntil(deadline);
 
                 const almostClosing = isAlmostClosing(deadline);
@@ -537,7 +905,12 @@ export default function SavedPage() {
                         )}
                       </div>
 
-                      <h2 className="saved-card-title">{tor.projectName}</h2>
+                      <h2 className="saved-card-title">
+                        {tor.projectName?.trim() &&
+                        tor.projectName.trim() !== "ไม่ระบุชื่อโครงการ"
+                          ? tor.projectName
+                          : tor.projectId || "ไม่ระบุชื่อโครงการ"}
+                      </h2>
 
                       <div className="saved-agency">
                         <Building2 size={15} />
@@ -655,13 +1028,13 @@ export default function SavedPage() {
                         </button>
                       ) : (
                         <>
-                          <button
+                          {/* <button
                             type="button"
                             className="saved-action-button primary"
                           >
                             <Phone size={15} />
                             ติดต่อเจ้าของโครงการ
-                          </button>
+                          </button> */}
 
                           {tor.source === "government" && tor.projectId && (
                             <>
@@ -681,18 +1054,19 @@ export default function SavedPage() {
                               </button>
 
                               <button
-                                type="button"
-                                className="saved-action-button"
-                                onClick={() =>
-                                  window.location.assign(
-                                    getGovProjectDocumentDownloadUrl(
-                                      tor.projectId!,
-                                    ),
-                                  )
-                                }
+                                  type="button"
+                                  className="saved-action-button"
+                                  onClick={() =>
+                                      setDocumentTor({
+                                          projectId: tor.projectId!,
+                                          projectName:
+                                              tor.projectName?.trim() ||
+                                              tor.projectId!,
+                                      })
+                                  }
                               >
-                                <Download size={15} />
-                                ดาวน์โหลดเอกสาร
+                                  <FileText size={15} />
+                                  เอกสาร TOR
                               </button>
                             </>
                           )}
@@ -718,6 +1092,14 @@ export default function SavedPage() {
           tor={activeTorDetail}
           onClose={() => setActiveTorDetail(null)}
         />
+      )}
+
+      {documentTor && (
+          <TORDocumentModal
+              projectId={documentTor.projectId}
+              projectName={documentTor.projectName}
+              onClose={() => setDocumentTor(null)}
+          />
       )}
 
       {reviewTor && (
@@ -870,6 +1252,7 @@ export default function SavedPage() {
             </div>
           </div>
         </div>
+        
       )}
     </div>
   );

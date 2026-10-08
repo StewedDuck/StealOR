@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Tor = require("../models/Tor");
 const Bookmark = require("../models/Bookmark");
 const User = require("../models/User");
+const NotificationLog = require("../models/NotificationLog");
 
 const { draftUpdated } = require("../email/Contractor");
 const { sendEmail } = require("../email/Mailer");
@@ -108,6 +109,29 @@ async function notifyDraftUpdated(tor) {
         continue;
       }
 
+      await NotificationLog.findOneAndUpdate(
+          {
+              userId: bookmark.userId,
+              source: "internal",
+              projectId: null,
+              torId: tor._id.toString(),
+              type: "draft_updated",
+          },
+          {
+              $set: {
+                  title: `TOR ร่างมีการอัปเดต: ${tor.projectName}`,
+                  message:
+                      "TOR ร่างที่คุณบันทึกไว้มีการอัปเดตข้อมูล กรุณาตรวจสอบรายละเอียดล่าสุด",
+                  read: false,
+                  sentAt: new Date(),
+              },
+          },
+          {
+              upsert: true,
+              new: true,
+          }
+      );
+
       const email = draftUpdated({
         name: user.name,
         torTitle: tor.projectName,
@@ -118,8 +142,8 @@ async function notifyDraftUpdated(tor) {
         to: user.email,
         subject: email.subject,
         text: email.text,
+        html: email.html,
       });
-
       console.log(
         `Draft updated email sent to ${user.email}: ${tor.projectName}`
       );

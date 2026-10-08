@@ -4,42 +4,74 @@ import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/sideBar";
 import { useToast } from "@/components/toast/ToastProvider";
 import {
-    getMarketTors,
-    getMarketTorById,
-    getBookmarks,
-    createBookmark,
-    deleteBookmark,
-    getEgpAnnouncementUrl,
-    getGovProjectDocumentDownloadUrl,
+  getMarketTors,
+  getMarketTorById,
+  getBookmarks,
+  createBookmark,
+  deleteBookmark,
+  getEgpAnnouncementUrl,
+  getLocalProjectDocuments,
 } from "@/lib/torApi";
 
 import type {
-    MarketTor,
-    MarketTorDetail,
+  MarketTor,
+  MarketTorDetail,
 } from "@/types/tor";
 import { useSession } from "next-auth/react";
 import TorDetailModal from "@/components/TORDetail";
+import FilterDropdown from "@/components/FilterDropdown";
+import MultiSelectFilterDropdown from "@/components/MultiSelectFilterDropdown";
 
-import{
-    Tag,
-    Building2,
-    RotateCcw,
-    ChevronDown,
-    Search,
-    BellRing,
-    CalendarDays,
-    Bookmark,
-    Download,
-    ExternalLink,
-    Phone
-} from 'lucide-react'
+import {
+  Tag,
+  Building2,
+  RotateCcw,
+  Search,
+  BellRing,
+  CalendarDays,
+  Bookmark,
+  Download,
+  ChevronDown,
+  ExternalLink,
+  Phone,
+  FileText,
+} from "lucide-react";
 import "./market.css";
 import { getUserProfile } from "@/lib/torApi";
+import TORDocumentModal from "@/components/TORDocumentModal";
 
 
-type TypeFilter = "all" | "government" | "internal";
-type TimeFilter = "all" | "new" | "closing";
-type SortOption = "name-asc" | "name-desc" | "newest" | "oldest";
+type TypeFilter = 
+  | "all"
+  | "government"
+  | "internal"
+  | "tor_preparation"
+  | "invitation";
+
+type TimeFilter =
+  | "all"
+  | "new"
+  | "closing"
+  | "closed";
+
+type YearFilter =
+  | "all"
+  | "current"
+  | "1"
+  | "2"
+  | "3"
+  | "older";
+
+type DocumentType =
+  | "priceEstimate"
+  | "draftEbidding"
+  | "invitation";
+
+type SortOption =
+  | "name-asc"
+  | "name-desc"
+  | "newest"
+  | "oldest";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
   day: "2-digit",
@@ -121,6 +153,12 @@ function isAlmostClosing(value?: string | null) {
   return days !== null && days >= 0 && days <= 7;
 }
 
+function isClosed(value?: string | null) {
+  const days = getDaysUntil(value);
+
+  return days !== null && days < 0;
+}
+
 function getTimeLabel(value?: string | null) {
   const days = getDaysUntil(value);
 
@@ -161,21 +199,222 @@ function getStatusClass(status: string) {
   return "status-open";
 }
 
+function getCurrentBuddhistYear() {
+  return new Date().getFullYear() + 543;
+}
+
+
+function getCurrentBuddhistYearShort() {
+  return getCurrentBuddhistYear() % 100;
+}
+
+
+function getShortBuddhistYear(
+  yearsAgo: number
+) {
+  const fullYear =
+    getCurrentBuddhistYear() - yearsAgo;
+
+  return fullYear % 100;
+}
+
+
+function getTorBuddhistYear(
+  tor: MarketTor
+): number | null {
+
+  // Government:
+  // projectId 69059292256 -> 69 -> 2569
+  if (tor.source === "government") {
+
+    if (
+      !tor.projectId ||
+      tor.projectId.length < 2
+    ) {
+      return null;
+    }
+
+    const shortYear = Number(
+      tor.projectId.slice(0, 2)
+    );
+
+    if (Number.isNaN(shortYear)) {
+      return null;
+    }
+
+    /*
+      e-GP IDs use the last two digits
+      of the Buddhist year.
+
+      Convert 69 -> 2569.
+      This also avoids comparing only
+      two-digit years internally.
+    */
+    return 2500 + shortYear;
+  }
+
+
+  // Internal:
+  // use createdAt
+  if (tor.source === "internal") {
+
+    if (!tor.createdAt) {
+      return null;
+    }
+
+    const createdAt =
+      new Date(tor.createdAt);
+
+    if (
+      Number.isNaN(
+        createdAt.getTime()
+      )
+    ) {
+      return null;
+    }
+
+    return (
+      createdAt.getFullYear() + 543
+    );
+  }
+
+
+  return null;
+}
+
+const typeOptions: {
+  value: TypeFilter;
+  label: string;
+  dividerBefore?: boolean;
+}[] = [
+  {
+    value: "all",
+    label: "ทุกประเภท TOR",
+  },
+  {
+    value: "government",
+    label: "Government",
+  },
+  {
+    value: "internal",
+    label: "Internal",
+  }
+  // {
+  //   value: "tor_preparation",
+  //   label: "จัดทำ TOR",
+  //   dividerBefore: true,
+  // },
+  // {
+  //   value: "invitation",
+  //   label: "หนังสือเชิญชวน/ประกาศเชิญชวน",
+  // },
+];
+
+
+const budgetOptions = [
+  {
+    value: "all",
+    label: "ทุกงบประมาณ",
+  },
+  {
+    value: "under1m",
+    label: "ต่ำกว่า 1M",
+  },
+  {
+    value: "1m-10m",
+    label: "1M - 10M",
+  },
+  {
+    value: "10m-100m",
+    label: "10M - 100M",
+  },
+  {
+    value: "over100m",
+    label: "มากกว่า 100M",
+  },
+];
+
+
+const timeOptions: {
+  value: TimeFilter;
+  label: string;
+}[] = [
+  {
+    value: "all",
+    label: "ทุกช่วงเวลา",
+  },
+  {
+    value: "new",
+    label: "มาใหม่วันนี้",
+  },
+  {
+    value: "closing",
+    label: "ใกล้ปิดรับ",
+  },
+  {
+    value: "closed",
+    label: "ปิดรับแล้ว",
+  },
+];
+
+
+const sortOptions: {
+  value: SortOption;
+  label: string;
+}[] = [
+  {
+    value: "name-asc",
+    label: "เรียงตาม: ชื่อโครงการ (ก → ฮ)",
+  },
+  {
+    value: "name-desc",
+    label: "เรียงตาม: ชื่อโครงการ (ฮ → ก)",
+  },
+  {
+    value: "newest",
+    label: "เรียงตาม: ใหม่ล่าสุด",
+  },
+  {
+    value: "oldest",
+    label: "เรียงตาม: เก่าสุด",
+  },
+];
+
+const documentTypeOptions: {
+  value: DocumentType;
+  label: string;
+}[] = [
+  {
+    value: "priceEstimate",
+    label: "ประกาศราคากลาง",
+  },
+  {
+    value: "draftEbidding",
+    label: "ร่างเอกสารประกวดราคา",
+  },
+  {
+    value: "invitation",
+    label: "ประกาศเชิญชวน",
+  },
+];
+
 export default function TorMarketPage() {
     const [tors, setTors] = useState<MarketTor[]>([]);
     const [query, setQuery] = useState("");
-    const [typeFilter, setTypeFilter] =
-        useState<TypeFilter>("all");
-    const [timeFilter, setTimeFilter] =
-        useState<TimeFilter>("all");
-    const [sortOption, setSortOption] =
-        useState<SortOption>("name-asc");
-    const [budgetFilter, setBudgetFilter] =
-        useState("all");
+    const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+    const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+    const [yearFilter, setYearFilter] =  useState<YearFilter>("all");
+    const [projectDocumentTypes, setProjectDocumentTypes] = useState<Record<string, DocumentType[]>>({});
+    const [documentTypeFilter, setDocumentTypeFilter] = useState<DocumentType[]>([]);
+    const [sortOption, setSortOption] = useState<SortOption>("name-asc");
+    const [budgetFilter, setBudgetFilter] = useState("all");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
     const [activeTor, setActiveTor] = useState<MarketTorDetail | null>(null);
+
+    const [documentTor, setDocumentTor] = useState<{ projectId: string; projectName: string; } | null>(null);
+
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState("");
     const [savedProjectIds, setSavedProjectIds] = useState<string[]>([]);
@@ -184,6 +423,48 @@ export default function TorMarketPage() {
     const { data: session } = useSession();
     const { showToast } = useToast();
     const [displayName, setDisplayName] = useState("");
+
+    const currentShortYear = getCurrentBuddhistYearShort();
+
+    const yearOptions: {
+      value: YearFilter;
+      label: string;
+    }[] = [
+      {
+        value: "all",
+        label: "ทุกปี",
+      },
+      {
+        value: "current",
+        label: `ปีนี้ (${currentShortYear
+          .toString()
+          .padStart(2, "0")})`,
+      },
+      {
+        value: "1",
+        label: `1 ปีที่แล้ว (${getShortBuddhistYear(1)
+          .toString()
+          .padStart(2, "0")})`,
+      },
+      {
+        value: "2",
+        label: `2 ปีที่แล้ว (${getShortBuddhistYear(2)
+          .toString()
+          .padStart(2, "0")})`,
+      },
+      {
+        value: "3",
+        label: `3 ปีที่แล้ว (${getShortBuddhistYear(3)
+          .toString()
+          .padStart(2, "0")})`,
+      },
+      {
+        value: "older",
+        label: `4 ปีขึ้นไป (≤${getShortBuddhistYear(4)
+          .toString()
+          .padStart(2, "0")})`,
+      },
+    ];
 
     useEffect(() => {
       const email = session?.user?.email;
@@ -218,18 +499,102 @@ export default function TorMarketPage() {
     ;
 
     useEffect(() => {
-        getMarketTors()
-        .then(setTors)
-        .catch((err) => {
-            setError(
-            err instanceof Error
-                ? err.message
-                : "โหลด TOR Market ไม่สำเร็จ"
+      async function loadMarketTors() {
+        try {
+          setLoading(true);
+          setError("");
+
+          const marketTors = await getMarketTors();
+
+          const documentTypeEntries =
+            await Promise.all(
+              marketTors.map(async (tor) => {
+                // Internal ไม่มี local Government documents
+                if (
+                  tor.source !== "government" || !tor.projectId
+                ) {
+                  return null;
+                }
+
+                try {
+                  const localDocuments =
+                    await getLocalProjectDocuments(
+                      tor.projectId
+                    );
+
+                  const documents =
+                    localDocuments.documents;
+
+                  const availableTypes: DocumentType[] =
+                    [];
+
+                  if (
+                    documents.priceEstimate.available &&
+                    documents.priceEstimate.files.length > 0
+                  ) {
+                    availableTypes.push(
+                      "priceEstimate"
+                    );
+                  }
+
+                  if (
+                    documents.draftEbidding.available &&
+                    documents.draftEbidding.files.length > 0
+                  ) {
+                    availableTypes.push(
+                      "draftEbidding"
+                    );
+                  }
+
+                  if (
+                    documents.invitation.available &&
+                    documents.invitation.files.length > 0
+                  ) {
+                    availableTypes.push(
+                      "invitation"
+                    );
+                  }
+
+                  return [
+                    tor.projectId,
+                    availableTypes,
+                  ] as const;
+
+                } catch (error) {
+                  console.error(
+                    `Failed to check local documents for project ${tor.projectId}:`,
+                    error
+                  );
+
+                  return [
+                    tor.projectId,
+                    [],
+                  ] as const;
+                }
+              })
             );
-        })
-        .finally(() => {
-            setLoading(false);
-        });
+
+          const documentTypeMap: Record< string, DocumentType[] > = {};
+
+          documentTypeEntries.forEach((entry) => {
+            if (!entry) return;
+            const [projectId, types] = entry;
+            documentTypeMap[projectId] = [...types];
+          });
+
+          setProjectDocumentTypes(documentTypeMap);
+
+          setTors(marketTors);
+
+        } catch (err) {
+          setError(
+            err instanceof Error ? err.message : "โหลด TOR ไม่สำเร็จ"
+          );
+        } finally {
+          setLoading(false);
+        }
+      }
+      loadMarketTors();
     }, []);
 
     useEffect(() => {
@@ -254,6 +619,17 @@ export default function TorMarketPage() {
             });
     }, [session?.user?.email]);
 
+    console.log("MARKET TORS:", tors);
+
+    console.log(
+        "TORS WITHOUT PROJECT NAME:",
+        tors.filter((tor) => !tor.projectName)
+    );
+
+    const getTorDisplayName = (tor: MarketTor) => {
+      return tor.projectName?.trim() || tor.projectId || "ไม่ระบุชื่อโครงการ";
+    };
+
     const filteredTors = useMemo(() => {
         let result = [...tors];
 
@@ -270,11 +646,49 @@ export default function TorMarketPage() {
             );
         }
 
-        // Type
-        if (typeFilter !== "all") {
-            result = result.filter(
-                (tor) => tor.source === typeFilter
+        // Type / Source / Government status
+        if (typeFilter === "government") {
+          result = result.filter(
+            (tor) =>
+              tor.source === "government"
+          );
+        }
+
+        if (typeFilter === "internal") {
+          result = result.filter(
+            (tor) =>
+              tor.source === "internal"
+          );
+        }
+
+        if (typeFilter === "tor_preparation") {
+          result = result.filter((tor) => {
+            if (tor.source !== "government") {
+              return false;
+            }
+            const status = tor.status
+                ?.trim()
+                .toLocaleLowerCase("th") ?? "";
+            return (
+              status.includes("จัดทำ tor") ||
+              status.includes("จัดทำtor")
             );
+          });
+        }
+
+        if (typeFilter === "invitation") {
+          result = result.filter((tor) => {
+            if (tor.source !== "government") {
+              return false;
+            }
+            const status = tor.status
+                ?.trim()
+                .toLocaleLowerCase("th") ?? "";
+            return (
+              status.includes("หนังสือเชิญชวน") ||
+              status.includes("ประกาศเชิญชวน")
+            );
+          });
         }
 
         // Time
@@ -288,6 +702,46 @@ export default function TorMarketPage() {
             result = result.filter((tor) =>
                 isAlmostClosing(tor.deadline)
             );
+        }
+
+        if (timeFilter === "closed") {
+          result = result.filter((tor) =>
+            isClosed(tor.deadline)
+          );
+        }
+
+        // Year
+        if (yearFilter !== "all") {
+          const currentYear = getCurrentBuddhistYear();
+
+          result = result.filter((tor) => {
+            const torYear = getTorBuddhistYear(tor);
+            if (torYear === null) {
+              return false;
+            }
+
+            if (yearFilter === "current") {
+              return torYear === currentYear;
+            }
+
+            if (yearFilter === "1") {
+              return torYear === currentYear - 1;
+            }
+
+            if (yearFilter === "2") {
+              return torYear === currentYear - 2;
+            }
+
+            if (yearFilter === "3") {
+              return torYear === currentYear - 3;
+            }
+
+            if (yearFilter === "older") {
+              return torYear <= currentYear - 4;
+            }
+
+            return true;
+          });
         }
 
         // Budget
@@ -316,23 +770,45 @@ export default function TorMarketPage() {
                 if (budgetFilter === "over100m") {
                 return budget > 100_000_000;
                 }
-
                 return true;
-            });
+            }
+          );
+        }
+
+        // Document Type
+        if (documentTypeFilter.length > 0) {
+          result = result.filter((tor) => {
+            if (
+              tor.source !== "government" || !tor.projectId
+            ) {
+              return false;
+            }
+
+            const availableTypes =  projectDocumentTypes[tor.projectId] ?? [];
+
+            // AND:
+            return documentTypeFilter.every(
+              (selectedType) =>
+                availableTypes.includes(selectedType)
+            );
+          });
         }
 
         // Sort
         result.sort((a, b) => {
+            const aName = a.projectName ?? "";
+            const bName = b.projectName ?? "";
+
             switch (sortOption) {
                 case "name-asc":
-                return a.projectName.localeCompare(
-                    b.projectName,
+                return aName.localeCompare(
+                  bName,
                     "th"
                 );
 
                 case "name-desc":
-                return b.projectName.localeCompare(
-                    a.projectName,
+                return bName.localeCompare(
+                  aName,
                     "th"
                 );
 
@@ -350,24 +826,29 @@ export default function TorMarketPage() {
 
                 default:
                 return 0;
+              }
             }
-        });
-
+          );
         return result;
-    }, [
+      }, [
         tors,
         query,
         typeFilter,
         timeFilter,
+        yearFilter,
         budgetFilter,
+        documentTypeFilter,
+        projectDocumentTypes,
         sortOption,
-    ]);
+      ]);
 
     function resetFilters() {
         setQuery("");
         setTypeFilter("all");
         setTimeFilter("all");
+        setYearFilter("all");
         setBudgetFilter("all");
+        setDocumentTypeFilter([]);
         setSortOption("name-asc");
     }
 
@@ -485,146 +966,83 @@ export default function TorMarketPage() {
         </header>
 
         <div className="market-content">
-          {/* Filters */}
           <section className="market-filters">
-
             {/* Search */}
-            <div className="market-search">
-              <Search size={18} />
+            <div className="market-filter-search-row">
+              <div className="market-search">
+                <Search size={18} />
 
-              <input
-                type="text"
-                placeholder="ค้นหา TOR ตามชื่อหรือหน่วยงาน..."
-                value={query}
-                onChange={(e) =>
-                  setQuery(e.target.value)
-                }
-              />
+                <input
+                  type="text"
+                  placeholder="ค้นหา TOR ตามชื่อหรือหน่วยงาน..."
+                  value={query}
+                  onChange={(e) =>
+                    setQuery(e.target.value)
+                  }
+                />
+              </div>
             </div>
-
-            {/* Type */}
-            <div className="filter-select">
-              <select
+            
+            {/* filter */}
+            <div className="market-filter-options-row">
+              {/* Type */}
+              <FilterDropdown
                 value={typeFilter}
-                onChange={(e) =>
-                  setTypeFilter(
-                    e.target.value as TypeFilter
-                  )
-                }
-              >
-                <option value="all">
-                  ทุกประเภทซอฟต์แวร์
-                </option>
-
-                <option value="government">
-                  Government
-                </option>
-
-                <option value="internal">
-                  Internal
-                </option>
-              </select>
-
-              <ChevronDown size={16} />
-            </div>
-
-            {/* Budget */}
-            <div className="filter-select">
-              <select
+                options={typeOptions}
+                onChange={setTypeFilter}
+                className="type-filter-dropdown"
+              />
+              
+              {/* Budget */}
+              <FilterDropdown
                 value={budgetFilter}
-                onChange={(e) =>
-                  setBudgetFilter(e.target.value)
-                }
-              >
-                <option value="all">
-                  ทุกงบประมาณ
-                </option>
+                options={budgetOptions}
+                onChange={setBudgetFilter}
+                className="budget-filter-dropdown"
+              />
 
-                <option value="under1m">
-                  ต่ำกว่า 1M
-                </option>
-
-                <option value="1m-10m">
-                  1M - 10M
-                </option>
-
-                <option value="10m-100m">
-                  10M - 100M
-                </option>
-
-                <option value="over100m">
-                  มากกว่า 100M
-                </option>
-              </select>
-
-              <ChevronDown size={16} />
-            </div>
-
-            {/* Time */}
-            <div className="filter-select">
-              <select
+              {/* Time */}
+              <FilterDropdown
                 value={timeFilter}
-                onChange={(e) =>
-                  setTimeFilter(
-                    e.target.value as TimeFilter
-                  )
-                }
-              >
-                <option value="all">
-                  ทุกช่วงเวลา
-                </option>
+                options={timeOptions}
+                onChange={setTimeFilter}
+                className="time-filter-dropdown"
+              />
 
-                <option value="new">
-                  New Today
-                </option>
+              {/* Year */}
+              <FilterDropdown
+                value={yearFilter}
+                options={yearOptions}
+                onChange={setYearFilter}
+                className="year-filter-dropdown"
+              />
 
-                <option value="closing">
-                  Almost Closing
-                </option>
-              </select>
-
-              <ChevronDown size={16} />
-            </div>
-
-            {/* Sort */}
-            <div className="filter-select sort-select">
-              <select
+              {/* Document Type */}
+              <MultiSelectFilterDropdown
+                values={documentTypeFilter}
+                options={documentTypeOptions}
+                onChange={setDocumentTypeFilter}
+                placeholder="ประเภทเอกสาร"
+              />
+              
+              {/* Sort */}
+              <FilterDropdown
                 value={sortOption}
-                onChange={(e) =>
-                  setSortOption(
-                    e.target.value as SortOption
-                  )
-                }
+                options={sortOptions}
+                onChange={setSortOption}
+                className="sort-filter-dropdown"
+              />
+
+              <button
+                type="button"
+                className="reset-filter"
+                onClick={resetFilters}
+                title="ล้างตัวกรอง"
               >
-                <option value="name-asc">
-                  เรียงตาม: ชื่อโครงการ (ก → ฮ)
-                </option>
-
-                <option value="name-desc">
-                  เรียงตาม: ชื่อโครงการ (ฮ → ก)
-                </option>
-
-                <option value="newest">
-                  เรียงตาม: ใหม่ล่าสุด
-                </option>
-
-                <option value="oldest">
-                  เรียงตาม: เก่าสุด
-                </option>
-              </select>
-
-              <ChevronDown size={16} />
+                <RotateCcw size={16} />
+                <span>ล้างตัวกรอง</span>
+              </button>
             </div>
-
-            <button
-              type="button"
-              className="reset-filter"
-              onClick={resetFilters}
-              title="ล้างตัวกรอง"
-            >
-              <RotateCcw size={16} />
-              <span>ล้างตัวกรอง</span>
-            </button>
           </section>
 
           {/* Result count */}
@@ -666,8 +1084,8 @@ export default function TorMarketPage() {
                 tor.deadline
               );
 
-              const almostClosing =
-                isAlmostClosing(tor.deadline);
+              const almostClosing = isAlmostClosing(tor.deadline);
+              const closed = isClosed(tor.deadline);
 
             return (
                 <article
@@ -683,11 +1101,15 @@ export default function TorMarketPage() {
                             </span>
 
                             <span
-                                className={`market-badge ${getStatusClass(
-                                tor.status
-                                )}`}
+                              className={`market-badge ${
+                                closed
+                                  ? "status-closed"
+                                  : getStatusClass(tor.status)
+                              }`}
                             >
-                                {tor.status || "เปิดรับ"}
+                              {closed
+                                ? "ปิดรับแล้ว"
+                                : tor.status || "เปิดรับ"}
                             </span>
 
                             {tor.projectId && (
@@ -698,7 +1120,7 @@ export default function TorMarketPage() {
                         </div>
 
                         <h2 className="market-card-title">
-                            {tor.projectName}
+                          {getTorDisplayName(tor)}
                         </h2>
 
                         <div className="market-agency">
@@ -725,7 +1147,7 @@ export default function TorMarketPage() {
                                 <Tag size={15} />
 
                                 <span>
-                                Software Project
+                                  Software Project
                                 </span>
                             </div>
 
@@ -735,20 +1157,22 @@ export default function TorMarketPage() {
                                 <span>
                                     ปิดรับ{" "}
                                     <strong>
-                                    {formatDate(tor.deadline)}
+                                      {formatDate(tor.deadline)}
                                     </strong>
                                 </span>
                             </div>
 
-                            {almostClosing &&
-                                daysLeft !== null && (
-                                    <span className="closing-badge">
-                                        {daysLeft === 0
-                                        ? "ปิดวันนี้"
-                                        : `${daysLeft} วันคงเหลือ`}
-                                    </span>
-                                )
-                            }
+                            {timeLabel && (almostClosing || closed) && (
+                              <span
+                                className={
+                                  closed
+                                    ? "closed-badge"
+                                    : "closing-badge"
+                                }
+                              >
+                                {timeLabel}
+                              </span>
+                            )}
                         </div>
 
                         {tor.description && (
@@ -763,27 +1187,27 @@ export default function TorMarketPage() {
                         {typeof tor.matchPercent === "number" && (
                             <div className="market-match">
                                 <div className="match-circle">
-                                <svg viewBox="0 0 100 100">
-                                    <circle
-                                    className="match-track"
-                                    cx="50"
-                                    cy="50"
-                                    r="40"
-                                    />
+                                  <svg viewBox="0 0 100 100">
+                                      <circle
+                                        className="match-track"
+                                        cx="50"
+                                        cy="50"
+                                        r="40"
+                                      />
 
-                                    <circle
-                                    className="match-progress"
-                                    cx="50"
-                                    cy="50"
-                                    r="40"
-                                    style={{
-                                        strokeDashoffset:
-                                        251 - (251 * tor.matchPercent) / 100,
-                                    }}
-                                    />
-                                </svg>
+                                      <circle
+                                        className="match-progress"
+                                        cx="50"
+                                        cy="50"
+                                        r="40"
+                                        style={{
+                                            strokeDashoffset:
+                                            251 - (251 * tor.matchPercent) / 100,
+                                        }}
+                                      />
+                                  </svg>
 
-                                <span>{tor.matchPercent}%</span>
+                                  <span>{tor.matchPercent}%</span>
                                 </div>
 
                                 <small>ความตรงกัน</small>
@@ -831,13 +1255,13 @@ export default function TorMarketPage() {
                                 : "บันทึก"}
                         </button>
 
-                        <button
+                        {/* <button
                             type="button"
                             className="market-action-button primary"
                         >
                             <Phone size={15} />
                             ติดต่อเจ้าของโครงการ
-                        </button>
+                        </button> */}
 
                         {tor.source === "government" && tor.projectId && (
                             <>
@@ -856,7 +1280,7 @@ export default function TorMarketPage() {
                                     ไปยังหน้า TOR
                                 </button>
 
-                                <button
+                                {/* <button
                                     type="button"
                                     className="market-action-button"
                                     onClick={() =>
@@ -869,6 +1293,20 @@ export default function TorMarketPage() {
                                 >
                                     <Download size={15} />
                                     ดาวน์โหลดเอกสาร
+                                </button> */}
+
+                                <button
+                                  type="button"
+                                  className="market-action-button"
+                                  onClick={() =>
+                                    setDocumentTor({
+                                      projectId: tor.projectId!,
+                                      projectName: tor.projectName,
+                                    })
+                                  }
+                                >
+                                  <FileText size={15} />
+                                  เอกสาร TOR
                                 </button>
                             </>
                         )}
@@ -898,6 +1336,15 @@ export default function TorMarketPage() {
                 onClose={() => setActiveTor(null)}
             />
         )}
+
+        {documentTor && (
+          <TORDocumentModal
+            projectId={documentTor.projectId}
+            projectName={documentTor.projectName}
+            onClose={() => setDocumentTor(null)}
+          />
+        )}
+
     </div>
   );
 }

@@ -8,7 +8,33 @@ export function getEgpAnnouncementUrl(projectId: string) {
 }
 
 export function getGovProjectDocumentDownloadUrl(projectId: string) {
-  return `${API_URL}/api/gov-projects/${encodeURIComponent(projectId)}/document/download`;
+  return getGovProjectDocumentCategoryDownloadUrl(projectId, "price-estimate");
+}
+
+export type GovProjectDocumentCategory =
+  | "price-estimate"
+  | "invitation"
+  | "draft-ebidding";
+
+export function getGovProjectDocumentCategoryDownloadUrl(
+  projectId: string,
+  category: GovProjectDocumentCategory
+) {
+  const encodedProjectId = encodeURIComponent(projectId);
+  // The browser always downloads through our backend; it never relies on a
+  // stored e-GP URL, which may become stale when upstream file IDs change.
+  if (category === "price-estimate") {
+    return `${API_URL}/api/gov-projects/${encodedProjectId}/document/download`;
+  }
+  return `${API_URL}/api/gov-projects/${encodedProjectId}/documents/${category}/download`;
+}
+
+export function getGovProjectInvitationDownloadUrl(projectId: string) {
+  return getGovProjectDocumentCategoryDownloadUrl(projectId, "invitation");
+}
+
+export function getGovProjectDraftEbiddingDownloadUrl(projectId: string) {
+  return getGovProjectDocumentCategoryDownloadUrl(projectId, "draft-ebidding");
 }
 
 type ApiResponse<T> = { success: boolean; data: T; message?: string; error?: string };
@@ -270,4 +296,336 @@ export async function updateUserProfile(
       body: JSON.stringify(data),
     }
   );
+}
+
+export type LocalDocumentFile = {
+  fileName: string;
+  url: string;
+};
+
+export type LocalDocumentCategory = {
+  available: boolean;
+  files: LocalDocumentFile[];
+};
+
+export type LocalProjectDocuments = {
+  projectId: string;
+  documents: {
+    priceEstimate: LocalDocumentCategory;
+    invitation: LocalDocumentCategory;
+    draftEbidding: LocalDocumentCategory;
+  };
+};
+
+export async function getLocalProjectDocuments(
+  projectId: string
+): Promise<LocalProjectDocuments> {
+    return request<LocalProjectDocuments>(
+      `/api/gov-projects/${encodeURIComponent(
+        projectId
+      )}/documents/local`
+    );
+  }
+
+export function getLocalDocumentUrl(
+  relativeUrl: string
+) {
+  return `${API_URL}${relativeUrl}`;
+}
+
+export type ContractorNotificationType =
+  | "deadline_5_days"
+  | "deadline_1_day"
+  | "draft_updated";
+
+  export type ContractorNotification = {
+    _id: string;
+    userId: string;
+
+    source: "government" | "internal";
+
+    projectId: string | null;
+    torId: string | null;
+
+    type: ContractorNotificationType;
+
+    title?: string;
+    message?: string;
+
+    torName?: string;
+    torIdentifier?: string;
+
+    read: boolean;
+
+    sentAt: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+
+export async function getContractorNotifications(
+  userId: string
+): Promise<ContractorNotification[]> {
+  return request<ContractorNotification[]>(
+    `/api/notifications?userId=${encodeURIComponent(userId)}`
+  );
+}
+
+export async function markContractorNotificationAsRead(
+  notificationId: string
+): Promise<ContractorNotification> {
+  return request<ContractorNotification>(
+    `/api/notifications/${encodeURIComponent(notificationId)}/read`,
+    {
+      method: "PATCH",
+    }
+  );
+}
+
+
+export type VerificationStatus =
+    | "not_required"
+    | "pending"
+    | "approved"
+    | "rejected";
+
+
+export type MyVerification = {
+    verificationStatus: VerificationStatus;
+
+    verificationReason: string | null;
+
+    verification: {
+        id: string;
+        status: "pending" | "approved" | "rejected";
+        rejectionReason: string | null;
+        submittedAt: string;
+        reviewedAt: string | null;
+    } | null;
+};
+
+
+export async function getMyVerification(
+    userId: string
+): Promise<MyVerification> {
+
+    return request<MyVerification>(
+        `/api/verifications/me/${encodeURIComponent(userId)}`
+    );
+}
+
+
+export async function submitIdentityVerification(data: {
+    userId: string;
+    citizenId: string;
+    laserCode: string;
+    email: string;
+    phone: string;
+    document: File;
+}) {
+    const formData = new FormData();
+
+    formData.append("userId", data.userId);
+    formData.append("citizenId", data.citizenId);
+    formData.append("laserCode", data.laserCode);
+    formData.append("email", data.email);
+    formData.append("phone", data.phone);
+
+    formData.append(
+        "document",
+        data.document
+    );
+
+    const response = await fetch(
+        `${API_URL}/api/verifications`,
+        {
+            method: "POST",
+            body: formData,
+        }
+    );
+
+    const contentType = response.headers.get("content-type");
+
+    if (
+        !contentType?.includes(
+            "application/json"
+        )
+    ) {
+        const text = await response.text();
+
+        console.error(
+            "Verification API returned non-JSON:",
+            response.status,
+            text
+        );
+
+        throw new Error(
+            `Verification API error (${response.status})`
+        );
+    }
+
+    const result = await response.json();
+
+    if (!response.ok) {
+        throw new Error(
+            result.error ||
+            "Failed to submit verification"
+        );
+    }
+
+  return result.data;
+}
+
+// ===============================
+// Admin Identity Verification
+// ===============================
+
+export type AdminVerificationStatus =
+    | "pending"
+    | "approved"
+    | "rejected";
+
+export type AdminVerificationListItem = {
+    id: string;
+
+    owner: {
+        id: string;
+        name: string;
+        email: string;
+        image: string | null;
+    } | null;
+
+    phone: string;
+
+    status: AdminVerificationStatus;
+
+    rejectionReason: string | null;
+
+    submittedAt: string;
+
+    reviewedAt: string | null;
+};
+
+export type AdminVerificationDetail = {
+    id: string;
+
+    owner: {
+        id: string;
+        name: string;
+        email: string;
+        image: string | null;
+    } | null;
+
+    citizenId: string;
+    laserCode: string;
+    email: string;
+    phone: string;
+
+    document: {
+        fileName: string;
+        mimeType: string;
+        size: number;
+        url: string;
+    };
+
+    status: AdminVerificationStatus;
+
+    rejectionReason: string | null;
+
+    reviewedBy: string | null;
+
+    submittedAt: string;
+
+    reviewedAt: string | null;
+};
+
+
+export async function getAdminVerifications(
+    adminId: string,
+    status?: AdminVerificationStatus
+): Promise<AdminVerificationListItem[]> {
+
+    const params =
+        new URLSearchParams({
+            adminId,
+        });
+
+    if (status) {
+        params.set("status", status);
+    }
+
+    return request<AdminVerificationListItem[]>(
+        `/api/verifications/admin?${params.toString()}`
+    );
+}
+
+
+export async function getAdminVerificationById(
+    verificationId: string,
+    adminId: string
+): Promise<AdminVerificationDetail> {
+
+    return request<AdminVerificationDetail>(
+        `/api/verifications/admin/${encodeURIComponent(
+            verificationId
+        )}?adminId=${encodeURIComponent(adminId)}`
+    );
+}
+
+
+export async function approveIdentityVerification(
+    verificationId: string,
+    adminId: string
+) {
+
+    return request<{
+        id: string;
+        status: "approved";
+        reviewedAt: string;
+    }>(
+        `/api/verifications/admin/${encodeURIComponent(
+            verificationId
+        )}/approve`,
+        {
+            method: "PATCH",
+
+            body: JSON.stringify({
+                adminId,
+            }),
+        }
+    );
+}
+
+
+export async function rejectIdentityVerification(
+    verificationId: string,
+    adminId: string,
+    reason: string
+) {
+
+    return request<{
+        id: string;
+        status: "rejected";
+        rejectionReason: string;
+        reviewedAt: string;
+    }>(
+        `/api/verifications/admin/${encodeURIComponent(
+            verificationId
+        )}/reject`,
+        {
+            method: "PATCH",
+
+            body: JSON.stringify({
+                adminId,
+                reason,
+            }),
+        }
+    );
+}
+
+
+export function getVerificationDocumentUrl(
+    relativeUrl: string
+) {
+    return `${API_URL}${relativeUrl}`;
 }

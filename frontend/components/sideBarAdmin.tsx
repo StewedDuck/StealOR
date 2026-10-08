@@ -40,7 +40,7 @@ const menuItems: MenuSection[] = [
             },
             {
                 name: "ยืนยัดตัวตน",
-                href: "/verify_identity",
+                href: "/admin/verification",
                 icon: "ShieldCheck",
             },
             {

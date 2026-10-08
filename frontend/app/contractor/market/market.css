@@ -74,7 +74,6 @@
 }
 
 /*  CONTENT  */
-
 .market-content {
   width: 100%;
   box-sizing: border-box;
@@ -82,30 +81,36 @@
 }
 
 /*  FILTERS  */
-
 .market-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  padding: 16px;
+
+  background: #FCFCFA;
+
+  border: 1px solid #E1E4E6;
+  border-radius: 14px;
+}
+
+.market-filter-options-row > * {
+  min-width: 0;
+}
+
+.year-filter-dropdown {
+  min-width: 0;
+  width: 100%;
+}
+
+/* Search row */
+.market-filter-search-row {
+  width: 100%;
+}
+
+.market-filter-search-row .market-search {
   width: 100%;
   box-sizing: border-box;
-
-  display: grid;
-
-  grid-template-columns:
-    minmax(240px, 2fr)
-    minmax(140px, 1fr)
-    minmax(120px, 0.8fr)
-    minmax(130px, 0.9fr)
-    minmax(150px, 1fr)
-    auto;
-
-  gap: 10px;
-
-  padding: 14px 16px;
-
-  background: #fcfcfa;
-  border: 1px solid #dde2e5;
-  border-radius: 12px;
-
-  margin-bottom: 14px;
 }
 
 .market-search {
@@ -142,6 +147,26 @@
 
 .market-search input::placeholder {
   color: #8c969f;
+}
+
+/* Filters row */
+.market-filter-options-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(145px, 1fr)     /* Type */
+    minmax(120px, 0.8fr)   /* Budget */
+    minmax(120px, 0.8fr)   /* Time */
+    minmax(90px, 0.6fr)    /* Year */
+    minmax(145px, 0.95fr)  /* Document Type */
+    minmax(190px, 1.2fr)   /* Sort */
+    auto;    
+
+  gap: 10px;
+
+  align-items: center;
+
+  width: 100%;
 }
 
 .filter-select {
@@ -184,6 +209,18 @@
   color: #64717c;
 }
 
+/* Make dropdown fit its grid column */
+.market-filter-options-row .filter-dropdown {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Reset button */
+.market-filter-options-row .reset-filter {
+  white-space: nowrap;
+  height: 42px;
+}
+
 .reset-filter {
   height: 38px;
 
@@ -214,7 +251,6 @@
 }
 
 /*  RESULT COUNT  */
-
 .market-result-count {
   margin: 12px 2px;
 
@@ -223,7 +259,6 @@
 }
 
 /*  LIST */
-
 .market-list {
   width: 100%;
 
@@ -233,7 +268,6 @@
 }
 
 /*  CARD */
-
 .market-card {
   width: 100%;
   min-width: 0;
@@ -270,7 +304,6 @@
 }
 
 /*  BADGES */
-
 .market-card-top {
   display: flex;
   align-items: center;
@@ -318,7 +351,6 @@
 }
 
 /*  TITLE  */
-
 .market-card-title {
   margin: 0 0 7px;
 
@@ -333,7 +365,6 @@
 }
 
 /*  AGENCY  */
-
 .market-agency {
   display: flex;
   align-items: center;
@@ -347,7 +378,6 @@
 }
 
 /*  META */
-
 .market-card-meta {
   display: flex;
   align-items: center;
@@ -422,7 +452,6 @@
 }
 
 /*  MATCH */
-
 .market-match {
   display: flex;
   flex-direction: column;
@@ -506,7 +535,6 @@
 }
 
 /*  ACTIONS */
-
 .market-card-actions {
   display: flex;
   flex-direction: column;
@@ -557,7 +585,6 @@
 }
 
 /* MESSAGE */
-
 .market-message {
   min-height: 220px;
 
@@ -583,8 +610,22 @@
   color: #a05252;
 }
 
-/* RESPONSIVE */
+.closed-badge {
+  display: inline-flex;
+  align-items: center;
 
+  padding: 4px 9px;
+
+  border-radius: 999px;
+
+  background: #F3E5E5;
+  color: #A65353;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* RESPONSIVE */
 /* Laptop / smaller desktop */
 @media (max-width: 1400px) {
   .market-filters {
@@ -694,6 +735,24 @@
   }
 
   .market-card-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1200px) {
+  .market-filter-options-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .market-filter-options-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .market-filter-options-row {
     grid-template-columns: 1fr;
   }
 }

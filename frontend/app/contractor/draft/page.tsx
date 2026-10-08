@@ -21,11 +21,13 @@ import {
     X,
     BellRing,
     Bookmark,
+    RotateCcw,
 } from "lucide-react";
 import "./draft.css";
 import TorDetailModal from "@/components/TORDetail";
 import { useSession } from "next-auth/react";
 import type { Comment } from "@/lib/torApi";
+import FilterDropdown from "@/components/FilterDropdown";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", { dateStyle: "medium" });
 
@@ -53,9 +55,79 @@ function formatReviewDate(value: string) {
     }).format(date);
 }
 
+type BudgetFilter =
+    | "all"
+    | "under1m"
+    | "1m-10m"
+    | "10m-100m"
+    | "over100m";
+
+type TimeFilter =
+    | "all"
+    | "new"
+    | "closing"
+    | "closed";
+
+type YearFilter =
+    | "all"
+    | "current"
+    | "1"
+    | "2"
+    | "3"
+    | "older";
+
+function getCurrentBuddhistYear() {
+    return new Date().getFullYear() + 543;
+}
+
+function getShortBuddhistYear(yearsAgo: number) {
+    return (getCurrentBuddhistYear() - yearsAgo) % 100;
+}
+
+function isToday(value?: string | null) {
+    if (!value) return false;
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return false;
+    }
+
+    const today = new Date();
+
+    return (
+        date.getFullYear() === today.getFullYear() &&
+        date.getMonth() === today.getMonth() &&
+        date.getDate() === today.getDate()
+    );
+}
+
+function getDaysUntil(value?: string | null) {
+    if (!value) return null;
+
+    const target = new Date(value);
+
+    if (Number.isNaN(target.getTime())) {
+        return null;
+    }
+
+    const today = new Date();
+
+    today.setHours(0, 0, 0, 0);
+    target.setHours(0, 0, 0, 0);
+
+    return Math.ceil(
+        (target.getTime() - today.getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+}
+
 export default function ContractorDraftTOR() {
     const [tors, setTors] = useState<Tor[]>([]);
     const [query, setQuery] = useState("");
+    const [budgetFilter, setBudgetFilter] = useState<BudgetFilter>("all");
+    const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+    const [yearFilter, setYearFilter] = useState<YearFilter>("all");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [activeTor, setActiveTor] = useState<Tor | null>(null);
@@ -69,6 +141,94 @@ export default function ContractorDraftTOR() {
 
     const { data: session } = useSession();
     const { showToast } = useToast();
+
+    const budgetOptions: {
+        value: BudgetFilter;
+        label: string;
+    }[] = [
+        {
+            value: "all",
+            label: "ทุกงบประมาณ",
+        },
+        {
+            value: "under1m",
+            label: "ต่ำกว่า 1M",
+        },
+        {
+            value: "1m-10m",
+            label: "1M - 10M",
+        },
+        {
+            value: "10m-100m",
+            label: "10M - 100M",
+        },
+        {
+            value: "over100m",
+            label: "มากกว่า 100M",
+        },
+    ];
+
+    const timeOptions: {
+        value: TimeFilter;
+        label: string;
+    }[] = [
+        {
+            value: "all",
+            label: "ทุกช่วงเวลา",
+        },
+        {
+            value: "new",
+            label: "มาใหม่วันนี้",
+        },
+        {
+            value: "closing",
+            label: "ใกล้ปิดรับ",
+        },
+        {
+            value: "closed",
+            label: "ปิดรับแล้ว",
+        },
+    ];
+
+    const yearOptions: {
+        value: YearFilter;
+        label: string;
+    }[] = [
+        {
+            value: "all",
+            label: "ทุกปี",
+        },
+        {
+            value: "current",
+            label: `ปีนี้ (${getShortBuddhistYear(0)
+                .toString()
+                .padStart(2, "0")})`,
+        },
+        {
+            value: "1",
+            label: `1 ปีที่แล้ว (${getShortBuddhistYear(1)
+                .toString()
+                .padStart(2, "0")})`,
+        },
+        {
+            value: "2",
+            label: `2 ปีที่แล้ว (${getShortBuddhistYear(2)
+                .toString()
+                .padStart(2, "0")})`,
+        },
+        {
+            value: "3",
+            label: `3 ปีที่แล้ว (${getShortBuddhistYear(3)
+                .toString()
+                .padStart(2, "0")})`,
+        },
+        {
+            value: "older",
+            label: `4 ปีขึ้นไป (≤${getShortBuddhistYear(4)
+                .toString()
+                .padStart(2, "0")})`,
+        },
+    ];
 
     useEffect(() => {
         const userId = session?.user?.email;
@@ -121,12 +281,138 @@ export default function ContractorDraftTOR() {
     }, [reviewTor]);
 
     const visibleTors = useMemo(() => {
+        let result = [...tors];
+        // Search
         const keyword = query.trim().toLocaleLowerCase("th");
-        if (!keyword) return tors;
-        return tors.filter((tor) =>
-            `${tor.projectName} ${tor.agencyName}`.toLocaleLowerCase("th").includes(keyword)
-        );
-    }, [query, tors]);
+        if (keyword) {
+            result = result.filter((tor) =>
+                `${tor.projectName} ${tor.agencyName}`
+                    .toLocaleLowerCase("th")
+                    .includes(keyword)
+            );
+        }
+    
+        // Budget
+        if (budgetFilter !== "all") {
+            result = result.filter((tor) => {
+                const budget = tor.budget;
+                if (budget == null) {
+                    return false;
+                }
+    
+                if (budgetFilter === "under1m") {
+                    return budget < 1_000_000;
+                }
+    
+                if (budgetFilter === "1m-10m") {
+                    return (
+                        budget >= 1_000_000 &&
+                        budget < 10_000_000
+                    );
+                }
+    
+                if (budgetFilter === "10m-100m") {
+                    return (
+                        budget >= 10_000_000 &&
+                        budget < 100_000_000
+                    );
+                }
+    
+                if (budgetFilter === "over100m") {
+                    return budget >= 100_000_000;
+                }
+    
+                return true;
+            });
+        }
+
+        // Time
+        if (timeFilter === "new") {
+            result = result.filter((tor) =>
+                isToday(tor.createdAt)
+            );
+        }
+    
+        if (timeFilter === "closing") {
+            result = result.filter((tor) => {
+                const days =
+                    getDaysUntil(
+                        tor.submissionDeadline
+                    );
+    
+                return (
+                    days !== null &&
+                    days >= 0 &&
+                    days <= 7
+                );
+            });
+        }
+    
+        if (timeFilter === "closed") {
+            result = result.filter((tor) => {
+                const days =
+                    getDaysUntil(
+                        tor.submissionDeadline
+                    );
+    
+                return (
+                    days !== null &&
+                    days < 0
+                );
+            });
+        }
+    
+        // Year: Internal TOR uses createdAt
+        if (yearFilter !== "all") {
+            const currentYear = new Date().getFullYear();
+    
+            result = result.filter((tor) => {
+                if (!tor.createdAt) {
+                    return false;
+                }
+    
+                const createdAt = new Date(tor.createdAt);
+    
+                if (Number.isNaN (
+                        createdAt.getTime()
+                    )
+                ) {
+                    return false;
+                }
+    
+                const torYear = createdAt.getFullYear();
+    
+                if (yearFilter === "current") {
+                    return torYear === currentYear;
+                }
+    
+                if (yearFilter === "1") {
+                    return torYear === currentYear - 1;
+                }
+    
+                if (yearFilter === "2") {
+                    return torYear === currentYear - 2;
+                }
+    
+                if (yearFilter === "3") {
+                    return torYear === currentYear - 3;
+                }
+    
+                if (yearFilter === "older") {
+                    return torYear <= currentYear - 4;
+                }
+    
+                return true;
+            });
+        }
+        return result;
+    }, [
+        tors,
+        query,
+        budgetFilter,
+        timeFilter,
+        yearFilter,
+    ]);
 
     async function handleBookmark(tor: Tor) {
         const userId = session?.user?.email;
@@ -209,6 +495,13 @@ export default function ContractorDraftTOR() {
         .slice(0, 2)
     ;
 
+    function resetFilters() {
+        setQuery("");
+        setBudgetFilter("all");
+        setTimeFilter("all");
+        setYearFilter("all");
+    }
+
     return (
         <div className="draft_layout">
             <Sidebar />
@@ -241,14 +534,52 @@ export default function ContractorDraftTOR() {
                         </span>
                     </div>
 
-                    <div className="draft-toolbar">
-                        <Search size={17} />
-                        <input
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            placeholder="ค้นหาชื่อโครงการ"
-                        />
-                        <span>{visibleTors.length} รายการ</span>
+                    <div className="draft-filters">
+                        {/* search */}
+                        <div className="draft-search">
+                            <Search size={17} />
+                            <input
+                                value={query}
+                                onChange={(e) =>
+                                    setQuery(e.target.value)
+                                }
+                                placeholder="ค้นหาชื่อโครงการ"
+                            />
+
+                            <span>
+                                {visibleTors.length} รายการ
+                            </span>
+                        </div>
+                        
+                        {/* filter */}
+                        <div className="draft-filter-options">
+                            <FilterDropdown
+                                value={budgetFilter}
+                                options={budgetOptions}
+                                onChange={setBudgetFilter}
+                            />
+
+                            <FilterDropdown
+                                value={timeFilter}
+                                options={timeOptions}
+                                onChange={setTimeFilter}
+                            />
+
+                            <FilterDropdown
+                                value={yearFilter}
+                                options={yearOptions}
+                                onChange={setYearFilter}
+                            />
+
+                            <button
+                                type="button"
+                                className="draft-reset-filter"
+                                onClick={resetFilters}
+                            >
+                                <RotateCcw size={16} />
+                                ล้างตัวกรอง
+                            </button>
+                        </div>
                     </div>
 
                     {error && <div className="draft-error">
