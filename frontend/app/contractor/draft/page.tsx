@@ -28,6 +28,7 @@ import TorDetailModal from "@/components/TORDetail";
 import { useSession } from "next-auth/react";
 import type { Comment } from "@/lib/torApi";
 import FilterDropdown from "@/components/FilterDropdown";
+import TorDeadline from "@/components/TorDeadlineBadge";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", { dateStyle: "medium" });
 
@@ -613,10 +614,13 @@ export default function ContractorDraftTOR() {
 
                                     {/* ข้อมูล TOR */}
                                     <div className="draft-list-content">
-
                                         <div className="draft-list-top">
-                                            <span className="draft-card-badge">
-                                                ฉบับร่าง · ยังไม่เปิดรับสมัคร
+                                            <span className="tor-status-badge internal">
+                                                ภายใน
+                                            </span>
+
+                                            <span className="tor-status-badge draft">
+                                                Draft
                                             </span>
 
                                             <span className="draft-tor-id">
@@ -652,6 +656,9 @@ export default function ContractorDraftTOR() {
                                                 <strong>
                                                     {formatDate(tor.submissionDeadline)}
                                                 </strong>
+                                                <div className="draft-meta-item">
+                                                    <TorDeadline deadline={tor.submissionDeadline} />
+                                                </div>
                                             </div>
 
                                             <div className="draft-meta-item">

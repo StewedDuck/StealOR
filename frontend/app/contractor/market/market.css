@@ -326,19 +326,15 @@
   font-weight: 600;
 }
 
-.market-badge.source {
-  background: #e7f0e8;
-  color: #66846c;
-}
-
+.market-badge.source,
 .market-badge.status-open {
-  background: #e7f0e8;
-  color: #66846c;
+  background: #e5effb;
+  color: #356ca8;
 }
 
 .market-badge.status-closed {
-  background: #f4e9d9;
-  color: #9b7841;
+  background: #f9e5e5;
+  color: #b44747;
 }
 
 .market-tor-id {
