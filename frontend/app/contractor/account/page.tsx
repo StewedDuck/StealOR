@@ -3,12 +3,17 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
-    Bookmark,
-    Camera,
     BellRing,
     Plus,
     X,
-} from "lucide-react";
+    BriefcaseBusiness,
+    MapPin,
+    Code2,
+    Award,
+    CalendarDays,
+    Wallet,
+    Users,
+  } from "lucide-react";
 
 import Sidebar from "@/components/sideBar";
 import { useToast } from "@/components/toast/ToastProvider";
@@ -21,6 +26,73 @@ import {
 } from "@/lib/torApi";
 
 import "./account.css";
+
+type ContractorType = "individual" | "company" | "freelance_team";
+type WorkMode = "onsite" | "remote" | "hybrid";
+
+const skillGroups: Record<string, string[]> = {
+  "Programming Languages": [
+    "Python", "JavaScript", "TypeScript", "Java",
+    "C", "C++", "C#", "Go", "Rust", "PHP", "Kotlin", "Swift"
+  ],
+  "Frontend & Mobile": [
+    "HTML", "CSS", "React", "Next.js", "Vue.js",
+    "Angular", "Tailwind CSS", "Flutter", "React Native"
+  ],
+  "Backend & APIs": [
+    "Node.js", "Express.js", "NestJS", "FastAPI",
+    "Django", "Flask", "Spring Boot", "REST API", "GraphQL"
+  ],
+  "Database": [
+    "PostgreSQL", "MySQL", "MongoDB", "Redis",
+    "SQL Server", "Firebase"
+  ],
+  "Cloud & DevOps": [
+    "AWS", "Azure", "Google Cloud", "Docker",
+    "Kubernetes", "GitHub Actions", "Linux"
+  ],
+  "AI, Data & Security": [
+    "Machine Learning", "Deep Learning", "LLM",
+    "Computer Vision", "Data Engineering",
+    "Cybersecurity", "OWASP", "Automated Testing"
+  ],
+};
+
+const projectOptions = [
+  "Web Application",
+  "Mobile Application",
+  "ERP",
+  "CRM",
+  "E-Commerce",
+  "Government Systems",
+  "AI / Machine Learning",
+  "Data Analytics",
+  "Cybersecurity",
+  "IoT",
+  "System Integration",
+];
+
+const areaOptions = [
+  "ทั่วประเทศไทย",
+  "กรุงเทพมหานคร",
+  "นนทบุรี",
+  "ปทุมธานี",
+  "สมุทรปราการ",
+  "นครปฐม",
+  "ชลบุรี",
+  "เชียงใหม่",
+];
+
+const certificationOptions = [
+  "AWS Certification",
+  "Microsoft Certification",
+  "Google Cloud Certification",
+  "ISO 9001",
+  "ISO/IEC 27001",
+  "PMP",
+  "Scrum Master",
+  "CompTIA Security+",
+];
 
 export default function ProfilePage() {
     const { data: session, status } = useSession();
@@ -40,6 +112,23 @@ export default function ProfilePage() {
     const [ experienceSummary, setExperienceSummary, ] = useState("");
 
     const [skills, setSkills] = useState<string[]>([]);
+    const [contractorType, setContractorType] = useState<ContractorType>("individual");
+
+    const [occupation, setOccupation] = useState("");
+    const [teamSize, setTeamSize] = useState(1);
+
+    const [projectTypes, setProjectTypes] = useState<string[]>([]);
+    const [serviceAreas, setServiceAreas] = useState<string[]>([]);
+    const [workModes, setWorkModes] = useState<WorkMode[]>([]);
+    const [certifications, setCertifications] = useState<string[]>([]);
+
+    const [minProjectBudget, setMinProjectBudget] = useState<number | null>(null);
+
+    const [maxProjectBudget, setMaxProjectBudget] = useState<number | null>(null);
+
+    const [availableFrom, setAvailableFrom] = useState<string | null>(null);
+    const [preferredProjectDuration, setPreferredProjectDuration] = useState("");
+    const [additionalInfo, setAdditionalInfo] = useState("");
 
     const [newSkill, setNewSkill] = useState("");
     const [savedTorCount, setSavedTorCount] = useState(0);
@@ -70,6 +159,27 @@ export default function ProfilePage() {
             setExperienceYears(profileData.experienceYears);
             setExperienceSummary(profileData.experienceSummary);
             setSkills(profileData.skills);
+
+            setContractorType(profileData.contractorType ?? "individual");
+            setOccupation(profileData.occupation ?? "");
+            setTeamSize(profileData.teamSize ?? 1);
+
+            setProjectTypes(profileData.projectTypes ?? []);
+            setServiceAreas(profileData.serviceAreas ?? []);
+            setWorkModes(profileData.workModes ?? []);
+            setCertifications(profileData.certifications ?? []);
+
+            setMinProjectBudget(profileData.minProjectBudget ?? null);
+            setMaxProjectBudget(profileData.maxProjectBudget ?? null);
+
+            setAvailableFrom(
+            profileData.availableFrom
+                ? profileData.availableFrom.slice(0, 10)
+                : null
+            );
+
+            setPreferredProjectDuration(profileData.preferredProjectDuration ?? "");
+            setAdditionalInfo(profileData.additionalInfo ?? "");
     
             setSavedTorCount(bookmarks.length);
     
@@ -82,6 +192,18 @@ export default function ProfilePage() {
     
         loadProfile();
     }, [session?.user?.email]);
+
+    function toggleSelection(
+        value: string,
+        selected: string[],
+        setSelected: (values: string[]) => void
+    ) {
+        if (selected.includes(value)) {
+          setSelected(selected.filter((item) => item !== value));
+        } else {
+          setSelected([...selected, value]);
+        }
+    }
 
     // SKILLS
     function handleAddSkill() {
@@ -132,6 +254,26 @@ export default function ProfilePage() {
         setExperienceYears( profile.experienceYears || 0 );
         setExperienceSummary( profile.experienceSummary || "" );
         setSkills(profile.skills || []);
+        setContractorType(profile.contractorType ?? "individual");
+        setOccupation(profile.occupation ?? "");
+        setTeamSize(profile.teamSize ?? 1);
+
+        setProjectTypes(profile.projectTypes ?? []);
+        setServiceAreas(profile.serviceAreas ?? []);
+        setWorkModes(profile.workModes ?? []);
+        setCertifications(profile.certifications ?? []);
+
+        setMinProjectBudget(profile.minProjectBudget ?? null);
+        setMaxProjectBudget(profile.maxProjectBudget ?? null);
+
+        setAvailableFrom(
+        profile.availableFrom
+            ? profile.availableFrom.slice(0, 10)
+            : null
+        );
+
+        setPreferredProjectDuration(profile.preferredProjectDuration ?? "");
+        setAdditionalInfo(profile.additionalInfo ?? "");
         setNewSkill("");
     }
 
@@ -158,15 +300,31 @@ export default function ProfilePage() {
 
             const updated =
                 await updateUserProfile(email, {
-                name: name.trim(),
-                phone: phone.trim(),
-                company: company.trim(),
-                profileSummary:
-                    profileSummary.trim(),
-                experienceYears,
-                experienceSummary:
-                    experienceSummary.trim(),
-                skills,
+                    name: name.trim(),
+                    phone: phone.trim(),
+                    company: company.trim(),
+                    profileSummary:
+                        profileSummary.trim(),
+                    experienceYears,
+                    experienceSummary:
+                        experienceSummary.trim(),
+                    skills,
+
+                    contractorType,
+                    occupation: occupation.trim(),
+                    teamSize,
+
+                    projectTypes,
+                    serviceAreas,
+                    workModes,
+                    certifications,
+
+                    minProjectBudget,
+                    maxProjectBudget,
+
+                    availableFrom,
+                    preferredProjectDuration: preferredProjectDuration.trim(),
+                    additionalInfo: additionalInfo.trim(),
                 });
 
             setProfile(updated);
@@ -184,6 +342,27 @@ export default function ProfilePage() {
                 updated.experienceSummary || ""
             );
             setSkills(updated.skills || []);
+
+            setContractorType(updated.contractorType ?? "individual");
+            setOccupation(updated.occupation ?? "");
+            setTeamSize(updated.teamSize ?? 1);
+
+            setProjectTypes(updated.projectTypes ?? []);
+            setServiceAreas(updated.serviceAreas ?? []);
+            setWorkModes(updated.workModes ?? []);
+            setCertifications(updated.certifications ?? []);
+
+            setMinProjectBudget(updated.minProjectBudget ?? null);
+            setMaxProjectBudget(updated.maxProjectBudget ?? null);
+
+            setAvailableFrom(
+            updated.availableFrom
+                ? updated.availableFrom.slice(0, 10)
+                : null
+            );
+
+            setPreferredProjectDuration(updated.preferredProjectDuration ?? "");
+            setAdditionalInfo(updated.additionalInfo ?? "");
 
             showToast("บันทึกโปรไฟล์แล้ว");
         } catch (error) {
@@ -254,77 +433,80 @@ export default function ProfilePage() {
 
                 <div className="profile-content">
 
-                    {/* LEFT PROFILE CARD */}
-                    <section className="profile-card">
-                        <div className="profile-avatar-wrapper">
+                    {/* PROFILE SUMMARY */}
+                    <section className="profile-summary-card">
+                        <div className="profile-summary-identity">
                             <div className="profile-avatar profile-avatar-fallback">
                                 {initials}
                             </div>
+
+                            <div>
+                                <h2>
+                                    {name || "User"}
+                                </h2>
+
+                                <p>
+                                    {occupation || "ยังไม่ได้ระบุอาชีพ"}
+                                </p>
+
+                                <span className="profile-summary-description">
+                                    {profileSummary || "เพิ่มข้อมูลโปรไฟล์เพื่อช่วยในการจับคู่ TOR"}
+                                </span>
+                            </div>
                         </div>
 
-                        <h2>{name || "User"}</h2>
-
-                        <p className="profile-role">
-                            {profileSummary || "ยังไม่ได้เพิ่มคำอธิบายโปรไฟล์"}
-                        </p>
-
-                        {/* MOCKUP STATS */}
-                        <div className="profile-stats">
-                            <div>
-                                <strong>8</strong>
-                                <span>ตรงกัน</span>
-                            </div>
-
-                            <div>
-                                <strong>73%</strong>
-                                    <span>
-                                    ความตรงกันเฉลี่ย
-                                    </span>
-                            </div>
-
+                        <div className="profile-summary-stats">
                             <div>
                                 <strong>{savedTorCount}</strong>
-                                <span>บันทึกไว้</span>
+                                <span>TOR ที่บันทึก</span>
+                            </div>
+
+                            <div>
+                                <strong>{skills.length}</strong>
+                                <span>ทักษะที่เลือก</span>
+                            </div>
+
+                            <div>
+                                <strong>{experienceYears}</strong>
+                                <span>ปีประสบการณ์</span>
                             </div>
                         </div>
                     </section>
 
-                    {/* RIGHT FORM */}
-                    <section className="profile-form-card">
-                        <h2>ข้อมูลพื้นฐาน</h2>
+                    {/* BASIC INFORMATION */}
+                    <section className="profile-form-card profile-section-full">
+                        <div className="profile-section-heading">
+                            <Users size={19} />
+                            <h2>1. ข้อมูลพื้นฐาน</h2>
+                        </div>
 
                         <div className="profile-divider" />
 
                         <div className="profile-grid">
-                            {/* NAME */}
                             <div className="profile-field">
-                                <label>ชื่อ - นามสกุล</label>
+                                <label>
+                                    ชื่อ - นามสกุล
+                                </label>
 
                                 <input
-                                    type="text"
                                     value={name}
-                                    onChange={(event) =>
-                                        setName(
-                                        event.target.value
-                                        )
-                                    }
+                                    onChange={(e) => setName(e.target.value)}
                                     placeholder="ชื่อ - นามสกุล"
                                 />
                             </div>
 
-                            {/* EMAIL */}
                             <div className="profile-field">
-                                <label>อีเมล</label>
+                                <label>
+                                    อีเมล
+                                </label>
 
                                 <input
-                                    type="email"
                                     value={email || ""}
                                     readOnly
                                     className="profile-readonly"
                                 />
                             </div>
 
-                            {/* PHONE */}
                             <div className="profile-field">
                                 <label>
                                     เบอร์โทรศัพท์
@@ -333,144 +515,125 @@ export default function ProfilePage() {
                                 <input
                                     type="tel"
                                     value={phone}
-                                    onChange={(event) =>
-                                        setPhone(
-                                        event.target.value
-                                        )
-                                    }
-                                    placeholder="+66"
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    placeholder="เบอร์โทรศัพท์"
                                 />
                             </div>
 
-                            {/* COMPANY */}
                             <div className="profile-field">
                                 <label>
                                     บริษัท / นิติบุคคล
                                 </label>
 
                                 <input
-                                    type="text"
                                     value={company}
-                                    onChange={(event) =>
-                                        setCompany(
-                                        event.target.value
-                                        )
-                                    }
-                                    placeholder="ชื่อบริษัท"
+                                    onChange={(e) => setCompany(e.target.value)}
+                                    placeholder="ชื่อบริษัท (ถ้ามี)"
                                 />
                             </div>
 
-                            {/* PROFILE SUMMARY */}
-                            <div className="profile-field profile-full-width">
+                            <div className="profile-field">
                                 <label>
-                                    คำอธิบายโปรไฟล์
+                                    อาชีพ / ตำแหน่งงาน
                                 </label>
 
                                 <input
-                                    type="text"
-                                    value={profileSummary}
-                                    onChange={(event) =>
-                                        setProfileSummary(
-                                        event.target.value
-                                        )
+                                    value={occupation}
+                                    onChange={(e) => setOccupation(e.target.value)}
+                                    placeholder="เช่น Full Stack Developer"
+                                />
+                            </div>
+
+                            <div className="profile-field">
+                                <label>
+                                    ประเภทผู้รับจ้าง
+                                </label>
+
+                                <select
+                                    value={contractorType}
+                                    onChange={(e) =>
+                                    setContractorType(e.target.value as ContractorType)
                                     }
-                                    placeholder="เช่น ผู้รับจ้างพัฒนาระบบแบบฟูลสแต็ก"
+                                >
+                                    <option value="individual">บุคคลทั่วไป</option>
+                                    <option value="company">บริษัท</option>
+                                    <option value="freelance_team">ทีมฟรีแลนซ์</option>
+                                </select>
+                            </div>
+
+                            <div className="profile-field">
+                                <label>จำนวนสมาชิกในทีม</label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    value={teamSize}
+                                    onChange={(e) =>
+                                    setTeamSize(Math.max(1, Number(e.target.value) || 1))
+                                    }
+                                />
+                            </div>
+
+                            <div className="profile-field profile-full-width">
+                                <label>คำอธิบายโปรไฟล์</label>
+                                <textarea
+                                    rows={3}
                                     maxLength={200}
+                                    value={profileSummary}
+                                    onChange={(e) => setProfileSummary(e.target.value)}
+                                    placeholder="แนะนำตัวและความเชี่ยวชาญของคุณ"
                                 />
                             </div>
                         </div>
+                    </section>
 
-                        {/* EXPERIENCE */}
-                        <h2 className="profile-section-title">
-                            ประสบการณ์ & คุณสมบัติ
-                        </h2>
+                    {/* SKILLS */}
+                    <section className="profile-form-card profile-section-full">
+                        <div className="profile-section-heading">
+                            <Code2 size={19} />
+                            <h2>2. ทักษะ Software Engineering</h2>
+                        </div>
+
+                        <p className="profile-section-description">
+                            เลือกทักษะที่คุณมี เพื่อช่วยให้ระบบจับคู่กับ TOR ได้แม่นยำขึ้น
+                        </p>
 
                         <div className="profile-divider" />
 
-                        <div className="profile-field">
-                            <label>
-                                ปีที่มีประสบการณ์
-                            </label>
+                            {Object.entries(skillGroups).map(([category, options]) => (
+                                <div className="profile-option-group" key={category}>
+                                    <h3>{category}</h3>
 
-                            <input
-                                type="number"
-                                min="0"
-                                value={experienceYears}
-                                onChange={(event) =>
-                                setExperienceYears(
-                                    Math.max(
-                                    0,
-                                    Number(
-                                        event.target.value
-                                    )
-                                    )
-                                )
-                                }
-                            />
-                        </div>
-
-                        <div className="profile-field">
-                            <label>
-                                สรุปประสบการณ์
-                            </label>
-
-                            <textarea
-                                rows={4}
-                                value={experienceSummary}
-                                onChange={(event) =>
-                                setExperienceSummary(
-                                    event.target.value
-                                )
-                                }
-                                placeholder="อธิบายประสบการณ์ของคุณ"
-                            />
-                        </div>
-
-                        {/* SKILLS */}
-                        <div className="profile-field">
-                            <label>
-                                ทักษะ & คุณสมบัติ
-                            </label>
-
-                            <div className="skills-box">
-                                {skills.length > 0 && (
-                                    <div className="skills-list">
-                                        {skills.map((skill) => (
-                                            <span
-                                                key={skill}
-                                                className="skill-tag"
-                                            >
-                                                {skill}
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        handleRemoveSkill(
-                                                        skill
-                                                        )
-                                                    }
-                                                    aria-label={`ลบ ${skill}`}
-                                                >
-                                                    <X size={13} />
-                                                </button>
-                                            </span>
+                                    <div className="profile-chip-list">
+                                        {options.map((skill) => (
+                                        <button
+                                            key={skill}
+                                            type="button"
+                                            aria-pressed={skills.includes(skill)}
+                                            className={`profile-chip ${
+                                            skills.includes(skill) ? "selected" : ""
+                                            }`}
+                                            onClick={() =>
+                                            toggleSelection(skill, skills, setSkills)
+                                            }
+                                        >
+                                            {skills.includes(skill) && "✓ "}
+                                            {skill}
+                                        </button>
                                         ))}
                                     </div>
-                                )}
+                                </div>
+                            ))}
+
+                            <div className="profile-option-group">
+                                <h3>ทักษะอื่น ๆ</h3>
 
                                 <div className="add-skill-row">
                                     <input
                                         type="text"
                                         value={newSkill}
-                                        onChange={(event) =>
-                                            setNewSkill(
-                                                event.target.value
-                                            )
-                                        }
-                                        onKeyDown={
-                                            handleSkillKeyDown
-                                        }
-                                        placeholder="เช่น React, Node.js, AWS"
+                                        onChange={(e) => setNewSkill(e.target.value)}
+                                        onKeyDown={handleSkillKeyDown}
+                                        placeholder="เพิ่มทักษะที่ไม่มีในรายการ"
                                     />
 
                                     <button
@@ -479,35 +642,309 @@ export default function ProfilePage() {
                                         onClick={handleAddSkill}
                                     >
                                         <Plus size={15} />
-                                        เพิ่มคุณสมบัติ
+                                        เพิ่ม
                                     </button>
                                 </div>
+
+                                {skills.filter(
+                                (skill) =>
+                                    !Object.values(skillGroups).flat().includes(skill)
+                                ).length > 0 && (
+                                <div className="profile-chip-list profile-custom-skills">
+                                    {skills
+                                    .filter(
+                                        (skill) =>
+                                        !Object.values(skillGroups).flat().includes(skill)
+                                    )
+                                    .map((skill) => (
+                                        <span className="skill-tag" key={skill}>
+                                            {skill}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveSkill(skill)}
+                                                aria-label={`ลบ ${skill}`}
+                                            >
+                                                <X size={13} />
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                                )}
+                            </div>
+                    </section>
+
+                    {/* TWO COLUMN GRID */}
+                    <div className="profile-details-grid">
+
+                    {/* EXPERIENCE */}
+                    <section className="profile-form-card">
+                            <div className="profile-section-heading">
+                            <BriefcaseBusiness size={19} />
+                            <h2>3. ประสบการณ์ทำงาน</h2>
+                        </div>
+
+                        <div className="profile-divider" />
+
+                        <div className="profile-field">
+                            <label>จำนวนปีประสบการณ์</label>
+                            <input
+                                type="number"
+                                min={0}
+                                value={experienceYears}
+                                onChange={(e) =>
+                                setExperienceYears(Math.max(0, Number(e.target.value) || 0))
+                                }
+                            />
+                        </div>
+
+                        <div className="profile-field">
+                            <label>สรุปประสบการณ์</label>
+                            <textarea
+                                rows={4}
+                                value={experienceSummary}
+                                onChange={(e) => setExperienceSummary(e.target.value)}
+                                placeholder="อธิบายประสบการณ์ที่ผ่านมา"
+                            />
+                        </div>
+
+                        <div className="profile-option-group">
+                            <h3>ประเภทโครงการที่เคยทำ</h3>
+                            <div className="profile-chip-list">
+                                {projectOptions.map((item) => (
+                                <button
+                                    key={item}
+                                    type="button"
+                                    aria-pressed={projectTypes.includes(item)}
+                                    className={`profile-chip ${
+                                    projectTypes.includes(item) ? "selected" : ""
+                                    }`}
+                                    onClick={() =>
+                                    toggleSelection(item, projectTypes, setProjectTypes)
+                                    }
+                                >
+                                    {item}
+                                </button>
+                                ))}
                             </div>
                         </div>
+                    </section>
 
-                        {/* ACTIONS */}
-                        <div className="profile-actions">
-                            <button
-                                type="button"
-                                className="profile-cancel-button"
-                                onClick={handleCancel}
-                                disabled={saving}
-                            >
-                                ยกเลิก
-                            </button>
+                    <div className="profile-details-stack">
 
-                            <button
-                                type="button"
-                                className="profile-save-button"
-                                onClick={handleSave}
-                                disabled={saving}
-                            >
-                                {saving
-                                ? "กำลังบันทึก..."
-                                : "บันทึกโปรไฟล์"}
-                            </button>
+                        {/* BUDGET */}
+                        <section className="profile-form-card">
+                            <div className="profile-section-heading">
+                                <Wallet size={19} />
+                                <h2>4. งบประมาณโครงการที่รับได้</h2>
+                            </div>
+
+                            <div className="profile-divider" />
+
+                            <div className="profile-grid">
+                                <div className="profile-field">
+                                    <label>งบประมาณขั้นต่ำ (บาท)</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={minProjectBudget ?? ""}
+                                        onChange={(e) =>
+                                        setMinProjectBudget(
+                                            e.target.value === "" ? null : Number(e.target.value)
+                                        )
+                                        }
+                                        placeholder="ไม่ระบุ"
+                                    />
+                                </div>
+
+                                <div className="profile-field">
+                                    <label>งบประมาณสูงสุด (บาท)</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={maxProjectBudget ?? ""}
+                                        onChange={(e) =>
+                                        setMaxProjectBudget(
+                                            e.target.value === "" ? null : Number(e.target.value)
+                                        )
+                                        }
+                                        placeholder="ไม่ระบุ"
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* SERVICE AREAS */}
+                        <section className="profile-form-card">
+                            <div className="profile-section-heading">
+                                <MapPin size={19} />
+                                <h2>5. พื้นที่ให้บริการ</h2>
+                            </div>
+
+                            <div className="profile-divider" />
+
+                            <div className="profile-chip-list">
+                                {areaOptions.map((area) => (
+                                <button
+                                    key={area}
+                                    type="button"
+                                    aria-pressed={serviceAreas.includes(area)}
+                                    className={`profile-chip ${
+                                    serviceAreas.includes(area) ? "selected" : ""
+                                    }`}
+                                    onClick={() =>
+                                    toggleSelection(area, serviceAreas, setServiceAreas)
+                                    }
+                                >
+                                    {area}
+                                </button>
+                                ))}
+                            </div>
+                        </section>
+                    </div>
+                    </div>
+
+                    {/* THREE COLUMN GRID */}
+                    <div className="profile-triple-grid">
+
+                        {/* WORK MODE */}
+                        <section className="profile-form-card">
+                            <div className="profile-section-heading">
+                                <BriefcaseBusiness size={19} />
+                                <h2>6. รูปแบบการทำงาน</h2>
+                            </div>
+
+                            <div className="profile-divider" />
+
+                            <div className="profile-chip-list">
+                                {([
+                                    ["onsite", "On-site"],
+                                    ["remote", "Remote"],
+                                    ["hybrid", "Hybrid"],
+                                ] as const).map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        aria-pressed={workModes.includes(value)}
+                                        className={`profile-chip ${
+                                            workModes.includes(value) ? "selected" : ""
+                                        }`}
+                                        onClick={() =>
+                                            toggleSelection(
+                                            value,
+                                            workModes,
+                                            (values) => setWorkModes(values as WorkMode[])
+                                            )
+                                        }
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </section>
+
+                        {/* CERTIFICATIONS */}
+                        <section className="profile-form-card">
+                            <div className="profile-section-heading">
+                                <Award size={19} />
+                                <h2>7. ใบรับรอง</h2>
+                            </div>
+
+                            <div className="profile-divider" />
+
+                            <div className="profile-chip-list">
+                                {certificationOptions.map((item) => (
+                                    <button
+                                        key={item}
+                                        type="button"
+                                        aria-pressed={certifications.includes(item)}
+                                        className={`profile-chip ${
+                                            certifications.includes(item) ? "selected" : ""
+                                        }`}
+                                        onClick={() =>
+                                            toggleSelection(item, certifications, setCertifications)
+                                        }
+                                    >
+                                        {item}
+                                    </button>
+                                ))}
+                            </div>
+                        </section>
+
+                        {/* AVAILABILITY */}
+                        <section className="profile-form-card">
+                            <div className="profile-section-heading">
+                                <CalendarDays size={19} />
+                                <h2>8. ความพร้อมรับงาน</h2>
+                            </div>
+
+                            <div className="profile-divider" />
+
+                            <div className="profile-field">
+                                <label>วันที่พร้อมเริ่มงาน</label>
+                                <input
+                                    type="date"
+                                    value={availableFrom ?? ""}
+                                    onChange={(e) => setAvailableFrom(e.target.value || null)}
+                                />
+                            </div>
+
+                            <div className="profile-field">
+                                <label>ระยะเวลาโครงการที่ต้องการ</label>
+                                <select
+                                    value={preferredProjectDuration}
+                                    onChange={(e) => setPreferredProjectDuration(e.target.value)}
+                                >
+                                    <option value="">ไม่ระบุ</option>
+                                    <option value="less_than_3_months">น้อยกว่า 3 เดือน</option>
+                                    <option value="3_to_6_months">3–6 เดือน</option>
+                                    <option value="6_to_12_months">6–12 เดือน</option>
+                                    <option value="more_than_12_months">มากกว่า 12 เดือน</option>
+                                </select>
+                            </div>
+                        </section>
+                    </div>
+
+                    {/* ADDITIONAL INFO */}
+                    <section className="profile-form-card profile-section-full">
+                        <div className="profile-section-heading">
+                            <Award size={19} />
+                            <h2>9. ข้อมูลเพิ่มเติม</h2>
+                        </div>
+
+                        <div className="profile-divider" />
+
+                        <div className="profile-field">
+                            <label>ข้อมูลหรือคุณสมบัติเพิ่มเติม</label>
+                            <textarea
+                                rows={4}
+                                maxLength={2000}
+                                value={additionalInfo}
+                                onChange={(e) => setAdditionalInfo(e.target.value)}
+                                placeholder="เช่น ประสบการณ์งานภาครัฐ หรือรายละเอียดอื่น ๆ"
+                            />
                         </div>
                     </section>
+
+                    {/* ACTIONS */}
+                    <div className="profile-actions profile-actions-bottom">
+                        <button
+                            type="button"
+                            className="profile-cancel-button"
+                            onClick={handleCancel}
+                            disabled={saving}
+                        >
+                            ยกเลิก
+                        </button>
+
+                        <button
+                            type="button"
+                            className="profile-save-button"
+                            onClick={handleSave}
+                            disabled={saving}
+                        >
+                            {saving ? "กำลังบันทึก..." : "บันทึกโปรไฟล์"}
+                        </button>
+                    </div>
                 </div>
             </main>
         </div>

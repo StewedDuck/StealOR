@@ -254,6 +254,22 @@ export type UserProfile = {
   experienceSummary: string;
   skills: string[];
 
+  contractorType: "individual" | "company" | "freelance_team";
+  occupation: string;
+  teamSize: number;
+
+  projectTypes: string[];
+  serviceAreas: string[];
+  workModes: ("onsite" | "remote" | "hybrid")[];
+  certifications: string[];
+
+  minProjectBudget: number | null;
+  maxProjectBudget: number | null;
+
+  availableFrom: string | null;
+  preferredProjectDuration: string;
+  additionalInfo: string;
+
   accountRole:
     | "contractor"
     | "project_owner"
@@ -282,6 +298,22 @@ export type UpdateUserProfileData = {
   experienceYears: number;
   experienceSummary: string;
   skills: string[];
+
+  contractorType?: "individual" | "company" | "freelance_team";
+  occupation?: string;
+  teamSize?: number;
+
+  projectTypes?: string[];
+  serviceAreas?: string[];
+  workModes?: ("onsite" | "remote" | "hybrid")[];
+  certifications?: string[];
+
+  minProjectBudget?: number | null;
+  maxProjectBudget?: number | null;
+
+  availableFrom?: string | null;
+  preferredProjectDuration?: string;
+  additionalInfo?: string;
 };
 
 export async function updateUserProfile(

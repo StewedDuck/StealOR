@@ -57,6 +57,75 @@ const userSchema = new mongoose.Schema(
             default: [],
         },
 
+        contractorType: {
+            type: String,
+            enum: ["individual", "company", "freelance_team"],
+            default: "individual"
+        },
+
+        occupation:{
+            type: String,
+            default: "",
+            trim: true,
+        },
+
+        teamSize: {
+            type: Number,
+            default: 1,
+            min: 1,
+        },
+
+
+        projectTypes: {
+            type: [String],
+            default: [],
+        },
+
+        serviceAreas: {
+            type: [String],
+            default: [],
+        },
+        
+        workModes: {
+            type: [String],
+            enum: ["onsite", "remote", "hybrid"],
+            default: [],
+        },
+
+        certifications: {
+            type: [String],
+            default: [],
+        },
+
+        minProjectBudget: {
+            type: Number,
+            default: null,
+            min: 0,
+        },
+        
+        maxProjectBudget: {
+            type: Number,
+            default: null,
+            min: 0,
+        },
+
+        availableFrom: {
+            type: Date,
+            default: null,
+        },
+        
+        preferredProjectDuration: {
+            type: String,
+            default: "",
+        },
+
+        additionalInfo: {
+            type: String,
+            default: "",
+            trim: true,
+            maxlength: 2000,
+        },
+        
         accountRole: {
             type: String,
             enum: [
