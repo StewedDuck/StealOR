@@ -29,6 +29,7 @@ import { useSession } from "next-auth/react";
 import type { Comment } from "@/lib/torApi";
 import FilterDropdown from "@/components/FilterDropdown";
 import TorDeadline from "@/components/TorDeadlineBadge";
+import "@/components/TorBadges.css";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", { dateStyle: "medium" });
 
@@ -615,11 +616,11 @@ export default function ContractorDraftTOR() {
                                     {/* ข้อมูล TOR */}
                                     <div className="draft-list-content">
                                         <div className="draft-list-top">
-                                            <span className="tor-status-badge internal">
+                                            <span className="tor-source-badge tor-source-internal">
                                                 ภายใน
                                             </span>
 
-                                            <span className="tor-status-badge draft">
+                                            <span className="tor-status-badge tor-status-draft">
                                                 Draft
                                             </span>
 

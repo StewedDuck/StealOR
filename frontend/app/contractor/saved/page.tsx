@@ -41,7 +41,9 @@ import {
 import "./saved.css";
 import { getUserProfile } from "@/lib/torApi";
 import TORDocumentModal from "@/components/TORDocumentModal";
-import TorDeadline, { getDeadlineDays } from "@/components/TorDeadlineBadge";
+import TorDeadlineBadge from "@/components/TorDeadlineBadge";
+import { getDeadlineInfo } from "@/lib/torDeadline";
+
 type SourceFilter = 
   | 'all'
   | 'government'
@@ -145,32 +147,11 @@ function getDaysUntil(value?: string | null) {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
-function isAlmostClosing(value?: string | null) {
-  const days = getDaysUntil(value);
-
-  return days !== null && days >= 0 && days <= 7;
-}
-
 function getSourceLabel(source: SavedTor["source"]) {
   if (source === "government") {
     return "ราชการ";
   }
-
   return "ภายใน";
-}
-
-function getStatusClass(status: string) {
-  const normalized = status.toLowerCase();
-
-  if (
-    normalized.includes("ปิด") ||
-    normalized.includes("close") ||
-    normalized.includes("สิ้นสุด")
-  ) {
-    return "status-closed";
-  }
-
-  return "status-open";
 }
 
 function getCurrentBuddhistYear() {
@@ -871,14 +852,13 @@ export default function SavedPage() {
             <section className="saved-list">
               {filteredTors.map((tor) => {
                 const deadline = tor.deadline;
-                // console.log("SAVED TOR:", {
-                //   projectName: tor.projectName,
-                //   projectId: tor.projectId,
-                //   source: tor.source,
-                // });
-                const daysLeft = getDaysUntil(deadline);
 
-                const almostClosing = isAlmostClosing(deadline);
+                const daysLeft = getDaysUntil(deadline);
+                const isClosed = daysLeft !== null && daysLeft < 0;
+
+                const isDraft =
+                    tor.source === "internal" &&
+                    tor.status?.toLowerCase() === "draft";
 
                 const matchPercent = tor.match?.percent;
 
@@ -886,16 +866,30 @@ export default function SavedPage() {
                   <article key={tor.bookmarkId} className="saved-card">
                     <div className="saved-card-content">
                       <div className="saved-card-top">
-                        <span className="saved-badge source">
-                          {getSourceLabel(tor.source)}
+                        <span
+                            className={`tor-status-badge ${
+                                tor.source === "government"
+                                    ? "government"
+                                    : "internal"
+                            }`}
+                        >
+                            {getSourceLabel(tor.source)}
                         </span>
 
                         <span
-                          className={`saved-badge ${getStatusClass(
-                            tor.status,
-                          )}`}
+                            className={`tor-status-badge ${
+                                isClosed
+                                    ? "closed"
+                                    : isDraft
+                                    ? "draft"
+                                    : "open"
+                            }`}
                         >
-                          {tor.status || "เปิดรับ"}
+                            {isClosed
+                                ? "ปิดรับแล้ว"
+                                : isDraft
+                                ? "Draft"
+                                : tor.status || "เปิดรับ"}
                         </span>
 
                         {tor.projectId && (
@@ -945,13 +939,8 @@ export default function SavedPage() {
                         </div>
 
                         {/* Closing */}
-                        {almostClosing && daysLeft !== null && (
-                          <span className="saved-closing-badge">
-                            {daysLeft === 0
-                              ? "ปิดวันนี้"
-                              : `${daysLeft} วันคงเหลือ`}
-                          </span>
-                        )}
+                        {/* Deadline countdown */}
+                        <TorDeadlineBadge deadline={deadline} />
                       </div>
 
                       {tor.description && (

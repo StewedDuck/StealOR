@@ -1078,16 +1078,9 @@ export default function TorMarketPage() {
           {/* TOR List */}
           <section className="market-list">
             {filteredTors.map((tor) => {
-              const daysLeft = getDaysUntil(
-                tor.deadline
-              );
-
-              const timeLabel = getTimeLabel(
-                tor.deadline
-              );
-
-              const almostClosing = isAlmostClosing(tor.deadline);
-              const closed = isClosed(tor.deadline);
+              const deadlineInfo = getDeadlineInfo(tor.deadline);
+              const closed = deadlineInfo.status === "closed";
+              const isDraft = tor.status?.toLowerCase() === "draft";
 
             return (
                 <article
@@ -1098,10 +1091,10 @@ export default function TorMarketPage() {
                     <div className="market-card-content">
                       <div className="market-card-top">
                         <span
-                          className={`tor-status-badge ${
+                          className={`tor-source-badge ${
                             tor.source === "government"
-                              ? "government"
-                              : "internal"
+                              ? "tor-source-government"
+                              : "tor-source-internal"
                           }`}
                         >
                           {getSourceLabel(tor.source)}
@@ -1109,18 +1102,16 @@ export default function TorMarketPage() {
 
                         <span
                           className={`tor-status-badge ${
-                            getDeadlineDays(tor.deadline) !== null &&
-                            getDeadlineDays(tor.deadline)! < 0
-                              ? "closed"
-                              : tor.status?.toLowerCase() === "draft"
-                              ? "draft"
-                              : "open"
+                            closed
+                              ? "tor-status-closed"
+                              : isDraft
+                              ? "tor-status-draft"
+                              : "tor-status-open"
                           }`}
                         >
-                          {getDeadlineDays(tor.deadline) !== null &&
-                          getDeadlineDays(tor.deadline)! < 0
+                          {closed
                             ? "ปิดรับแล้ว"
-                            : tor.status?.toLowerCase() === "draft"
+                            : isDraft
                             ? "Draft"
                             : tor.status || "เปิดรับ"}
                         </span>
@@ -1174,7 +1165,7 @@ export default function TorMarketPage() {
                                 </span>
                             </div>
 
-                            <TorDeadline deadline={tor.deadline} />
+                            <TorDeadlineBadge deadline={tor.deadline} />
                         </div>
 
                         {tor.description && (
