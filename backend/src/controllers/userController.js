@@ -109,6 +109,10 @@ async function getProfile(req, res) {
                 preferredProjectDuration: user.preferredProjectDuration || "",
                 additionalInfo: user.additionalInfo || "",
 
+                registeredCapital: user.registeredCapital ?? null,
+                maxPastProjectValue: user.maxPastProjectValue ?? null,
+                hasGovernmentExperience: user.hasGovernmentExperience ?? null,
+
                 accountRole: user.accountRole,
                 verificationStatus: user.verificationStatus,
             },
@@ -153,6 +157,10 @@ async function updateProfile(req, res) {
             availableFrom,
             preferredProjectDuration,
             additionalInfo,
+
+            registeredCapital,
+            maxPastProjectValue,
+            hasGovernmentExperience,
         } = req.body;
 
         const user = await User.findOne({
@@ -283,6 +291,34 @@ async function updateProfile(req, res) {
             user.additionalInfo = String(additionalInfo).trim();
         }
 
+        if (registeredCapital !== undefined) {
+            user.registeredCapital =
+                registeredCapital === null || registeredCapital === ""
+                    ? null
+                    : Number(registeredCapital);
+        }
+        
+        if (maxPastProjectValue !== undefined) {
+            user.maxPastProjectValue =
+                maxPastProjectValue === null || maxPastProjectValue === ""
+                    ? null
+                    : Number(maxPastProjectValue);
+        }
+        
+        if (hasGovernmentExperience !== undefined) {
+            if (
+                hasGovernmentExperience !== null &&
+                typeof hasGovernmentExperience !== "boolean"
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    error: "ข้อมูลประสบการณ์งานภาครัฐไม่ถูกต้อง",
+                });
+            }
+        
+            user.hasGovernmentExperience = hasGovernmentExperience;
+        }
+
         await user.save();
 
         return res.json({
@@ -292,20 +328,31 @@ async function updateProfile(req, res) {
                 name: user.name,
                 email: user.email,
                 image: user.image,
-
                 phone: user.phone,
                 company: user.company,
-                profileSummary:
-                    user.profileSummary,
-                experienceYears:
-                    user.experienceYears,
-                experienceSummary:
-                    user.experienceSummary,
+                profileSummary: user.profileSummary,
+                contractorType: user.contractorType,
+                occupation: user.occupation,
+                teamSize: user.teamSize,
+                experienceYears: user.experienceYears,
+                experienceSummary: user.experienceSummary,
                 skills: user.skills,
 
+                projectTypes: user.projectTypes,    
+                serviceAreas: user.serviceAreas,
+                workModes: user.workModes,
+                certifications: user.certifications,
+                minProjectBudget: user.minProjectBudget,
+                maxProjectBudget: user.maxProjectBudget,
+                availableFrom: user.availableFrom,
+                preferredProjectDuration: user.preferredProjectDuration,
+                
+                registeredCapital: user.registeredCapital,
+                maxPastProjectValue: user.maxPastProjectValue,
+                hasGovernmentExperience: user.hasGovernmentExperience,
+                additionalInfo: user.additionalInfo,
                 accountRole: user.accountRole,
-                verificationStatus:
-                    user.verificationStatus,
+                verificationStatus: user.verificationStatus,
             },
             message: "Profile updated successfully",
         });

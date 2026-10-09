@@ -125,7 +125,24 @@ const userSchema = new mongoose.Schema(
             trim: true,
             maxlength: 2000,
         },
+
+        registeredCapital: {
+            type: Number,
+            default: null,
+            min: 0,
+        },
         
+        maxPastProjectValue: {
+            type: Number,
+            default: null,
+            min: 0,
+        },
+        
+        hasGovernmentExperience: {
+            type: Boolean,
+            default: null,
+        },
+
         accountRole: {
             type: String,
             enum: [

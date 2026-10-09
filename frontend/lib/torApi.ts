@@ -270,6 +270,10 @@ export type UserProfile = {
   preferredProjectDuration: string;
   additionalInfo: string;
 
+  registeredCapital: number | null;
+  maxPastProjectValue: number | null;
+  hasGovernmentExperience: boolean | null;
+
   accountRole:
     | "contractor"
     | "project_owner"
@@ -314,6 +318,10 @@ export type UpdateUserProfileData = {
   availableFrom?: string | null;
   preferredProjectDuration?: string;
   additionalInfo?: string;
+
+  registeredCapital?: number | null;
+  maxPastProjectValue?: number | null;
+  hasGovernmentExperience?: boolean | null;
 };
 
 export async function updateUserProfile(

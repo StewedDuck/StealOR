@@ -130,6 +130,10 @@ export default function ProfilePage() {
     const [preferredProjectDuration, setPreferredProjectDuration] = useState("");
     const [additionalInfo, setAdditionalInfo] = useState("");
 
+    const [registeredCapital, setRegisteredCapital] = useState<number | null>(null);
+    const [maxPastProjectValue, setMaxPastProjectValue] = useState<number | null>(null);
+    const [hasGovernmentExperience, setHasGovernmentExperience] = useState<boolean | null>(null);
+
     const [newSkill, setNewSkill] = useState("");
     const [savedTorCount, setSavedTorCount] = useState(0);
 
@@ -180,6 +184,12 @@ export default function ProfilePage() {
 
             setPreferredProjectDuration(profileData.preferredProjectDuration ?? "");
             setAdditionalInfo(profileData.additionalInfo ?? "");
+
+            setRegisteredCapital(profileData.registeredCapital ?? null);
+            setMaxPastProjectValue(profileData.maxPastProjectValue ?? null);
+            setHasGovernmentExperience(
+                profileData.hasGovernmentExperience ?? null
+            );
     
             setSavedTorCount(bookmarks.length);
     
@@ -274,6 +284,11 @@ export default function ProfilePage() {
 
         setPreferredProjectDuration(profile.preferredProjectDuration ?? "");
         setAdditionalInfo(profile.additionalInfo ?? "");
+        setRegisteredCapital(profile.registeredCapital ?? null);
+        setMaxPastProjectValue(profile.maxPastProjectValue ?? null);
+        setHasGovernmentExperience(
+            profile.hasGovernmentExperience ?? null
+        );
         setNewSkill("");
     }
 
@@ -303,11 +318,9 @@ export default function ProfilePage() {
                     name: name.trim(),
                     phone: phone.trim(),
                     company: company.trim(),
-                    profileSummary:
-                        profileSummary.trim(),
+                    profileSummary: profileSummary.trim(),
                     experienceYears,
-                    experienceSummary:
-                        experienceSummary.trim(),
+                    experienceSummary: experienceSummary.trim(),
                     skills,
 
                     contractorType,
@@ -325,6 +338,10 @@ export default function ProfilePage() {
                     availableFrom,
                     preferredProjectDuration: preferredProjectDuration.trim(),
                     additionalInfo: additionalInfo.trim(),
+
+                    registeredCapital,
+                    maxPastProjectValue,
+                    hasGovernmentExperience,
                 });
 
             setProfile(updated);
@@ -363,6 +380,12 @@ export default function ProfilePage() {
 
             setPreferredProjectDuration(updated.preferredProjectDuration ?? "");
             setAdditionalInfo(updated.additionalInfo ?? "");
+
+            setRegisteredCapital(updated.registeredCapital ?? null);
+            setMaxPastProjectValue(updated.maxPastProjectValue ?? null);
+            setHasGovernmentExperience(
+                updated.hasGovernmentExperience ?? null
+            );
 
             showToast("บันทึกโปรไฟล์แล้ว");
         } catch (error) {
@@ -908,10 +931,91 @@ export default function ProfilePage() {
                     <section className="profile-form-card profile-section-full">
                         <div className="profile-section-heading">
                             <Award size={19} />
-                            <h2>9. ข้อมูลเพิ่มเติม</h2>
+                            <h2>9. คุณสมบัติสำหรับการรับงานภาครัฐ</h2>
                         </div>
 
                         <div className="profile-divider" />
+
+                        <div className="profile-grid">
+                            <div className="profile-field">
+                                <label>ทุนจดทะเบียนบริษัท (บาท)</label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={registeredCapital ?? ""}
+                                    onChange={(e) =>
+                                        setRegisteredCapital(
+                                            e.target.value === ""
+                                                ? null
+                                                : Number(e.target.value)
+                                        )
+                                    }
+                                    placeholder="เช่น 2000000"
+                                />
+                            </div>
+
+                            <div className="profile-field">
+                                <label>มูลค่าผลงานสูงสุดที่ผ่านมา (บาท)</label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={maxPastProjectValue ?? ""}
+                                    onChange={(e) =>
+                                        setMaxPastProjectValue(
+                                            e.target.value === ""
+                                                ? null
+                                                : Number(e.target.value)
+                                        )
+                                    }
+                                    placeholder="เช่น 3000000"
+                                />
+                            </div>
+
+                            <div className="profile-field profile-full-width">
+                                <label>ประสบการณ์งานภาครัฐ</label>
+
+                                <div className="profile-chip-list">
+                                    <button
+                                        type="button"
+                                        className={`profile-chip ${
+                                            hasGovernmentExperience === true
+                                                ? "selected"
+                                                : ""
+                                        }`}
+                                        aria-pressed={hasGovernmentExperience === true}
+                                        onClick={() => setHasGovernmentExperience(true)}
+                                    >
+                                        เคยทำงานภาครัฐ
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        className={`profile-chip ${
+                                            hasGovernmentExperience === false
+                                                ? "selected"
+                                                : ""
+                                        }`}
+                                        aria-pressed={hasGovernmentExperience === false}
+                                        onClick={() => setHasGovernmentExperience(false)}
+                                    >
+                                        ไม่เคยทำงานภาครัฐ
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        className={`profile-chip ${
+                                            hasGovernmentExperience === null
+                                                ? "selected"
+                                                : ""
+                                        }`}
+                                        aria-pressed={hasGovernmentExperience === null}
+                                        onClick={() => setHasGovernmentExperience(null)}
+                                    >
+                                        ยังไม่ระบุ
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
                         <div className="profile-field">
                             <label>ข้อมูลหรือคุณสมบัติเพิ่มเติม</label>
