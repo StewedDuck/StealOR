@@ -12,14 +12,34 @@ import {
     MessageCircle,
     X,
 } from "lucide-react";
+
 import {
     deleteTor,
     getDraftTors,
     getComments,
 } from "@/lib/torApi";
+
 import type { Comment } from "@/lib/torApi";
 import type { Tor } from "@/types/tor";
 import "./draft_TOR.css";
+import { getDeadlineInfo } from "@/lib/torDeadline";
+
+function formatDeadline(deadline?: string | null) {
+    if (!deadline) return "ยังไม่ระบุ";
+
+    const date = new Date(deadline);
+
+    if (Number.isNaN(date.getTime())) {
+        return "ยังไม่ระบุ";
+    }
+
+    return new Intl.DateTimeFormat("th-TH", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "Asia/Bangkok",
+    }).format(date);
+}
 
 export default function DraftTOR() {
     const router = useRouter();
@@ -84,78 +104,170 @@ export default function DraftTOR() {
             <Sidebar />
             <main className="draftTOR-main">
                 <header className="draftTOR-header">
-                    <div><p>เจ้าของโครงการ</p><h1>TOR ร่างของฉัน</h1><span>จัดการและแก้ไข TOR ก่อนส่งตรวจสอบ</span></div>
-                    <button onClick={() => router.push("/project_own/create_TOR")}><Plus size={17} /> สร้าง TOR</button>
+                    <div>
+                        <p>เจ้าของโครงการ</p>
+                        
+                        <h1>TOR ร่างของฉัน</h1>
+                        
+                        <span>จัดการและแก้ไข TOR ก่อนส่งตรวจสอบ</span>
+                    </div>
+
+                    <button 
+                        onClick={() => router.push("/project_own/create_TOR")}
+                    >
+                        <Plus size={17} /> สร้าง TOR
+                    </button>
                 </header>
-                <div className="draftTOR-toolbar"><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหาชื่อโครงการหรือหน่วยงาน" /><span>{visibleTors.length} รายการ</span></div>
-                {error && <div className="draftTOR-error">{error}</div>}
-                {loading ? <div className="draftTOR-state">กำลังโหลดข้อมูล...</div> : visibleTors.length === 0 ? (
-                    <div className="draftTOR-state"><FilePenLine size={36} /><h2>{query ? "ไม่พบ TOR ที่ค้นหา" : "ยังไม่มี TOR ฉบับร่าง"}</h2><p>{query ? "ลองใช้คำค้นหาอื่น" : "เริ่มสร้าง TOR แล้วบันทึกเป็นฉบับร่างได้ทันที"}</p>{!query && <button onClick={() => router.push("/project_own/create_TOR")}>สร้าง TOR แรก</button>}</div>
-                ) : (
-                    <div className="draftTOR-list">{visibleTors.map((tor) => (
-                        <article className="draftTOR-card" key={tor._id}>
-                            <div className="draftTOR-cardTop">
-                                <div>
-                                    <span className="draftTOR-badge">
-                                        ฉบับร่าง
-                                    </span>
-                                    <h2>
-                                        {tor.projectName}
-                                    </h2>
-                                    <p>
-                                        {tor.agencyName}
-                                    </p>
-                                </div>
-                                
-                                <div className="draftTOR-cardActions">
 
-                                    <button
-                                        onClick={() => handleViewComments(tor)}
-                                    >
-                                        <MessageCircle size={16} />
-                                        ความคิดเห็น
-                                    </button>
+                <div className="draftTOR-toolbar">
+                    <Search size={17} />
+                    
+                    <input 
+                        value={query} 
+                        onChange={(e) => setQuery(e.target.value)} 
+                        placeholder="ค้นหาชื่อโครงการหรือหน่วยงาน" 
+                    />
+                    
+                    <span>
+                        {visibleTors.length} 
+                        รายการ
+                    </span>
+                </div>
 
-                                    <button
-                                        onClick={() =>
-                                            router.push(
-                                                `/project_own/draft_TOR/${tor._id}/edit`
-                                            )
-                                        }
-                                    >
-                                        <FilePenLine size={16} />
-                                        แก้ไข
-                                    </button>
+                {error && 
+                    <div className="draftTOR-error">
+                        {error}
+                    </div>
+                }
 
-                                    <button
-                                        className="danger"
-                                        disabled={deletingId === tor._id}
-                                        onClick={() => handleDelete(tor)}
-                                    >
-                                        <Trash2 size={16} />
-                                        {deletingId === tor._id
-                                            ? "กำลังลบ"
-                                            : "ลบ"}
-                                    </button>
+                {loading 
+                    ?  <div className="draftTOR-state">
+                            กำลังโหลดข้อมูล...
+                        </div> 
+                    : visibleTors.length === 0 ? (
+                        <div className="draftTOR-state">
+                            <FilePenLine size={36} />
+                            <h2>
+                                {query ? "ไม่พบ TOR ที่ค้นหา" : "ยังไม่มี TOR ฉบับร่าง"}
+                            </h2>
 
-                                </div>
-                            </div>
+                            <p>
+                                {query ? "ลองใช้คำค้นหาอื่น" : "เริ่มสร้าง TOR แล้วบันทึกเป็นฉบับร่างได้ทันที"}
+                            </p>
+                            
+                            {!query && 
+                                <button onClick={() => router.push("/project_own/create_TOR")}>
+                                    สร้าง TOR แรก
+                                </button>
+                            }
+                        </div>
+                    ) : (
+                        <div className="draftTOR-list">
+                            {visibleTors.map((tor) => {
+                                const deadline = getDeadlineInfo(tor.submissionDeadline);
 
-                            <div className="draftTOR-meta">
-                                <span>
-                                    งบประมาณ 
-                                    <b>{tor.budget == null ? "ไม่ระบุ" : `${tor.budget.toLocaleString("th-TH")} บาท`}</b>
-                                </span>
-                                
-                                <span>
-                                    แก้ไขล่าสุด 
-                                    <b>{new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short" }).format(new Date(tor.updatedAt))}</b>
-                                </span>
-                            </div>
-                        </article>
-                    ))}</div>
-                )}
+                                return (
+                                    <article className="draftTOR-card" key={tor._id}>
+                                        <div className="draftTOR-cardTop">
+                                            <div>
+                                                <span className="draftTOR-badge">
+                                                    ฉบับร่าง
+                                                </span>
+
+                                                <h2>
+                                                    {tor.projectName}
+                                                </h2>
+
+                                                <p>
+                                                    {tor.agencyName}
+                                                </p>
+                                            </div>
+                                            
+                                            <div className="draftTOR-cardActions">
+                                                <button
+                                                    onClick={() => handleViewComments(tor)}
+                                                >
+                                                    <MessageCircle size={16} />
+                                                    ความคิดเห็น
+                                                </button>
+
+                                                <button
+                                                    onClick={() =>
+                                                        router.push(
+                                                            `/project_own/draft_TOR/${tor._id}/edit`
+                                                        )
+                                                    }
+                                                >
+                                                    <FilePenLine size={16} />
+                                                    แก้ไข
+                                                </button>
+
+                                                <button
+                                                    className="danger"
+                                                    disabled={deletingId === tor._id}
+                                                    onClick={() => handleDelete(tor)}
+                                                >
+                                                    <Trash2 size={16} />
+                                                    {deletingId === tor._id
+                                                        ? "กำลังลบ"
+                                                        : "ลบ"}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="draftTOR-meta">
+                                            <span>
+                                                งบประมาณ
+                                                <b>
+                                                {tor.budget == null
+                                                    ? "ไม่ระบุ"
+                                                    : `${tor.budget.toLocaleString("th-TH")} บาท`}
+                                                </b>
+                                            </span>
+
+                                            <span>
+                                                วันปิดรับข้อเสนอ
+                                                <b>{formatDeadline(tor.submissionDeadline)}</b>
+                                            </span>
+
+                                            <span
+                                                className={`draftTOR-deadline ${
+                                                deadline.status === "closed"
+                                                    ? "closed"
+                                                    : deadline.status === "unknown"
+                                                    ? "unknown"
+                                                    : deadline.daysLeft !== null && deadline.daysLeft <= 7
+                                                        ? "closing"
+                                                        : "open"
+                                                }`}
+                                            >
+                                                {deadline.status === "unknown"
+                                                ? "ยังไม่กำหนดวันปิดรับ"
+                                                : deadline.status === "closed"
+                                                    ? "ปิดรับแล้ว"
+                                                    : deadline.daysLeft === 0
+                                                    ? "ปิดรับวันนี้"
+                                                    : `เหลืออีก ${deadline.daysLeft} วัน`}
+                                            </span>
+
+                                            <span>
+                                                แก้ไขล่าสุด
+                                                <b>
+                                                {new Intl.DateTimeFormat("th-TH", {
+                                                    dateStyle: "medium",
+                                                    timeStyle: "short",
+                                                }).format(new Date(tor.updatedAt))}
+                                                </b>
+                                            </span>
+                                        </div>
+                                    </article>
+                                );
+                            })}
+                        </div>
+                    )
+                }
             </main>
+
             {commentTor && (
                 <div
                     className="comment-modal-overlay"
