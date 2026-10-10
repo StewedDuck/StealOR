@@ -153,6 +153,11 @@ const userSchema = new mongoose.Schema(
             default: "contractor",
         },
 
+        isActive: {
+            type: Boolean,
+            default: true,
+        },
+
         verificationStatus: {
             type: String,
             enum: [
