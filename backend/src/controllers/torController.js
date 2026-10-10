@@ -7,7 +7,7 @@ const NotificationLog = require("../models/NotificationLog");
 const { draftUpdated } = require("../email/Contractor");
 const { sendEmail } = require("../email/Mailer");
 
-const DEMO_OWNER_ID = "demo-project-owner";
+// const DEMO_OWNER_ID = "demo-project-owner";
 const EDITABLE_FIELDS = [
   "projectName", "agencyName", "description", "objectives", "scopeOfWork",
   "requirements", "budget", "submissionDeadline", "contactName", "contactEmail",
@@ -51,7 +51,7 @@ async function createTor(req, res) {
   try {
     const tor = await Tor.create({
       ...prepareTorData(req.body),
-      ownerId: DEMO_OWNER_ID,
+      ownerId: req.ownerId,
       status: "draft",
     });
     return res.status(201).json({ success: true, data: tor, message: "TOR draft created successfully" });
@@ -62,7 +62,7 @@ async function createTor(req, res) {
 
 async function getTors(req, res) {
   try {
-    const query = { ownerId: DEMO_OWNER_ID };
+    const query = { ownerId: req.ownerId };
     if (req.query.status) query.status = req.query.status;
     const tors = await Tor.find(query).sort({ updatedAt: -1 });
     return res.json({ success: true, data: tors, message: "TORs retrieved successfully" });
@@ -76,7 +76,7 @@ async function getTorById(req, res) {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ success: false, error: "Invalid TOR id" });
     }
-    const tor = await Tor.findOne({ _id: req.params.id, ownerId: DEMO_OWNER_ID });
+    const tor = await Tor.findOne({ _id: req.params.id, ownerId: req.ownerId });
     if (!tor) return res.status(404).json({ success: false, error: "TOR not found" });
     return res.json({ success: true, data: tor, message: "TOR retrieved successfully" });
   } catch (error) {
@@ -162,7 +162,7 @@ async function updateTor(req, res) {
       return res.status(400).json({ success: false, error: "Invalid TOR id" });
     }
     const tor = await Tor.findOneAndUpdate(
-      { _id: req.params.id, ownerId: DEMO_OWNER_ID, status: "draft" },
+      { _id: req.params.id, ownerId: req.ownerId, status: "draft" },
       { $set: prepareTorData(req.body) },
       { new: true, runValidators: true }
     );
@@ -186,16 +186,38 @@ async function updateTor(req, res) {
 
 async function deleteTor(req, res) {
   try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ success: false, error: "Invalid TOR id" });
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid TOR id",
+      });
     }
+
     const tor = await Tor.findOneAndDelete({
-      _id: req.params.id,
-      ownerId: DEMO_OWNER_ID,
-      status: "draft",
+      _id: id,
+      ownerId: req.ownerId,
+      status: { $in: ["draft", "published"] },
     });
-    if (!tor) return res.status(404).json({ success: false, error: "Draft TOR not found" });
-    return res.json({ success: true, data: { id: tor.id }, message: "TOR draft deleted successfully" });
+
+    if (!tor) {
+      return res.status(404).json({
+        success: false,
+        error: "ไม่พบ TOR ที่สามารถลบได้",
+      });
+    }
+    // del. Bookmark the link with TOR
+    await Bookmark.deleteMany({
+      source: "internal",
+      torId: id,
+    });
+
+    return res.json({
+      success: true,
+      data: { id },
+      message: "ลบ TOR สำเร็จ",
+    });
   } catch (error) {
     return handleError(res, error);
   }
@@ -231,6 +253,27 @@ async function getMarketTors(req, res) {
       updatedAt: project.updatedAt,
     }));
 
+    const internalTors = await Tor.find({
+      status: "published",
+      applicationDeadline: { $gt: new Date() },
+    }).sort({ publishedAt: -1 });
+    
+    const internalData = internalTors.map((tor) => ({
+      id: tor._id.toString(),
+      source: "internal",
+      projectId: tor._id.toString(),
+      projectName: tor.projectName,
+      agencyName: tor.agencyName,
+      budget: tor.budget,
+      deadline: tor.applicationDeadline,
+      description: tor.description,
+      status: "เปิดรับสมัคร",
+      createdAt: tor.createdAt,
+      updatedAt: tor.updatedAt,
+    }));
+    
+    data.push(...internalData);
+
     return res.json({
       success: true,
       total: data.length,
@@ -248,6 +291,38 @@ async function getMarketTors(req, res) {
 
 async function getMarketTorDetail(req, res) {
   try {
+
+    if (mongoose.isValidObjectId(req.params.projectId)) {
+      const internalTor = await Tor.findOne({
+        _id: req.params.projectId,
+        status: "published",
+        applicationDeadline: { $gt: new Date() },
+      });
+    
+      if (internalTor) {
+        return res.json({
+          success: true,
+          data: {
+            id: internalTor._id.toString(),
+            source: "internal",
+            projectId: internalTor._id.toString(),
+            projectName: internalTor.projectName,
+            agencyName: internalTor.agencyName,
+            budget: internalTor.budget,
+            submissionDeadline: internalTor.applicationDeadline,
+            contactName: internalTor.contactName,
+            contactEmail: internalTor.contactEmail,
+            description: internalTor.description,
+            objectives: internalTor.objectives,
+            scopeOfWork: internalTor.scopeOfWork,
+            requirements: internalTor.requirements,
+            status: "เปิดรับสมัคร",
+            createdAt: internalTor.createdAt,
+            updatedAt: internalTor.updatedAt,
+          },
+        });
+      }
+    }
     const project = await GovProject.findOne({
       project_id: req.params.projectId,
     });
@@ -360,4 +435,79 @@ async function getMarketTorDetail(req, res) {
   }
 }
 
-module.exports = { createTor, getTors, getTorById, updateTor, deleteTor, getMarketTors, getMarketTorDetail };
+function isValidFutureDeadline(value) {
+  if (typeof value !== "string" || !value) return false;
+
+  const date = new Date(value);
+
+  return (
+    !Number.isNaN(date.getTime()) &&
+    date.getTime() > Date.now()
+  );
+}
+
+async function publishTor(req, res) {
+  try {
+    const { id } = req.params;
+    const { applicationDeadline } = req.body;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid TOR id",
+      });
+    }
+
+    if (!isValidFutureDeadline(applicationDeadline)) {
+      return res.status(400).json({
+        success: false,
+        error: "กรุณาระบุวันปิดรับสมัครในอนาคต",
+      });
+    }
+
+    const tor = await Tor.findOneAndUpdate(
+      {
+        _id: id,
+        ownerId: req.ownerId,
+        status: "draft",
+      },
+      {
+        $set: {
+          status: "published",
+          applicationDeadline: new Date(applicationDeadline),
+          publishedAt: new Date(),
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!tor) {
+      return res.status(404).json({
+        success: false,
+        error: "ไม่พบ TOR ฉบับร่างที่สามารถเผยแพร่ได้",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: tor,
+      message: "เผยแพร่ TOR สำเร็จ",
+    });
+  } catch (error) {
+    return handleError(res, error);
+  }
+}
+
+module.exports = {
+  createTor,
+  getTors,
+  getTorById,
+  updateTor,
+  deleteTor,
+  publishTor,
+  getMarketTors,
+  getMarketTorDetail,
+};

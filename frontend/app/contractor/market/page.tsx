@@ -21,6 +21,8 @@ import { useSession } from "next-auth/react";
 import TorDetailModal from "@/components/TORDetail";
 import FilterDropdown from "@/components/FilterDropdown";
 import MultiSelectFilterDropdown from "@/components/MultiSelectFilterDropdown";
+import TorDeadlineBadge from "@/components/TorDeadlineBadge";
+import { getDeadlineInfo } from "@/lib/torDeadline";
 
 import {
   Tag,
@@ -1076,16 +1078,9 @@ export default function TorMarketPage() {
           {/* TOR List */}
           <section className="market-list">
             {filteredTors.map((tor) => {
-              const daysLeft = getDaysUntil(
-                tor.deadline
-              );
-
-              const timeLabel = getTimeLabel(
-                tor.deadline
-              );
-
-              const almostClosing = isAlmostClosing(tor.deadline);
-              const closed = isClosed(tor.deadline);
+              const deadlineInfo = getDeadlineInfo(tor.deadline);
+              const closed = deadlineInfo.status === "closed";
+              const isDraft = tor.status?.toLowerCase() === "draft";
 
             return (
                 <article
@@ -1094,30 +1089,39 @@ export default function TorMarketPage() {
                 >
                     {/* Left / Content */}
                     <div className="market-card-content">
+                      <div className="market-card-top">
+                        <span
+                          className={`tor-source-badge ${
+                            tor.source === "government"
+                              ? "tor-source-government"
+                              : "tor-source-internal"
+                          }`}
+                        >
+                          {getSourceLabel(tor.source)}
+                        </span>
 
-                        <div className="market-card-top">
-                            <span className="market-badge source">
-                                {getSourceLabel(tor.source)}
-                            </span>
+                        <span
+                          className={`tor-status-badge ${
+                            closed
+                              ? "tor-status-closed"
+                              : isDraft
+                              ? "tor-status-draft"
+                              : "tor-status-open"
+                          }`}
+                        >
+                          {closed
+                            ? "ปิดรับแล้ว"
+                            : isDraft
+                            ? "Draft"
+                            : tor.status || "เปิดรับ"}
+                        </span>
 
-                            <span
-                              className={`market-badge ${
-                                closed
-                                  ? "status-closed"
-                                  : getStatusClass(tor.status)
-                              }`}
-                            >
-                              {closed
-                                ? "ปิดรับแล้ว"
-                                : tor.status || "เปิดรับ"}
-                            </span>
-
-                            {tor.projectId && (
-                                <span className="market-tor-id">
-                                TOR-{tor.projectId}
-                                </span>
-                            )}
-                        </div>
+                        {tor.projectId && (
+                          <span className="market-tor-id">
+                            TOR-{tor.projectId}
+                          </span>
+                        )}
+                      </div>
 
                         <h2 className="market-card-title">
                           {getTorDisplayName(tor)}
@@ -1132,7 +1136,6 @@ export default function TorMarketPage() {
                         </div>
 
                         <div className="market-card-meta">
-
                             <div className="market-meta-item">
                                 <span className="meta-icon">
                                 ฿
@@ -1155,24 +1158,14 @@ export default function TorMarketPage() {
                                 <CalendarDays size={15} />
 
                                 <span>
-                                    ปิดรับ{" "}
+                                    {tor.source === "internal" ? "ปิดรับสมัคร" : "ปิดรับ"}{" "}
                                     <strong>
                                       {formatDate(tor.deadline)}
                                     </strong>
                                 </span>
                             </div>
 
-                            {timeLabel && (almostClosing || closed) && (
-                              <span
-                                className={
-                                  closed
-                                    ? "closed-badge"
-                                    : "closing-badge"
-                                }
-                              >
-                                {timeLabel}
-                              </span>
-                            )}
+                            <TorDeadlineBadge deadline={tor.deadline} />
                         </div>
 
                         {tor.description && (

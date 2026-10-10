@@ -1,5 +1,577 @@
-.myTOR-main-header {
+.myTOR-layout {
+  min-height: 100vh;
+  background: #f5f5f2;
+  color: #26323d;
+}
+
+.myTOR-main {
+  margin-left: 270px;
+  min-height: 100vh;
+  min-width: 0;
+}
+
+.myTOR-header {
+  padding: 36px 44px 28px;
+}
+
+.myTOR-header p {
+  margin: 0 0 10px;
+  color: #4b7db8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.myTOR-header h1 {
+  margin: 0 0 8px;
+  font-size: 29px;
+  color: #25313e;
+}
+
+.myTOR-header span {
+  color: #758493;
+  font-size: 13px;
+}
+
+.myTOR-content {
+  padding: 0 44px 44px;
+}
+
+.myTOR-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #e1e4e6;
+  border-radius: 13px;
+  background: #fcfcfa;
+}
+
+.myTOR-search {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
+  background: #f8f9f8;
+  border: 1px solid #d9dee2;
+  border-radius: 8px;
+  color: #8292a1;
+}
+
+.myTOR-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #26323d;
+  font-size: 13px;
+}
+
+.myTOR-select {
+  position: relative;
+  min-width: 175px;
+  height: 42px;
+}
+
+.myTOR-select select {
+  appearance: none;
+  width: 100%;
+  height: 100%;
+  padding: 0 34px 0 12px;
+  border: 1px solid #d9dee2;
+  border-radius: 8px;
+  background: #f8f9f8;
+  color: #354455;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.myTOR-select svg {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #64717c;
+}
+
+.myTOR-reset {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid #d9dee2;
+  border-radius: 8px;
+  background: #fcfcfa;
+  color: #52606d;
+  cursor: pointer;
+}
+
+.myTOR-count {
+  margin: 22px 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #52606d;
+}
+
+.myTOR-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.myTOR-card {
+  padding: 22px;
+  background: #fcfcfa;
+  border: 1px solid #e1e4e6;
+  border-radius: 13px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.myTOR-card:hover {
+  border-color: #b7c7d5;
+  box-shadow: 0 5px 18px rgba(31, 41, 51, 0.04);
+}
+
+.myTOR-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.myTOR-card-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.myTOR-card-info h2 {
+  margin: 10px 0 5px;
+  color: #25313e;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.myTOR-card-info p {
+  margin: 0;
+  color: #718096;
+  font-size: 12px;
+}
+
+.myTOR-status {
+  display: inline-flex;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.myTOR-status.draft {
+  color: #687887;
+  background: #e8edf0;
+}
+
+.myTOR-status.published {
+  color: #4d8660;
+  background: #e8f3ea;
+}
+
+.myTOR-status.closed {
+  color: #b64e4e;
+  background: #f9e8e8;
+}
+
+.myTOR-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.myTOR-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #cbd4dc;
+  border-radius: 8px;
+  background: #fcfcfa;
+  color: #354455;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.myTOR-actions button:hover {
+  background: #edf2f6;
+}
+
+.myTOR-actions button.publish {
+  color: #fff;
+  background: #1f2933;
+  border-color: #1f2933;
+}
+
+.myTOR-actions button.publish:hover {
+  background: #334454;
+}
+
+.myTOR-actions button.danger {
+  color: #b64e4e;
+  border-color: #e6c4c4;
+}
+
+.myTOR-actions button.danger:hover {
+  background: #fff0f0;
+}
+
+.myTOR-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.myTOR-meta {
+  display: flex;
+  align-items: center;
+  gap: 18px 28px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 17px;
+  border-top: 1px solid #e9ecee;
+}
+
+.myTOR-meta > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.myTOR-meta small {
+  font-size: 12px;
+  color: #82909c;
+}
+
+.myTOR-meta strong {
+  font-size: 12px;
+  color: #354455;
+}
+
+.myTOR-days {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.myTOR-days.open {
+  background: #e8f3ea;
+  color: #4f8460;
+}
+
+.myTOR-days.closing {
+  background: #fff1dc;
+  color: #a67828;
+}
+
+.myTOR-days.closed {
+  background: #f9e8e8;
+  color: #b64e4e;
+}
+
+.myTOR-empty {
+  min-height: 210px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 30px;
+  border: 1px solid #e1e4e6;
+  border-radius: 13px;
+  background: #fcfcfa;
+  color: #82909c;
+}
+
+.myTOR-empty h3,
+.myTOR-empty p {
+  margin: 0;
+}
+
+.myTOR-error {
+  padding: 13px 16px;
+  margin-bottom: 14px;
+  background: #fff0f0;
+  border: 1px solid #e6c4c4;
+  border-radius: 9px;
+  color: #b64e4e;
+  font-size: 13px;
+}
+
+/* Modals */
+
+.myTOR-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(20, 30, 42, 0.55);
+}
+
+.myTOR-modal {
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #fcfcfa;
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.2);
+}
+
+.myTOR-modal.detail {
+  max-width: 780px;
+}
+
+.myTOR-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 24px 26px;
+  background: #233e5d;
+  color: white;
+}
+
+.myTOR-modal-header span {
+  font-size: 11px;
+  color: #a9c4df;
+}
+
+.myTOR-modal-header h2 {
+  margin: 7px 0;
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+.myTOR-modal-header p {
+  margin: 0;
+  color: #c5d5e4;
+  font-size: 12px;
+}
+
+.myTOR-modal-header button {
+  display: flex;
+  padding: 6px;
+  border: 0;
+  background: transparent;
+  color: white;
+  cursor: pointer;
+}
+
+.myTOR-modal-body {
+  padding: 24px 26px;
+  overflow-y: auto;
+  color: #354455;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.myTOR-modal-body h3 {
+  margin: 22px 0 8px;
+  color: #25313e;
+  font-size: 15px;
+}
+
+.myTOR-modal-body h3:first-child {
+  margin-top: 0;
+}
+
+.myTOR-modal-body ul {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.myTOR-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.myTOR-detail-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid #e1e4e6;
+  border-radius: 9px;
+  background: #f8f9f8;
+}
+
+.myTOR-detail-grid small {
+  color: #82909c;
+}
+
+.myTOR-detail-grid strong {
+  color: #25313e;
+}
+
+.myTOR-requirements {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.myTOR-requirements > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid #e1e4e6;
+  border-radius: 8px;
+}
+
+.myTOR-requirements small {
+  flex-shrink: 0;
+  color: #4b7db8;
+}
+
+.myTOR-field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-weight: 600;
+}
+
+.myTOR-field input {
+  width: 100%;
+  height: 44px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid #cbd4dc;
+  border-radius: 8px;
+  background: white;
+  color: #25313e;
+  font: inherit;
+}
+
+.myTOR-hint {
+  margin: 15px 0 0;
+  color: #718096;
+  font-size: 12px;
+}
+
+.myTOR-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 26px;
+  border-top: 1px solid #e1e4e6;
+}
+
+.myTOR-modal-footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 17px;
+  border: 1px solid #cbd4dc;
+  border-radius: 8px;
+  background: #fcfcfa;
+  color: #354455;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.myTOR-modal-footer button.confirm {
+  background: #233e5d;
+  border-color: #233e5d;
+  color: white;
+}
+
+.myTOR-modal-footer button.delete {
+  background: #b64e4e;
+  border-color: #b64e4e;
+  color: white;
+}
+
+.myTOR-modal-footer button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1100px) {
+  .myTOR-card-top {
+    flex-direction: column;
+  }
+
+  .myTOR-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 850px) {
+  .myTOR-main {
+    margin-left: 0;
+  }
+
+  .myTOR-header {
+    padding: 26px 20px;
+  }
+
+  .myTOR-content {
+    padding: 0 20px 30px;
+  }
+
+  .myTOR-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .myTOR-search {
+    flex-basis: 100%;
+  }
+
+  .myTOR-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .myTOR-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .myTOR-select {
+    width: 100%;
+  }
+
+  .myTOR-actions {
+    width: 100%;
+  }
+
+  .myTOR-actions button {
     flex: 1;
-    min-width: 0;  
-    margin-left: 300px;
+  }
+
+  .myTOR-modal-header,
+  .myTOR-modal-body,
+  .myTOR-modal-footer {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
 }

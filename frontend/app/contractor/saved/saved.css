@@ -1034,3 +1034,33 @@
 
   cursor: not-allowed;
 }
+
+/* Government */
+.saved-card-top .tor-status-badge.government {
+  background: #e8effb;
+  color: #416eac;
+}
+
+/* Internal */
+.saved-card-top .tor-status-badge.internal {
+  background: #e6f2e9;
+  color: #387c50;
+}
+
+/* Draft */
+.saved-card-top .tor-status-badge.draft {
+  background: #e6f2e9;
+  color: #387c50;
+}
+
+/* Open */
+.saved-card-top .tor-status-badge.open {
+  background: #e8effb;
+  color: #416eac;
+}
+
+/* Closed */
+.saved-card-top .tor-status-badge.closed {
+  background: #f9e5e5;
+  color: #b34242;
+}

@@ -1,0 +1,50 @@
+/* Shared badge */
+.tor-source-badge,
+.tor-status-badge,
+.tor-deadline-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Government */
+.tor-source-government {
+  background: #e8effb;
+  color: #416eac;
+}
+
+/* Internal */
+.tor-source-internal {
+  background: #e6f2e9;
+  color: #387c50;
+}
+
+/* Draft */
+.tor-status-draft {
+  background: #e6f2e9;
+  color: #387c50;
+}
+
+/* Open */
+.tor-status-open {
+  background: #e8effb;
+  color: #416eac;
+}
+
+/* Closed */
+.tor-status-closed,
+.tor-deadline-closed {
+  background: #f9e5e5;
+  color: #b34242;
+}
+
+/* Countdown */
+.tor-deadline-open {
+  background: #fff0d9;
+  color: #a46b22;
+}

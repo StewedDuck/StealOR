@@ -35,22 +35,22 @@ const menuItems: MenuSection[] = [
             },
             {
                 name: "จัดการผู้ใช้งาน",
-                href: "/manageUser",
+                href: "/admin/manageUser",
                 icon: "Users",
             },
             {
-                name: "ยืนยัดตัวตน",
+                name: "ยืนยันตัวตน",
                 href: "/admin/verification",
                 icon: "ShieldCheck",
             },
             {
                 name: "บันทึกกิจกรรม",
-                href: "/activity",
+                href: "/admin/activity",
                 icon: "RotateCcwClock",
             },
             {
                 name: "รายงาน / ร้องเรียน",
-                href: "/issue",
+                href: "/admin/issue",
                 icon: "Siren",
             },
         ],

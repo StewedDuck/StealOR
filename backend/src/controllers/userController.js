@@ -88,17 +88,33 @@ async function getProfile(req, res) {
 
                 phone: user.phone || "",
                 company: user.company || "",
-                profileSummary:
-                    user.profileSummary || "",
-                experienceYears:
-                    user.experienceYears || 0,
-                experienceSummary:
-                    user.experienceSummary || "",
+                profileSummary: user.profileSummary || "",
+                experienceYears: user.experienceYears || 0,
+                experienceSummary: user.experienceSummary || "",
                 skills: user.skills || [],
 
+                contractorType: user.contractorType || "individual",
+                occupation: user.occupation || "",
+                teamSize: user.teamSize ?? 1,
+
+                projectTypes: user.projectTypes || [],
+                serviceAreas: user.serviceAreas || [],
+                workModes: user.workModes || [],
+                certifications: user.certifications || [],
+
+                minProjectBudget: user.minProjectBudget ?? null,
+                maxProjectBudget: user.maxProjectBudget ?? null,
+
+                availableFrom: user.availableFrom || null,
+                preferredProjectDuration: user.preferredProjectDuration || "",
+                additionalInfo: user.additionalInfo || "",
+
+                registeredCapital: user.registeredCapital ?? null,
+                maxPastProjectValue: user.maxPastProjectValue ?? null,
+                hasGovernmentExperience: user.hasGovernmentExperience ?? null,
+
                 accountRole: user.accountRole,
-                verificationStatus:
-                    user.verificationStatus,
+                verificationStatus: user.verificationStatus,
             },
         });
     } catch (error) {
@@ -128,6 +144,23 @@ async function updateProfile(req, res) {
             experienceYears,
             experienceSummary,
             skills,
+
+            contractorType,
+            occupation,
+            teamSize,
+            projectTypes,
+            serviceAreas,
+            workModes,
+            certifications,
+            minProjectBudget,
+            maxProjectBudget,
+            availableFrom,
+            preferredProjectDuration,
+            additionalInfo,
+
+            registeredCapital,
+            maxPastProjectValue,
+            hasGovernmentExperience,
         } = req.body;
 
         const user = await User.findOne({
@@ -178,6 +211,114 @@ async function updateProfile(req, res) {
                 : [];
         }
 
+        if (contractorType !== undefined) {
+            user.contractorType = contractorType;
+        }
+
+        if (occupation !== undefined) {
+            user.occupation = String(occupation).trim();
+        }
+
+        if (teamSize !== undefined) {
+            user.teamSize = Number(teamSize);
+        }
+
+        const normalizeList = (values) => {
+            if (!Array.isArray(values)) return [];
+        
+            return [
+                ...new Set(
+                    values
+                        .map((value) => String(value).trim())
+                        .filter(Boolean)
+                ),
+            ];
+        };
+
+        if (projectTypes !== undefined) {
+            user.projectTypes = normalizeList(projectTypes);
+        }
+        
+        if (serviceAreas !== undefined) {
+            user.serviceAreas = normalizeList(serviceAreas);
+        }
+        
+        if (workModes !== undefined) {
+            user.workModes = normalizeList(workModes);
+        }
+        
+        if (certifications !== undefined) {
+            user.certifications = normalizeList(certifications);
+        }
+
+        if (minProjectBudget !== undefined) {
+            user.minProjectBudget =
+                minProjectBudget === null || minProjectBudget === ""
+                    ? null
+                    : Number(minProjectBudget);
+        }
+        
+        if (maxProjectBudget !== undefined) {
+            user.maxProjectBudget =
+                maxProjectBudget === null || maxProjectBudget === ""
+                    ? null
+                    : Number(maxProjectBudget);
+        }
+
+        if (
+            user.minProjectBudget !== null &&
+            user.maxProjectBudget !== null &&
+            user.minProjectBudget > user.maxProjectBudget
+        ) {
+            return res.status(400).json({
+                success: false,
+                error: "งบประมาณขั้นต่ำต้องไม่มากกว่างบประมาณสูงสุด",
+            });
+        }
+        
+        if (availableFrom !== undefined) {
+            user.availableFrom = availableFrom
+                ? new Date(availableFrom)
+                : null;
+        }
+
+        if (preferredProjectDuration !== undefined) {
+            user.preferredProjectDuration =
+                String(preferredProjectDuration).trim();
+        }
+        
+        if (additionalInfo !== undefined) {
+            user.additionalInfo = String(additionalInfo).trim();
+        }
+
+        if (registeredCapital !== undefined) {
+            user.registeredCapital =
+                registeredCapital === null || registeredCapital === ""
+                    ? null
+                    : Number(registeredCapital);
+        }
+        
+        if (maxPastProjectValue !== undefined) {
+            user.maxPastProjectValue =
+                maxPastProjectValue === null || maxPastProjectValue === ""
+                    ? null
+                    : Number(maxPastProjectValue);
+        }
+        
+        if (hasGovernmentExperience !== undefined) {
+            if (
+                hasGovernmentExperience !== null &&
+                typeof hasGovernmentExperience !== "boolean"
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    error: "ข้อมูลประสบการณ์งานภาครัฐไม่ถูกต้อง",
+                });
+            }
+        
+            user.hasGovernmentExperience = hasGovernmentExperience;
+        }
+
         await user.save();
 
         return res.json({
@@ -187,20 +328,31 @@ async function updateProfile(req, res) {
                 name: user.name,
                 email: user.email,
                 image: user.image,
-
                 phone: user.phone,
                 company: user.company,
-                profileSummary:
-                    user.profileSummary,
-                experienceYears:
-                    user.experienceYears,
-                experienceSummary:
-                    user.experienceSummary,
+                profileSummary: user.profileSummary,
+                contractorType: user.contractorType,
+                occupation: user.occupation,
+                teamSize: user.teamSize,
+                experienceYears: user.experienceYears,
+                experienceSummary: user.experienceSummary,
                 skills: user.skills,
 
+                projectTypes: user.projectTypes,    
+                serviceAreas: user.serviceAreas,
+                workModes: user.workModes,
+                certifications: user.certifications,
+                minProjectBudget: user.minProjectBudget,
+                maxProjectBudget: user.maxProjectBudget,
+                availableFrom: user.availableFrom,
+                preferredProjectDuration: user.preferredProjectDuration,
+                
+                registeredCapital: user.registeredCapital,
+                maxPastProjectValue: user.maxPastProjectValue,
+                hasGovernmentExperience: user.hasGovernmentExperience,
+                additionalInfo: user.additionalInfo,
                 accountRole: user.accountRole,
-                verificationStatus:
-                    user.verificationStatus,
+                verificationStatus: user.verificationStatus,
             },
             message: "Profile updated successfully",
         });

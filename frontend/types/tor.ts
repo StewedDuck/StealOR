@@ -21,6 +21,8 @@ export type Tor = TorFormData & {
   _id: string;
   ownerId: string;
   status: "draft" | "pending_verification" | "published";
+  applicationDeadline?: string | null;
+  publishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
