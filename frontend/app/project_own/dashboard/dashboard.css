@@ -488,6 +488,21 @@
     flex-shrink: 0;
 }
 
+.status-badge.published {
+  background: #e6f3e8;
+  color: #4f865c;
+}
+
+.status-badge.closed {
+  background: #f8e7e7;
+  color: #a65353;
+}
+
+.status-badge.pending_verification {
+  background: #edf3fa;
+  color: #4b7db8;
+}
+
 /* RESPONSIVE */
 @media (max-width: 1200px) {
   .owner-summary-grid {

@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 
 import Sidebar from "@/components/sideBar";
-import { getDraftTors, getUserProfile } from "@/lib/torApi";
+import { getDraftTors, getUserProfile, getMyTors } from "@/lib/torApi";
+import { getTorDisplayStatus } from "@/lib/torLifecycle";
 import type { Tor } from "@/types/tor";
 
 import "./dashboard.css";
@@ -22,22 +23,33 @@ import Link from "next/link";
 export default function ProjectOwnerDashboard() {
     const { data: session } = useSession();
 
-    const [draftTors, setDraftTors] = useState<Tor[]>([]);
-    const [loading, setLoading] = useState(true);
     const [displayName, setDisplayName] = useState("");
     const [verificationStatus, setVerificationStatus] = useState< "not_required" | "pending" | "approved" | "rejected" >("not_required");
 
-    // ตอนนี้ยังไม่มี Published / Closed API
-    const publishedCount = 0;
-    const closedCount = 0;
+    const [tors, setTors] = useState<Tor[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const draftCount = tors.filter(
+        (tor) => tor.status === "draft"
+    ).length;
+
+    const publishedCount = tors.filter(
+        (tor) => getTorDisplayStatus(tor) === "published"
+    ).length;
+
+    const closedCount = tors.filter(
+        (tor) => getTorDisplayStatus(tor) === "closed"
+    ).length;
+
+    const totalCount = tors.length;
 
     useEffect(() => {
         async function loadDashboard() {
         try {
             setLoading(true);
 
-            const drafts = await getDraftTors();
-            setDraftTors(drafts);
+            const allTors = await getMyTors();
+            setTors(allTors);
         } catch (error) {
             console.error("Failed to load project owner dashboard:", error);
         } finally {
@@ -75,15 +87,15 @@ export default function ProjectOwnerDashboard() {
         .toUpperCase()
         .slice(0, 2);
 
-    const recentTors = useMemo(() => {
-        return [...draftTors]
-        .sort(
-            (a, b) =>
-            new Date(b.updatedAt).getTime() -
-            new Date(a.updatedAt).getTime()
-        )
-        .slice(0, 5);
-    }, [draftTors]);
+        const recentTors = useMemo(() => {
+            return [...tors]
+                .sort(
+                    (a, b) =>
+                    new Date(b.updatedAt).getTime() -
+                    new Date(a.updatedAt).getTime()
+                )
+                .slice(0, 5);
+        }, [tors]);
 
     function formatDate(date?: string | null) {
         if (!date) return "-";
@@ -135,21 +147,21 @@ export default function ProjectOwnerDashboard() {
                     <section className="owner-summary-grid">
                         <SummaryCard
                             title="TOR ฉบับร่าง"
-                            value={loading ? "-" : draftTors.length}
+                            value={loading ? "-" : draftCount}
                             description="TOR ที่กำลังจัดทำ"
                             icon={<FileText size={21} />}
                         />
 
                         <SummaryCard
                             title="TOR ที่เผยแพร่"
-                            value={publishedCount}
+                            value={loading ? "-" : publishedCount}
                             description="TOR ที่เผยแพร่แล้ว"
                             icon={<FileCheck2 size={21} />}
                         />
 
                         <SummaryCard
                             title="TOR ที่ปิดแล้ว"
-                            value={closedCount}
+                            value={loading ? "-" : closedCount}
                             description="TOR ที่สิ้นสุดการรับสมัคร"
                             icon={<CheckCircle2 size={21} />}
                         />
@@ -206,11 +218,7 @@ export default function ProjectOwnerDashboard() {
                             <div className="tor-overview">
                                 <div className="overview-total">
                                     <span className="overview-number">
-                                        {loading
-                                        ? "-"
-                                        : draftTors.length +
-                                            publishedCount +
-                                            closedCount}
+                                        {loading ? "-" : totalCount}
                                     </span>
 
                                     <span>TOR ทั้งหมด</span>
@@ -219,35 +227,20 @@ export default function ProjectOwnerDashboard() {
                                 <div className="overview-bars">
                                     <OverviewBar
                                         label="ฉบับร่าง"
-                                        value={draftTors.length}
-                                        total={Math.max(
-                                        draftTors.length +
-                                            publishedCount +
-                                            closedCount,
-                                        1
-                                        )}
+                                        value={draftCount}
+                                        total={Math.max(totalCount, 1)}
                                     />
 
                                     <OverviewBar
                                         label="เผยแพร่"
                                         value={publishedCount}
-                                        total={Math.max(
-                                        draftTors.length +
-                                            publishedCount +
-                                            closedCount,
-                                        1
-                                        )}
+                                        total={Math.max(totalCount, 1)}
                                     />
 
                                     <OverviewBar
                                         label="ปิดแล้ว"
                                         value={closedCount}
-                                        total={Math.max(
-                                        draftTors.length +
-                                            publishedCount +
-                                            closedCount,
-                                        1
-                                        )}
+                                        total={Math.max(totalCount, 1)}
                                     />
                                 </div>
                             </div>
@@ -345,11 +338,11 @@ export default function ProjectOwnerDashboard() {
 
                             {loading ? (
                                 <div className="recent-empty">
-                                กำลังโหลด...
+                                    กำลังโหลด...
                                 </div>
                             ) : recentTors.length === 0 ? (
                                 <div className="recent-empty">
-                                ยังไม่มี TOR ฉบับร่าง
+                                    ยังไม่มี TOR
                                 </div>
                             ) : (
                                 recentTors.map((tor) => (
@@ -366,9 +359,21 @@ export default function ProjectOwnerDashboard() {
                                     </span>
 
                                     <span>
-                                        <span className="status-badge draft">
-                                            ฉบับร่าง
-                                        </span>
+                                        {(() => {
+                                            const status = getTorDisplayStatus(tor);
+
+                                            return (
+                                                <span className={`status-badge ${status}`}>
+                                                {status === "draft"
+                                                    ? "ฉบับร่าง"
+                                                    : status === "published"
+                                                    ? "เผยแพร่แล้ว"
+                                                    : status === "closed"
+                                                    ? "ปิดรับแล้ว"
+                                                    : "รอตรวจสอบ"}
+                                                </span>
+                                            );
+                                        })()}
                                     </span>
 
                                     <span>
