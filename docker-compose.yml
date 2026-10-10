@@ -31,8 +31,6 @@ services:
       - "5000:5000"
     env_file:
       - ./backend/.env
-    environment:
-      - NODE_TLS_REJECT_UNAUTHORIZED=0
     volumes:
       - ./backend/src:/app/src
       - ./backend/temp:/app/temp
@@ -61,6 +59,7 @@ services:
       # For local Docker development this is always http://localhost:3000.
       - NEXTAUTH_URL=http://localhost:3000
       - INTERNAL_API_URL=http://backend:5000
+      - NODE_OPTIONS=--dns-result-order=ipv4first
     volumes:
       # Bind-mount source code so edits are reflected without rebuild
       - ./frontend:/app

@@ -7,7 +7,7 @@ const NotificationLog = require("../models/NotificationLog");
 const { draftUpdated } = require("../email/Contractor");
 const { sendEmail } = require("../email/Mailer");
 
-const DEMO_OWNER_ID = "demo-project-owner";
+// const DEMO_OWNER_ID = "demo-project-owner";
 const EDITABLE_FIELDS = [
   "projectName", "agencyName", "description", "objectives", "scopeOfWork",
   "requirements", "budget", "submissionDeadline", "contactName", "contactEmail",
@@ -51,7 +51,7 @@ async function createTor(req, res) {
   try {
     const tor = await Tor.create({
       ...prepareTorData(req.body),
-      ownerId: DEMO_OWNER_ID,
+      ownerId: req.ownerId,
       status: "draft",
     });
     return res.status(201).json({ success: true, data: tor, message: "TOR draft created successfully" });
@@ -62,7 +62,7 @@ async function createTor(req, res) {
 
 async function getTors(req, res) {
   try {
-    const query = { ownerId: DEMO_OWNER_ID };
+    const query = { ownerId: req.ownerId };
     if (req.query.status) query.status = req.query.status;
     const tors = await Tor.find(query).sort({ updatedAt: -1 });
     return res.json({ success: true, data: tors, message: "TORs retrieved successfully" });
@@ -76,7 +76,7 @@ async function getTorById(req, res) {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ success: false, error: "Invalid TOR id" });
     }
-    const tor = await Tor.findOne({ _id: req.params.id, ownerId: DEMO_OWNER_ID });
+    const tor = await Tor.findOne({ _id: req.params.id, ownerId: req.ownerId });
     if (!tor) return res.status(404).json({ success: false, error: "TOR not found" });
     return res.json({ success: true, data: tor, message: "TOR retrieved successfully" });
   } catch (error) {
@@ -162,7 +162,7 @@ async function updateTor(req, res) {
       return res.status(400).json({ success: false, error: "Invalid TOR id" });
     }
     const tor = await Tor.findOneAndUpdate(
-      { _id: req.params.id, ownerId: DEMO_OWNER_ID, status: "draft" },
+      { _id: req.params.id, ownerId: req.ownerId, status: "draft" },
       { $set: prepareTorData(req.body) },
       { new: true, runValidators: true }
     );
@@ -197,7 +197,7 @@ async function deleteTor(req, res) {
 
     const tor = await Tor.findOneAndDelete({
       _id: id,
-      ownerId: DEMO_OWNER_ID,
+      ownerId: req.ownerId,
       status: { $in: ["draft", "published"] },
     });
 
@@ -468,7 +468,7 @@ async function publishTor(req, res) {
     const tor = await Tor.findOneAndUpdate(
       {
         _id: id,
-        ownerId: DEMO_OWNER_ID,
+        ownerId: req.ownerId,
         status: "draft",
       },
       {

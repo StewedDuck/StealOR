@@ -70,18 +70,28 @@ function formatDateTime(value?: string | null) {
 }
 
 function getDaysLeft(value?: string | null) {
-    if (!value) return null;
+  if (!value) return null;
 
-    const deadline = new Date(value);
-    if (Number.isNaN(deadline.getTime())) return null;
+  const deadline = new Date(value);
+  if (Number.isNaN(deadline.getTime())) return null;
 
-    return Math.max(
-        0,
-        Math.ceil(
-        (deadline.getTime() - Date.now()) /
-            (1000 * 60 * 60 * 24)
-        )
-    );
+  const bangkokDate = (date: Date) => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Bangkok",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+
+    const get = (type: string) =>
+      Number(parts.find((part) => part.type === type)?.value);
+
+    return Date.UTC(get("year"), get("month") - 1, get("day"));
+  };
+
+  return Math.round(
+    (bangkokDate(deadline) - bangkokDate(new Date())) / 86400000
+  );
 }
 
 function formatBudget(value: number | null) {
@@ -450,7 +460,9 @@ export default function MyTORPage() {
                                                         }`}
                                                     >
                                                         <Clock3 size={14} />
-                                                        เหลืออีก {daysLeft} วัน
+                                                        {daysLeft === 0
+                                                            ? "ปิดรับวันนี้"
+                                                            : `เหลืออีก ${daysLeft} วัน`}
                                                     </span>
                                                 )
                                             }

@@ -42,7 +42,11 @@ async function request<T>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
-  const url = `${API_URL}${path}`;
+  const url =
+  path.startsWith("/api/tors") &&
+  !path.startsWith("/api/tors/market")
+    ? path.replace(/^\/api\/tors/, "/api/owner-tors")
+    : `${API_URL}${path}`;
 
   const response = await fetch(url, {
     ...init,
