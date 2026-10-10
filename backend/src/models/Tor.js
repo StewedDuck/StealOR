@@ -63,6 +63,14 @@ const torSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    applicationDeadline: {
+      type: Date,
+      default: null,
+    },
+    publishedAt: {
+      type: Date,
+      default: null,
+    },
     contactName: {
       type: String,
       default: "",

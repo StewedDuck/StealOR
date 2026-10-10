@@ -1158,7 +1158,7 @@ export default function TorMarketPage() {
                                 <CalendarDays size={15} />
 
                                 <span>
-                                    ปิดรับ{" "}
+                                    {tor.source === "internal" ? "ปิดรับสมัคร" : "ปิดรับ"}{" "}
                                     <strong>
                                       {formatDate(tor.deadline)}
                                     </strong>

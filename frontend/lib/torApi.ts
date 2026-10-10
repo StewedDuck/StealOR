@@ -38,13 +38,46 @@ export function getGovProjectDraftEbiddingDownloadUrl(projectId: string) {
 
 type ApiResponse<T> = { success: boolean; data: T; message?: string; error?: string };
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+async function request<T>(
+  path: string,
+  init?: RequestInit
+): Promise<T> {
+  const url = `${API_URL}${path}`;
+
+  const response = await fetch(url, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
   });
+
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (!contentType.includes("application/json")) {
+    const text = await response.text();
+
+    console.log("API URL:", url);
+    console.log("HTTP status:", response.status);
+    console.log("Final response URL:", response.url);
+    console.log("Content-Type:", contentType);
+    console.log("Response body:", text.slice(0, 500));
+
+    throw new Error(
+      `API returned HTML instead of JSON (${response.status}) at ${url}`
+    );
+  }
+
   const result = (await response.json()) as ApiResponse<T>;
-  if (!response.ok) throw new Error(result.error ?? "เกิดข้อผิดพลาดในการเชื่อมต่อ API");
+
+  if (!response.ok || result.success === false) {
+    throw new Error(
+      result.error ??
+        result.message ??
+        "เกิดข้อผิดพลาดในการเชื่อมต่อ API"
+    );
+  }
+
   return result.data;
 }
 
@@ -56,6 +89,22 @@ export async function createTor(data: TorFormData): Promise<Tor> {
 }
 
 export const getDraftTors = () => request<Tor[]>("/api/tors?status=draft");
+export async function getMyTors(): Promise<Tor[]> {
+  return request<Tor[]>("/api/tors");
+}
+
+export async function publishTor(
+  id: string,
+  applicationDeadline: string
+): Promise<Tor> {
+  return request<Tor>(
+    `/api/tors/${encodeURIComponent(id)}/publish`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ applicationDeadline }),
+    }
+  );
+}
 export const getTorById = (id: string) => request<Tor>(`/api/tors/${encodeURIComponent(id)}`);
 
 export async function updateTor(
