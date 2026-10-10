@@ -1,12 +1,10 @@
-/* ===== Page layout ===== */
-
 .matching_layout {
   min-height: 100vh;
   background: #f5f5f2;
 }
 
 .matching-main-header {
-  margin-left: 300px;
+  margin-left: 243px;
   min-width: 0;
   min-height: 100vh;
 }
@@ -36,8 +34,7 @@
   padding: 28px 32px 60px;
 }
 
-/* ===== Search and filters ===== */
-
+/*  Search and filters */
 .matching-toolbar {
   display: flex;
   align-items: center;
@@ -107,8 +104,7 @@
   font-size: 12px;
 }
 
-/* ===== TOR cards ===== */
-
+/* TOR cards */
 .matching-tor-list {
   display: flex;
   flex-direction: column;
@@ -234,8 +230,7 @@
   margin-top: 14px;
 }
 
-/* ===== Card right column ===== */
-
+/* Card right column */
 .matching-tor-side {
   display: flex;
   flex-direction: column;
@@ -341,8 +336,7 @@
   text-align: center;
 }
 
-/* ===== Matching detail modal ===== */
-
+/* Matching detail modal */
 .matching-modal-overlay {
   position: fixed;
   inset: 0;
@@ -473,8 +467,7 @@
   margin-bottom: 6px;
 }
 
-/* ===== Matching analysis ===== */
-
+/* Matching analysis */
 .matching-analysis-title {
   display: flex;
   align-items: center;
@@ -534,8 +527,7 @@
   font-weight: 600;
 }
 
-/* ===== Individual requirements ===== */
-
+/* Individual requirements */
 .matching-requirement-list {
   display: flex;
   flex-direction: column;
@@ -665,7 +657,6 @@
 }
 
 /* TOR Card action buttons */
-
 .matching-card-actions {
   display: flex;
   flex-direction: column;
@@ -736,8 +727,7 @@
   background: #edf2f6;
 }
 
-/* ===== Responsive ===== */
-
+/* Responsive */
 @media (max-width: 1100px) {
   .matching-tor-card {
     grid-template-columns: minmax(0, 1fr) 135px;
