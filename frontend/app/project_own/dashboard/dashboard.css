@@ -164,11 +164,11 @@
 }
 
 .verification-content {
-  margin-top: 16px;
-
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 32px 60px;
+  box-sizing: border-box;
 }
 
 .verification-badge {
