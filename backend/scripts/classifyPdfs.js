@@ -70,7 +70,7 @@ async function extractFullTextWithAI(fullPdfBuffer, chunkSize = 4) {
   const totalPages = pdfDoc.getPageCount();
 
   const prompt = `
-  จงสกัดข้อความภาษาไทย ตัวเลข และตารางทั้งหมดจากเอกสาร PDF นี้ให้ออกมาเป็นข้อความล้วน (Plain text)
+  จงสกัดข้อความ ตัวเลข และตารางทั้งหมดจากเอกสาร PDF นี้ให้ออกมาเป็นข้อความล้วน (Plain text)
   - ห้ามสรุปความ
   - ห้ามตัดทอนเนื้อหา
   - พิมพ์ข้อความออกมาให้ตรงตามต้นฉบับที่สุด
