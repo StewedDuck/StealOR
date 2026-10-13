@@ -240,9 +240,28 @@ async function getMarketTors(req, res) {
       agencyName: project.dept_name,
 
       budget:
-        project.sum_price_agree ||
-        project.budget_amount ||
-        0,
+        project.procurementAnalysis?.allocatedBudget?.amount > 0
+          ? project.procurementAnalysis.allocatedBudget.amount
+          : project.budget_amount > 0
+            ? project.budget_amount
+            : null,
+
+      description:
+        project.procurementAnalysis?.projectDetails ||
+        project.raw_data?.project_description ||
+        "",
+          
+      deadline:
+        project.procurementAnalysis?.biddingClosingDate?.dateTime ||
+        project.raw_data?.submission_deadline ||
+        project.raw_data?.deadline ||
+        null,
+
+      allocatedBudget:
+        project.procurementAnalysis?.allocatedBudget?.amount ?? null,
+
+      referencePriceEstimate:
+        project.procurementAnalysis?.referencePriceEstimate?.amount ?? null,
 
       status: project.contract_status || "Active",
 
@@ -257,7 +276,7 @@ async function getMarketTors(req, res) {
       status: "published",
       applicationDeadline: { $gt: new Date() },
     }).sort({ publishedAt: -1 });
-    
+
     const internalData = internalTors.map((tor) => ({
       id: tor._id.toString(),
       source: "internal",
@@ -335,6 +354,16 @@ async function getMarketTorDetail(req, res) {
     }
 
     const raw = project.raw_data || {};
+    const analysis = project.procurementAnalysis || {};
+    const analyzedBudget = analysis.allocatedBudget?.amount;
+
+    const governmentBudget = typeof analyzedBudget === "number" && analyzedBudget > 0
+      ? analyzedBudget
+      : project.budget_amount > 0
+        ? project.budget_amount
+        :null;
+
+    const qualifications = analysis.contractorQualifications || {};
 
     const data = {
       id: project._id.toString(),
@@ -353,15 +382,23 @@ async function getMarketTorDetail(req, res) {
         "ไม่ระบุหน่วยงาน",
 
       budget:
-        project.sum_price_agree ||
-        project.budget_amount ||
-        0,
+        project.procurementAnalysis?.allocatedBudget?.amount ??
+        (project.budget_amount > 0 ? project.budget_amount : null),
+
+      allocatedBudget:
+        project.procurementAnalysis?.allocatedBudget?.amount ?? null,
+
+      referencePriceEstimate:
+        project.procurementAnalysis?.referencePriceEstimate?.amount ?? null,
 
       submissionDeadline:
+        analysis.biddingClosingDate?.dateTime ||
         raw.submission_deadline ||
         raw.deadline ||
-        raw.project_end_date ||
         null,
+      
+      biddingClosingDate:
+        analysis.biddingClosingDate || null,
 
       contactName:
         raw.contact_name ||
@@ -373,33 +410,32 @@ async function getMarketTorDetail(req, res) {
         "",
 
       description:
+        analysis.projectDetails ||
         raw.project_description ||
         raw.description ||
         "",
 
-      objectives: Array.isArray(raw.objectives)
-        ? raw.objectives
-        : [],
+      objectives: analysis.objectives ||
+        (Array.isArray(raw.objectives) ? raw.objectives : []),
 
-      scopeOfWork: Array.isArray(raw.scope_of_work)
-        ? raw.scope_of_work
-        : [],
+      scopeOfWork: analysis.scopeOfWork ||
+        (Array.isArray(raw.scope_of_work) ? raw.scope_of_work : []),
 
       requirements: Array.isArray(raw.requirements)
         ? raw.requirements.map((item) => ({
-            description:
-              typeof item === "string"
-                ? item
-                : item.description || "",
-            weight:
-              typeof item === "object"
-                ? Number(item.weight) || 0
-                : 0,
-            mandatory:
-              typeof item === "object"
-                ? Boolean(item.mandatory)
-                : false,
-          }))
+          description:
+            typeof item === "string"
+              ? item
+              : item?.description || "",
+          weight:
+            typeof item === "object" && item !== null
+              ? Number(item.weight) || 0
+              : 0,
+          mandatory:
+            typeof item === "object" && item !== null
+              ? Boolean(item.mandatory)
+              : false,
+        }))
         : [],
 
       status:
@@ -416,6 +452,32 @@ async function getMarketTorDetail(req, res) {
         project.winner_tin ||
         raw.winner_tin ||
         null,
+      
+      contractorQualifications: {
+        generalLegal: qualifications.generalLegal || [],
+        projectSpecific: qualifications.projectSpecific || [],
+      },
+      
+      technicalRequirements:
+        analysis.technicalRequirements || [],
+      
+      deliverables:
+        analysis.deliverables || [],
+      
+      procurementAnalysisVersion:
+        analysis.analysisVersion || null,
+      
+      documents: {
+        priceEstimate: {
+          status: project.documents?.priceEstimate?.status || "not_checked",
+        },
+        invitation: {
+          status: project.documents?.invitation?.status || "not_checked",
+        },
+        draftEbidding: {
+          status: project.documents?.draftEbidding?.status || "not_checked",
+        },
+      },
 
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,

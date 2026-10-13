@@ -468,7 +468,7 @@ export default function SavedPage() {
     // BUDGET  
     if (budgetFilter !== "all") {
       result = result.filter((tor) => {
-        const budget = tor.budget;
+        const budget = tor.allocatedBudget ?? tor.budget;
   
         if (budget == null) {
           return false;
@@ -913,13 +913,26 @@ export default function SavedPage() {
                       </div>
 
                       <div className="saved-card-meta">
-                        {/* Budget */}
-
+                        {/* Budget and Reference Price */}
                         <div className="saved-meta-item">
-                          <span className="saved-money-icon">฿</span>
-
-                          <strong>{formatBudget(tor.budget)}</strong>
+                          <span>
+                            งบประมาณ:{" "}
+                            <strong>
+                              {formatBudget(tor.allocatedBudget ?? tor.budget)}
+                            </strong>
+                          </span>
                         </div>
+
+                        {tor.source === "government" && (
+                          <div className="saved-meta-item">
+                            <span>
+                              ราคากลาง:{" "}
+                              <strong>
+                                {formatBudget(tor.referencePriceEstimate ?? null)}
+                              </strong>
+                            </span>
+                          </div>
+                        )}
 
                         {/* Type */}
                         <div className="saved-meta-item">

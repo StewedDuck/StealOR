@@ -749,7 +749,11 @@ export default function TorMarketPage() {
         // Budget
         if (budgetFilter !== "all") {
             result = result.filter((tor) => {
-                const budget = tor.budget ?? 0;
+              const budget = tor.allocatedBudget ?? tor.budget;
+              
+                if (budget == null) {
+                  return false;
+                }
 
                 if (budgetFilter === "under1m") {
                 return budget < 1_000_000;
@@ -1136,42 +1140,53 @@ export default function TorMarketPage() {
                         </div>
 
                         <div className="market-card-meta">
+                          <div className="market-meta-item">
+                            <span>
+                              งบประมาณ:
+                            </span>
+                            
+                            <strong>
+                              {formatBudget(tor.allocatedBudget ?? tor.budget)}
+                            </strong>
+                          </div>
+
+                          {tor.source === "government" && (
                             <div className="market-meta-item">
-                                <span className="meta-icon">
-                                ฿
-                                </span>
-
-                                <strong>
-                                {formatBudget(tor.budget)}
-                                </strong>
+                              <span>
+                                ราคากลาง:
+                              </span>
+                              <strong>
+                                {formatBudget(tor.referencePriceEstimate ?? null)}
+                              </strong>
                             </div>
+                          )}
 
-                            <div className="market-meta-item">
-                                <Tag size={15} />
+                          <div className="market-meta-item">
+                            <Tag size={15} />
 
-                                <span>
-                                  Software Project
-                                </span>
-                            </div>
+                            <span>
+                              Software Project
+                            </span>
+                          </div>
 
-                            <div className="market-meta-item">
-                                <CalendarDays size={15} />
+                          <div className="market-meta-item">
+                            <CalendarDays size={15} />
 
-                                <span>
-                                    {tor.source === "internal" ? "ปิดรับสมัคร" : "ปิดรับ"}{" "}
-                                    <strong>
-                                      {formatDate(tor.deadline)}
-                                    </strong>
-                                </span>
-                            </div>
+                            <span>
+                              {tor.source === "internal" ? "ปิดรับสมัคร" : "ปิดรับ"}{" "}
+                              <strong>
+                                {formatDate(tor.deadline)}
+                              </strong>
+                            </span>
+                          </div>
 
-                            <TorDeadlineBadge deadline={tor.deadline} />
+                          <TorDeadlineBadge deadline={tor.deadline} />
                         </div>
 
                         {tor.description && (
-                            <p className="market-card-description">
-                                {tor.description}
-                            </p>
+                          <p className="market-card-description">
+                            {tor.description}
+                          </p>
                         )}
                     </div>
 

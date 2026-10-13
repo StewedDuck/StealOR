@@ -270,4 +270,34 @@
     font-weight: 700; 
     margin-bottom: 9px; 
 }
+
+/* Government TOR Analysis */
+
+.tor-analysis-group {
+  margin-top: 18px;
+}
+
+.tor-analysis-group h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #35424e;
+}
+
+.tor-analysis-group ul {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.tor-analysis-group li {
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #52606d;
+  overflow-wrap: anywhere;
+}
+
+.tor-section li {
+  overflow-wrap: anywhere;
+}
   

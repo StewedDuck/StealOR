@@ -135,6 +135,19 @@ async function getBookmarks(req, res) {
                 }
         
                 const raw = project.raw_data || {};
+                const analysis = project.procurementAnalysis || {};
+
+                const allocatedBudget = analysis.allocatedBudget?.amount ?? null;
+
+                const referencePriceEstimate = analysis.referencePriceEstimate?.amount ?? null;
+
+                const budget =
+                    typeof allocatedBudget === "number" && allocatedBudget > 0
+                        ? allocatedBudget
+                        : typeof project.budget_amount === "number" &&
+                            project.budget_amount > 0
+                        ? project.budget_amount
+                        : null;
     
                 data.push({
                     bookmarkId: bookmark._id.toString(),
@@ -143,35 +156,35 @@ async function getBookmarks(req, res) {
                     projectId: project.project_id,
         
                     projectName:
-                    project.project_name ||
-                    raw.project_name ||
-                    "ไม่ระบุชื่อโครงการ",
+                        project.project_name ||
+                        raw.project_name ||
+                        "ไม่ระบุชื่อโครงการ",
         
                     agencyName:
-                    project.dept_name ||
-                    raw.dept_name ||
-                    "ไม่ระบุหน่วยงาน",
+                        project.dept_name ||
+                        raw.dept_name ||
+                        "ไม่ระบุหน่วยงาน",
         
-                    budget:
-                    project.sum_price_agree ||
-                    project.budget_amount ||
-                    0,
+                    budget,
+                    allocatedBudget,
+                    referencePriceEstimate,
         
                     deadline:
-                    raw.submission_deadline ||
-                    raw.deadline ||
-                    raw.project_end_date ||
-                    null,
+                        analysis.biddingClosingDate?.dateTime ||
+                        raw.submission_deadline ||
+                        raw.deadline ||
+                        null,
         
                     status:
-                    project.contract_status ||
-                    raw.contract_status ||
-                    "Active",
+                        project.contract_status ||
+                        raw.contract_status ||
+                        "Active",
         
                     description:
-                    raw.project_description ||
-                    raw.description ||
-                    "",
+                        analysis.projectDetails ||
+                        raw.project_description ||
+                        raw.description ||
+                        "",
         
                     createdAt: project.createdAt,
                     updatedAt: project.updatedAt,
