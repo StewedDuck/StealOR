@@ -20,7 +20,7 @@ Validate stored locator (file_id, legacy_filename, or legacy_draft_transfer)
 Download ZIP buffer via e-GP Adapter -> temp/zips/{projectId}/{category}.zip (.part first)
   │
   ▼
-Inspect ZIP Central Directory (Path traversal check, max 50 PDFs, 100 MiB limit)
+Inspect ZIP Central Directory (Path traversal check, max 50 PDFs, 200 MiB PDF limit)
   │
   ▼
 Stage PDFs in temp/pdfs/.staging/{runId}/ & validate '%PDF-' signature + SHA-256
@@ -72,6 +72,14 @@ node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); p
 > **Downloads ZIP and extracts PDFs for one project.**
 ```powershell
 node -e "const dns=require('node:dns'); dns.setServers(['1.1.1.1','8.8.8.8']); process.argv=[process.execPath,require('node:path').resolve('./scripts/extractGovProjectDocuments.js'),'--project-id','68109235287','--apply','--confirm','EXTRACT_GOV_PROJECT_DOCUMENTS']; require('./scripts/extractGovProjectDocuments.js').run().catch(e=>{console.error(e);process.exitCode=1})"
+```
+
+Large or slow e-GP downloads default to a 10-minute timeout and a 150 MB size
+limit. Both are independently configurable. For a file up to 250 MB that may
+need 15 minutes, append these arguments inside `process.argv`:
+
+```text
+'--max-download-mb','250','--download-timeout-ms','900000'
 ```
 
 ### Case 3 — Batch Dry-Run (First 5 Projects)
@@ -187,4 +195,5 @@ git check-ignore temp/pdfs/example.pdf
 | `would_download` | Dry-run eligibility plan. | Run with `--apply` to actually extract. |
 | `outcome: missing` | Project ID is not found in MongoDB. | Run Phase A or import the project first. |
 | `metadata_refresh_required` | The stored file ID is stale or expired. | Rerun Phase A runner to refresh metadata. |
+| `e-GP ZIP download timed out` | The upstream stream exceeded the download timeout (independent of its size). | Retry with `--download-timeout-ms 900000` (15 minutes), up to `1800000`. |
 | `querySrv ECONNREFUSED` | Node.js DNS resolver issue on Windows. | The `node -e` commands already have DNS fix built in. |
