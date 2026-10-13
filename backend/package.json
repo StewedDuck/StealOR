@@ -10,6 +10,7 @@
     "migrate:documents:dry-run": "node scripts/migrateGovProjectDocuments.js",
     "enrich:documents": "node scripts/enrichGovProjectDocuments.js",
     "extract:documents": "node scripts/extractGovProjectDocuments.js",
+    "analyze:procurement": "node scripts/analyzeProcurementTexts.js",
     "smoke:vertex": "node scripts/smokeTestVertexAI.js"
   },
   "keywords": [],
