@@ -41,6 +41,12 @@ import {
 import "./market.css";
 import { getUserProfile } from "@/lib/torApi";
 import TORDocumentModal from "@/components/TORDocumentModal";
+import {
+  getGovernmentPublicationStatus,
+  getInternalPublicationStatus,
+  type PublicationStatus,
+} from "@/lib/torPublicationStatus";
+import "@/components/TorBadges.css";
 
 
 type TypeFilter = 
@@ -407,6 +413,7 @@ export default function TorMarketPage() {
     const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
     const [yearFilter, setYearFilter] =  useState<YearFilter>("all");
     const [projectDocumentTypes, setProjectDocumentTypes] = useState<Record<string, DocumentType[]>>({});
+    const [projectPublicationStatuses, setProjectPublicationStatuses] = useState<Record<string, PublicationStatus>>({});
     const [documentTypeFilter, setDocumentTypeFilter] = useState<DocumentType[]>([]);
     const [sortOption, setSortOption] = useState<SortOption>("name-asc");
     const [budgetFilter, setBudgetFilter] = useState("all");
@@ -508,81 +515,69 @@ export default function TorMarketPage() {
 
           const marketTors = await getMarketTors();
 
-          const documentTypeEntries =
-            await Promise.all(
-              marketTors.map(async (tor) => {
-                // Internal ไม่มี local Government documents
+          const documentTypeEntries = await Promise.all(
+            marketTors.map(async (tor) => {
+              if (tor.source !== "government" || !tor.projectId) {
+                return null;
+              }
+          
+              try {
+                const localDocuments = await getLocalProjectDocuments(tor.projectId);
+                const documents = localDocuments.documents;
+          
+                const availableTypes: DocumentType[] = [];
+          
                 if (
-                  tor.source !== "government" || !tor.projectId
+                  documents.priceEstimate.available &&
+                  documents.priceEstimate.files.length > 0
                 ) {
-                  return null;
+                  availableTypes.push("priceEstimate");
                 }
-
-                try {
-                  const localDocuments =
-                    await getLocalProjectDocuments(
-                      tor.projectId
-                    );
-
-                  const documents =
-                    localDocuments.documents;
-
-                  const availableTypes: DocumentType[] =
-                    [];
-
-                  if (
-                    documents.priceEstimate.available &&
-                    documents.priceEstimate.files.length > 0
-                  ) {
-                    availableTypes.push(
-                      "priceEstimate"
-                    );
-                  }
-
-                  if (
-                    documents.draftEbidding.available &&
-                    documents.draftEbidding.files.length > 0
-                  ) {
-                    availableTypes.push(
-                      "draftEbidding"
-                    );
-                  }
-
-                  if (
-                    documents.invitation.available &&
-                    documents.invitation.files.length > 0
-                  ) {
-                    availableTypes.push(
-                      "invitation"
-                    );
-                  }
-
-                  return [
-                    tor.projectId,
-                    availableTypes,
-                  ] as const;
-
-                } catch (error) {
-                  console.error(
-                    `Failed to check local documents for project ${tor.projectId}:`,
-                    error
-                  );
-
-                  return [
-                    tor.projectId,
-                    [],
-                  ] as const;
+          
+                if (
+                  documents.draftEbidding.available &&
+                  documents.draftEbidding.files.length > 0
+                ) {
+                  availableTypes.push("draftEbidding");
                 }
-              })
-            );
-
-          const documentTypeMap: Record< string, DocumentType[] > = {};
-
+          
+                if (
+                  documents.invitation.available &&
+                  documents.invitation.files.length > 0
+                ) {
+                  availableTypes.push("invitation");
+                }
+          
+                return {
+                  projectId: tor.projectId,
+                  types: availableTypes,
+                  publicationStatus: getGovernmentPublicationStatus(localDocuments),
+                };
+              } catch (error) {
+                console.error("Failed to check documents:", tor.projectId, error);
+          
+                return {
+                  projectId: tor.projectId,
+                  types: [] as DocumentType[],
+                  publicationStatus: "unknown" as PublicationStatus,
+                };
+              }
+            })
+          );
+          
+          const documentTypeMap: Record<string, DocumentType[]> = {};
+          const publicationStatusMap: Record<string, PublicationStatus> = {};
+          
           documentTypeEntries.forEach((entry) => {
             if (!entry) return;
-            const [projectId, types] = entry;
-            documentTypeMap[projectId] = [...types];
+          
+            documentTypeMap[entry.projectId] = entry.types;
+            publicationStatusMap[entry.projectId] = entry.publicationStatus;
           });
+          
+          setProjectDocumentTypes(documentTypeMap);
+          setProjectPublicationStatuses(publicationStatusMap);
+          setTors(marketTors);
 
           setProjectDocumentTypes(documentTypeMap);
 
@@ -1084,7 +1079,18 @@ export default function TorMarketPage() {
             {filteredTors.map((tor) => {
               const deadlineInfo = getDeadlineInfo(tor.deadline);
               const closed = deadlineInfo.status === "closed";
-              const isDraft = tor.status?.toLowerCase() === "draft";
+              
+              const publicationStatus =
+                tor.source === "government"
+                  ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
+                  : getInternalPublicationStatus(tor.status);
+              
+              const statusLabel =
+                publicationStatus === "open"
+                  ? "Open"
+                  : publicationStatus === "draft"
+                  ? "Draft"
+                  : "Unknown";
 
             return (
                 <article
@@ -1106,18 +1112,14 @@ export default function TorMarketPage() {
 
                         <span
                           className={`tor-status-badge ${
-                            closed
-                              ? "tor-status-closed"
-                              : isDraft
+                            publicationStatus === "open"
+                              ? "tor-status-open"
+                              : publicationStatus === "draft"
                               ? "tor-status-draft"
-                              : "tor-status-open"
+                              : "tor-status-unknown"
                           }`}
                         >
-                          {closed
-                            ? "ปิดรับแล้ว"
-                            : isDraft
-                            ? "Draft"
-                            : tor.status || "เปิดรับ"}
+                          {statusLabel}
                         </span>
 
                         {tor.projectId && (

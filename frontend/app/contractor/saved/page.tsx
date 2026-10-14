@@ -43,6 +43,17 @@ import { getUserProfile } from "@/lib/torApi";
 import TORDocumentModal from "@/components/TORDocumentModal";
 import TorDeadlineBadge from "@/components/TorDeadlineBadge";
 import { getDeadlineInfo } from "@/lib/torDeadline";
+import {
+  getLocalProjectDocuments,
+} from "@/lib/torApi";
+
+import {
+  getGovernmentPublicationStatus,
+  getInternalPublicationStatus,
+  type PublicationStatus,
+} from "@/lib/torPublicationStatus";
+
+import "@/components/TorBadges.css";
 
 type SourceFilter = 
   | 'all'
@@ -217,6 +228,7 @@ export default function SavedPage() {
   const [reviews, setReviews] = useState<Comment[]>([]);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState("");
+  const [projectPublicationStatuses, setProjectPublicationStatuses] = useState<Record<string, PublicationStatus>>({});
   const [documentTor, setDocumentTor] = useState<{
     projectId: string;
     projectName: string;
@@ -372,22 +384,60 @@ export default function SavedPage() {
       setLoading(false);
       return;
     }
-
-    setLoading(true);
-    setError("");
-
-    getBookmarks(userId)
-      .then((bookmarks) => {
-        setSavedTors(bookmarks);
-      })
-      .catch((err) => {
-        setError(
-          err instanceof Error ? err.message : "โหลด TOR ที่บันทึกไม่สำเร็จ",
+  
+    async function loadBookmarks() {
+      try {
+        setLoading(true);
+        setError("");
+  
+        const bookmarks = await getBookmarks(userId!);
+  
+        const governmentTors = bookmarks.filter(
+          (tor) => tor.source === "government" && tor.projectId
         );
-      })
-      .finally(() => {
+  
+        const results = await Promise.all(
+          governmentTors.map(async (tor) => {
+            const projectId = tor.projectId!;
+  
+            try {
+              const documents = await getLocalProjectDocuments(projectId);
+  
+              return {
+                projectId,
+                status: getGovernmentPublicationStatus(documents),
+              };
+            } catch (error) {
+              console.error("Failed to check invitation:", projectId, error);
+  
+              return {
+                projectId,
+                status: "unknown" as PublicationStatus,
+              };
+            }
+          })
+        );
+  
+        const statusMap: Record<string, PublicationStatus> = {};
+  
+        results.forEach(({ projectId, status }) => {
+          statusMap[projectId] = status;
+        });
+  
+        setProjectPublicationStatuses(statusMap);
+        setSavedTors(bookmarks);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "โหลด TOR ที่บันทึกไม่สำเร็จ"
+        );
+      } finally {
         setLoading(false);
-      });
+      }
+    }
+  
+    loadBookmarks();
   }, [userId]);
 
   useEffect(() => {
@@ -436,34 +486,30 @@ export default function SavedPage() {
     }
   
     // STATUS  
-    if (statusFilter !== "all") {
-      result = result.filter((tor) => {
-        const status = tor.status?.toLowerCase() ?? "";
-        const days = getDaysUntil(tor.deadline);
-        if (statusFilter === "draft") {
-          return (
-            tor.source === "internal" &&
-            status === "draft"
-          );
-        }
-  
-        if (statusFilter === "published") {
-          // not draft and deadline
-          return (
-            status !== "draft" &&
-            (days === null || days >= 0)
-          );
-        }
-  
-        if (statusFilter === "closed") {
-          return (
-            days !== null &&
-            days < 0
-          );
-        }
-        return true;
-      });
-    }
+  if (statusFilter !== "all") {
+    result = result.filter((tor) => {
+      const publicationStatus =
+        tor.source === "government"
+          ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
+          : getInternalPublicationStatus(tor.status);
+
+      const days = getDaysUntil(tor.deadline);
+
+      if (statusFilter === "draft") {
+        return publicationStatus === "draft";
+      }
+
+      if (statusFilter === "published") {
+        return publicationStatus === "open";
+      }
+
+      if (statusFilter === "closed") {
+        return days !== null && days < 0;
+      }
+
+      return true;
+    });
+  }
   
     // BUDGET  
     if (budgetFilter !== "all") {
@@ -584,6 +630,7 @@ export default function SavedPage() {
     budgetFilter,
     timeFilter,
     yearFilter,
+    projectPublicationStatuses,
   ]);
 
   async function handleRemoveBookmark(tor: SavedTor) {
@@ -856,9 +903,17 @@ export default function SavedPage() {
                 const daysLeft = getDaysUntil(deadline);
                 const isClosed = daysLeft !== null && daysLeft < 0;
 
-                const isDraft =
-                    tor.source === "internal" &&
-                    tor.status?.toLowerCase() === "draft";
+                const publicationStatus =
+                  tor.source === "government"
+                    ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
+                    : getInternalPublicationStatus(tor.status);
+
+                const statusLabel =
+                  publicationStatus === "open"
+                    ? "Open"
+                    : publicationStatus === "draft"
+                    ? "Draft"
+                    : "Unknown";
 
                 const matchPercent = tor.match?.percent;
 
@@ -877,19 +932,15 @@ export default function SavedPage() {
                         </span>
 
                         <span
-                            className={`tor-status-badge ${
-                                isClosed
-                                    ? "closed"
-                                    : isDraft
-                                    ? "draft"
-                                    : "open"
-                            }`}
+                          className={`tor-status-badge ${
+                            publicationStatus === "open"
+                              ? "tor-status-open"
+                              : publicationStatus === "draft"
+                              ? "tor-status-draft"
+                              : "tor-status-unknown"
+                          }`}
                         >
-                            {isClosed
-                                ? "ปิดรับแล้ว"
-                                : isDraft
-                                ? "Draft"
-                                : tor.status || "เปิดรับ"}
+                          {statusLabel}
                         </span>
 
                         {tor.projectId && (

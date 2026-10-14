@@ -48,3 +48,21 @@
   background: #fff0d9;
   color: #a46b22;
 }
+
+.tor-status-badge.tor-status-open {
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.tor-status-badge.tor-status-draft {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.tor-status-badge.tor-status-unknown {
+  background-color: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
