@@ -34,6 +34,7 @@ services:
     volumes:
       - ./backend/src:/app/src
       - ./backend/temp:/app/temp
+      - ./backend/scripts:/app/scripts
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
