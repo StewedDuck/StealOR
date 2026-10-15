@@ -66,3 +66,9 @@
   color: #64748b;
   border: 1px solid #e2e8f0;
 }
+
+.tor-status-badge.tor-status-closed {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}

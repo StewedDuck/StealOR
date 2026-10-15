@@ -1085,12 +1085,13 @@ export default function TorMarketPage() {
                   ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
                   : getInternalPublicationStatus(tor.status);
               
-              const statusLabel =
-                publicationStatus === "open"
+              const statusLabel = closed
+                ? "ปิดรับแล้ว"
+                : publicationStatus === "open"
                   ? "Open"
                   : publicationStatus === "draft"
-                  ? "Draft"
-                  : "Unknown";
+                    ? "Draft"
+                    : "Unknown";
 
             return (
                 <article
@@ -1112,11 +1113,13 @@ export default function TorMarketPage() {
 
                         <span
                           className={`tor-status-badge ${
-                            publicationStatus === "open"
-                              ? "tor-status-open"
-                              : publicationStatus === "draft"
-                              ? "tor-status-draft"
-                              : "tor-status-unknown"
+                            closed
+                              ? "tor-status-closed"
+                              : publicationStatus === "open"
+                                ? "tor-status-open"
+                                : publicationStatus === "draft"
+                                  ? "tor-status-draft"
+                                  : "tor-status-unknown"
                           }`}
                         >
                           {statusLabel}

@@ -485,31 +485,32 @@ export default function SavedPage() {
       );
     }
   
-    // STATUS  
-  if (statusFilter !== "all") {
-    result = result.filter((tor) => {
-      const publicationStatus =
-        tor.source === "government"
-          ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
-          : getInternalPublicationStatus(tor.status);
+    // STATUS
+    if (statusFilter !== "all") {
+      result = result.filter((tor) => {
+        const publicationStatus =
+          tor.source === "government"
+            ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
+            : getInternalPublicationStatus(tor.status);
 
-      const days = getDaysUntil(tor.deadline);
+        const isClosed =
+          getDeadlineInfo(tor.deadline).status === "closed";
 
-      if (statusFilter === "draft") {
-        return publicationStatus === "draft";
-      }
+        if (statusFilter === "closed") {
+          return isClosed;
+        }
 
-      if (statusFilter === "published") {
-        return publicationStatus === "open";
-      }
+        if (statusFilter === "draft") {
+          return !isClosed && publicationStatus === "draft";
+        }
 
-      if (statusFilter === "closed") {
-        return days !== null && days < 0;
-      }
+        if (statusFilter === "published") {
+          return !isClosed && publicationStatus === "open";
+        }
 
-      return true;
-    });
-  }
+        return true;
+      });
+    }
   
     // BUDGET  
     if (budgetFilter !== "all") {
@@ -900,20 +901,21 @@ export default function SavedPage() {
               {filteredTors.map((tor) => {
                 const deadline = tor.deadline;
 
-                const daysLeft = getDaysUntil(deadline);
-                const isClosed = daysLeft !== null && daysLeft < 0;
+                const deadlineInfo = getDeadlineInfo(deadline);
+                const isClosed = deadlineInfo.status === "closed";
 
                 const publicationStatus =
                   tor.source === "government"
                     ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
                     : getInternalPublicationStatus(tor.status);
 
-                const statusLabel =
-                  publicationStatus === "open"
+                const statusLabel = isClosed
+                  ? "ปิดรับแล้ว"
+                  : publicationStatus === "open"
                     ? "Open"
                     : publicationStatus === "draft"
-                    ? "Draft"
-                    : "Unknown";
+                      ? "Draft"
+                      : "Unknown";
 
                 const matchPercent = tor.match?.percent;
 
@@ -933,11 +935,13 @@ export default function SavedPage() {
 
                         <span
                           className={`tor-status-badge ${
-                            publicationStatus === "open"
-                              ? "tor-status-open"
-                              : publicationStatus === "draft"
-                              ? "tor-status-draft"
-                              : "tor-status-unknown"
+                            isClosed
+                              ? "tor-status-closed"
+                              : publicationStatus === "open"
+                                ? "tor-status-open"
+                                : publicationStatus === "draft"
+                                  ? "tor-status-draft"
+                                  : "tor-status-unknown"
                           }`}
                         >
                           {statusLabel}
