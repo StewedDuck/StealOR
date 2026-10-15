@@ -156,15 +156,19 @@ function getDaysUntil(value?: string | null) {
 }
 
 function isAlmostClosing(value?: string | null) {
+  const deadlineInfo = getDeadlineInfo(value);
+
+  if (deadlineInfo.status === "closed") {
+    return false;
+  }
+
   const days = getDaysUntil(value);
 
   return days !== null && days >= 0 && days <= 7;
 }
 
 function isClosed(value?: string | null) {
-  const days = getDaysUntil(value);
-
-  return days !== null && days < 0;
+  return getDeadlineInfo(value).status === "closed";
 }
 
 function getTimeLabel(value?: string | null) {
