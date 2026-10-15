@@ -31,7 +31,7 @@ const {
 // schema v3 removes the unsupported draft public-comment deadline before any
 // MongoDB analysis integration exists. The analysis version also changes so
 // schema-v2 cache files are never reused.
-const ANALYSIS_VERSION = "3.3";
+const ANALYSIS_VERSION = "3.4";
 
 function documentDisplayName(document) {
   const originalName = document.metadata && document.metadata.originalFileName;
@@ -140,6 +140,57 @@ function resolvePriceField(fieldName, candidates, processingComplete, priceCover
   };
 }
 
+function deadlineDocumentKind(candidate) {
+  const evidence = candidate && candidate.evidence;
+  if (evidence?.archiveCategory !== "invitation") return null;
+  const textRef = String(evidence.textRef || "").replace(/\\/g, "/");
+  const fileName = textRef.split("/").pop().toLowerCase();
+  if (/^doc_[^/]*\.txt$/.test(fileName)) return "detailed_bidding_document";
+  if (/^annoudoc_[^/]*\.txt$/.test(fileName)) return "bidding_announcement";
+  return null;
+}
+
+function preferredAnnouncementDeadline(candidates) {
+  const classified = candidates.map((candidate) => ({
+    candidate,
+    kind: deadlineDocumentKind(candidate),
+  }));
+  if (
+    classified.some(({ kind }) => kind === null) ||
+    !classified.some(({ kind }) => kind === "detailed_bidding_document") ||
+    !classified.some(({ kind }) => kind === "bidding_announcement")
+  ) {
+    return null;
+  }
+
+  const announcements = classified
+    .filter(({ kind }) => kind === "bidding_announcement")
+    .map(({ candidate }) => candidate);
+  const announcementValues = new Set(
+    announcements.map(
+      (candidate) =>
+        `${candidate.normalizedDate}|${candidate.submissionWindow.end || ""}`
+    )
+  );
+  return announcementValues.size === 1 ? announcements : null;
+}
+
+function foundDeadline(groupName, items, processingComplete) {
+  return {
+    status: "found",
+    coverageStatus: processingComplete ? "complete" : "incomplete",
+    originalDateText: items[0].dateText,
+    originalTimeText: items[0].timeText,
+    normalizedDate: items[0].normalizedDate,
+    submissionWindow: items[0].submissionWindow,
+    closingDateTime: items[0].closingDateTime,
+    timezone: items[0].timezone,
+    evidence: items.map((item) => item.evidence),
+    conflicts: [],
+    event: groupName,
+  };
+}
+
 function resolveDeadline(groupName, candidates, processingComplete) {
   const accepted = candidates.filter(supported);
   const byValue = new Map();
@@ -165,6 +216,13 @@ function resolveDeadline(groupName, candidates, processingComplete) {
       : { status: "error", coverageStatus: "incomplete", ...empty, limitation: "input coverage or Vertex processing is incomplete" };
   }
   if (byValue.size > 1) {
+    // An invitation ZIP can contain both the public procurement announcement
+    // (annoudoc_*) and the detailed e-bidding conditions (doc_*). When those
+    // disagree, use the public announcement only if all annoudoc_* candidates
+    // agree. Any unknown source or conflicting announcements remain ambiguous
+    // instead of being resolved by file order or model output.
+    const preferred = preferredAnnouncementDeadline(accepted);
+    if (preferred) return foundDeadline(groupName, preferred, processingComplete);
     return {
       status: "ambiguous",
       originalDateText: null,
@@ -184,19 +242,7 @@ function resolveDeadline(groupName, candidates, processingComplete) {
     };
   }
   const items = [...byValue.values()][0];
-  return {
-    status: "found",
-    coverageStatus: processingComplete ? "complete" : "incomplete",
-    originalDateText: items[0].dateText,
-    originalTimeText: items[0].timeText,
-    normalizedDate: items[0].normalizedDate,
-    submissionWindow: items[0].submissionWindow,
-    closingDateTime: items[0].closingDateTime,
-    timezone: items[0].timezone,
-    evidence: items.map((item) => item.evidence),
-    conflicts: [],
-    event: groupName,
-  };
+  return foundDeadline(groupName, items, processingComplete);
 }
 
 function normalizeSummaryKey(value) {
