@@ -24,11 +24,6 @@ const notificationLogSchema = new mongoose.Schema(
             default: null,
         },
 
-        verificationId: {
-            type: String,
-            default: null,
-        },
-
         type: {
             type: String,
             enum: [
@@ -62,23 +57,48 @@ const notificationLogSchema = new mongoose.Schema(
             type: Date,
             default: Date.now,
         },
+
+        verificationId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "IdentityVerification",
+            default: null,
+        },
     },
     {
         timestamps: true,
     }
 );
 
+// Government / Internal TOR notifications
 notificationLogSchema.index(
     {
         userId: 1,
         source: 1,
         projectId: 1,
         torId: 1,
+        type: 1,
+    },
+    {
+        unique: true,
+        partialFilterExpression: {
+            source: { $in: ["government", "internal"] },
+        },
+    }
+);
+
+// Verification notifications
+notificationLogSchema.index(
+    {
+        userId: 1,
         verificationId: 1,
         type: 1,
     },
     {
         unique: true,
+        partialFilterExpression: {
+            source: "verification",
+            verificationId: { $type: "objectId" },
+        },
     }
 );
 

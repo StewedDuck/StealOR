@@ -4,6 +4,9 @@ const User = require("../models/User");
 const IdentityVerification = require("../models/IdentityVerification");
 const NotificationLog = require("../models/NotificationLog");
 const path = require("path");
+const { sendEmail } = require("../email/Mailer");
+const { verificationRequest } = require("../email/Admin");
+const { accountApproved, accountRejected } = require("../email/ProjectOwner");
 
 // Helper
 async function removeUploadedFile(file) {
@@ -26,6 +29,21 @@ function validateCitizenId(citizenId) {
 
 function validatePhone(phone) {
     return /^\d{9,10}$/.test(phone);
+}
+
+async function sendVerificationEmail(to, email) {
+    if (!to) return;
+
+    try {
+        await sendEmail({
+            to,
+            subject: email.subject,
+            text: email.text,
+            html: email.html,
+        });
+    } catch (error) {
+        console.error("Verification email failed:", error);
+    }
 }
 
 // POST /api/verifications
@@ -191,40 +209,45 @@ async function submitVerification(req, res) {
             accountRole: "admin",
         });
 
-
         for (const admin of admins) {
-            await NotificationLog.findOneAndUpdate(
-                {
-                    userId: admin.email,
-                    source: "verification",
-
-                    projectId: null,
-                    torId: null,
-
-                    verificationId:
-                        verification._id.toString(),
-
-                    type:
-                        "identity_verification_requested",
-                },
-                {
-                    $set: {
-                        title:
-                            "มีคำขอยืนยันตัวตนใหม่",
-
-                        message:
-                            `${user.name} ส่งคำขอยืนยันตัวตน รอการตรวจสอบ`,
-
-                        read: false,
-
-                        sentAt: new Date(),
+            try {
+                await NotificationLog.findOneAndUpdate(
+                    {
+                        userId: admin.email,
+                        source: "verification",
+                        verificationId: verification._id,
+                        type: "identity_verification_requested",
                     },
-                },
-                {
-                    upsert: true,
-                    new: true,
-                }
-            );
+                    {
+                        $setOnInsert: {
+                            projectId: null,
+                            torId: null,
+                            title: "มีคำขอยืนยันตัวตนใหม่",
+                            message: `${user.name} ส่งคำขอยืนยันตัวตน รอการตรวจสอบ`,
+                            read: false,
+                            sentAt: new Date(),
+                        },
+                    },
+                    {
+                        upsert: true,
+                        returnDocument: "after",
+                    }
+                );
+
+                const email = verificationRequest({
+                    ownerName: user.name,
+                    ownerEmail: user.email,
+                    submittedAt: verification.createdAt,
+                    reviewUrl: `${process.env.APP_URL || "http://localhost:3000"}/admin/verification`,
+                });
+
+                await sendVerificationEmail(admin.email, email);
+            } catch (error) {
+                console.error(
+                    `Failed to notify admin ${admin.email}:`,
+                    error
+                );
+            }
         }
 
 
@@ -666,8 +689,7 @@ async function approveVerification(req, res) {
             });
         }
 
-        const admin =
-            await User.findById(adminId);
+        const admin = await User.findById(adminId);
 
         if (!admin) {
             return res.status(404).json({
@@ -683,8 +705,7 @@ async function approveVerification(req, res) {
             });
         }
 
-        const verification =
-            await IdentityVerification.findById(id);
+        const verification = await IdentityVerification.findById(id);
 
         if (!verification) {
             return res.status(404).json({
@@ -697,8 +718,7 @@ async function approveVerification(req, res) {
         if (verification.status !== "pending") {
             return res.status(409).json({
                 success: false,
-                error:
-                    "Verification request has already been reviewed",
+                error: "Verification request has already been reviewed",
             });
         }
 
@@ -754,6 +774,12 @@ async function approveVerification(req, res) {
                 new: true,
             }
         );
+
+        const email = accountApproved({
+            name: owner.name,
+        });
+        
+        await sendVerificationEmail(owner.email, email);
 
 
         return res.json({
@@ -864,7 +890,7 @@ async function rejectVerification(req, res) {
 
         // Update verification
         verification.status = "rejected";
-        verification.rejectionReason = rejectionReason;ฃ
+        verification.rejectionReason = rejectionReason;
         verification.reviewedBy = admin._id;
         verification.reviewedAt = new Date();
         await verification.save();
@@ -898,6 +924,13 @@ async function rejectVerification(req, res) {
                 new: true,
             }
         );
+
+        const email = accountRejected({
+            name: owner.name,
+            reason: rejectionReason,
+        });
+        
+        await sendVerificationEmail(owner.email, email);
 
         return res.json({
             success: true,

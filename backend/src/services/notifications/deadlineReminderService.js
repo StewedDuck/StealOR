@@ -35,6 +35,7 @@ async function checkDeadlineReminders() {
                     torId: bookmark.torId,
                 });
                 let torTitle = "";
+                let agencyName = "";
                 let scope = "";
                 let closeDate = null;
                 let torUrl = "";
@@ -59,10 +60,30 @@ async function checkDeadlineReminders() {
                     );
 
                     const raw = project.raw_data || {};
+                    const analysis = project.procurementAnalysis || {};
 
-                    torTitle = project.project_name || raw.project_name || "ไม่ระบุชื่อ TOR";
-                    scope = raw.project_description || raw.description || "ไม่ระบุขอบเขตงาน";
-                    closeDate = raw.submission_deadline || raw.deadline || raw.project_end_date || null;
+                    torTitle =
+                        project.project_name ||
+                        raw.project_name ||
+                        "ไม่ระบุชื่อ TOR";
+
+                    agencyName =
+                        project.dept_name ||
+                        raw.dept_name ||
+                        "ไม่ระบุหน่วยงาน";
+
+                    scope =
+                        analysis.projectDetails ||
+                        raw.project_description ||
+                        raw.description ||
+                        "ไม่ระบุขอบเขตงาน";
+
+                    closeDate =
+                        analysis.biddingClosingDate?.dateTime ||
+                        raw.submission_deadline ||
+                        raw.deadline ||
+                        null;
+
                     torUrl = `${process.env.APP_URL}/contractor/saved`;
                 }
 
@@ -77,8 +98,18 @@ async function checkDeadlineReminders() {
                     }
 
                     torTitle = tor.projectName;
-                    scope = tor.scopeOfWork?.join(", ") || tor.description || "ไม่ระบุขอบเขตงาน";
+
+                    agencyName =
+                        tor.agencyName ||
+                        "ไม่ระบุหน่วยงาน";
+
+                    scope =
+                        tor.scopeOfWork?.join(", ") ||
+                        tor.description ||
+                        "ไม่ระบุขอบเขตงาน";
+
                     closeDate = tor.submissionDeadline;
+
                     torUrl = `${process.env.APP_URL}/contractor/saved`;
                 }
                 if (!closeDate) {
@@ -87,6 +118,10 @@ async function checkDeadlineReminders() {
                 }
                 
                 const daysLeft = getDaysLeft(closeDate);
+                if (!Number.isFinite(daysLeft)) {
+                    console.log("Invalid deadline:", closeDate);
+                    continue;
+                }
                 
                 console.log({
                     torTitle,
@@ -157,11 +192,12 @@ async function checkDeadlineReminders() {
                 const email = deadlineReminder({
                     name: user.name,
                     torTitle,
+                    agencyName,
                     scope,
                     matchPercent,
                     closeDate,
                     torUrl,
-                    daysLeft
+                    daysLeft,
                 });
 
                 await sendEmail({

@@ -59,8 +59,7 @@ type TypeFilter =
 type TimeFilter =
   | "all"
   | "new"
-  | "closing"
-  | "closed";
+  | "closing";
 
 type YearFilter =
   | "all"
@@ -75,11 +74,11 @@ type DocumentType =
   | "draftEbidding"
   | "invitation";
 
-type SortOption =
-  | "name-asc"
-  | "name-desc"
-  | "newest"
-  | "oldest";
+type StatusFilter = 
+  |"all" 
+  | "open" 
+  | "draft" 
+  | "closed";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
   day: "2-digit",
@@ -363,32 +362,28 @@ const timeOptions: {
     value: "closing",
     label: "ใกล้ปิดรับ",
   },
-  {
-    value: "closed",
-    label: "ปิดรับแล้ว",
-  },
 ];
 
 
-const sortOptions: {
-  value: SortOption;
+const statusOptions: {
+  value: StatusFilter;
   label: string;
 }[] = [
-  {
-    value: "name-asc",
-    label: "เรียงตาม: ชื่อโครงการ (ก → ฮ)",
+  { 
+    value: "all", 
+    label: "ทุกสถานะ" 
   },
-  {
-    value: "name-desc",
-    label: "เรียงตาม: ชื่อโครงการ (ฮ → ก)",
+  { 
+    value: "open", 
+    label: "เปิด" 
   },
-  {
-    value: "newest",
-    label: "เรียงตาม: ใหม่ล่าสุด",
+  { 
+    value: "draft", 
+    label: "แบบร่าง" 
   },
-  {
-    value: "oldest",
-    label: "เรียงตาม: เก่าสุด",
+  { 
+    value: "closed", 
+    label: "ปิด" 
   },
 ];
 
@@ -419,7 +414,7 @@ export default function TorMarketPage() {
     const [projectDocumentTypes, setProjectDocumentTypes] = useState<Record<string, DocumentType[]>>({});
     const [projectPublicationStatuses, setProjectPublicationStatuses] = useState<Record<string, PublicationStatus>>({});
     const [documentTypeFilter, setDocumentTypeFilter] = useState<DocumentType[]>([]);
-    const [sortOption, setSortOption] = useState<SortOption>("name-asc");
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [budgetFilter, setBudgetFilter] = useState("all");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -692,6 +687,33 @@ export default function TorMarketPage() {
           });
         }
 
+        // Status: Closed / Open / Draft
+        if (statusFilter !== "all") {
+          result = result.filter((tor) => {
+            const isTorClosed =
+              getDeadlineInfo(tor.deadline).status === "closed";
+
+            const publicationStatus =
+              tor.source === "government"
+                ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
+                : getInternalPublicationStatus(tor.status);
+
+            if (statusFilter === "closed") {
+              return isTorClosed;
+            }
+
+            if (statusFilter === "open") {
+              return !isTorClosed && publicationStatus === "open";
+            }
+
+            if (statusFilter === "draft") {
+              return !isTorClosed && publicationStatus === "draft";
+            }
+
+            return true;
+          });
+        }
+
         // Time
         if (timeFilter === "new") {
             result = result.filter((tor) =>
@@ -703,12 +725,6 @@ export default function TorMarketPage() {
             result = result.filter((tor) =>
                 isAlmostClosing(tor.deadline)
             );
-        }
-
-        if (timeFilter === "closed") {
-          result = result.filter((tor) =>
-            isClosed(tor.deadline)
-          );
         }
 
         // Year
@@ -799,42 +815,14 @@ export default function TorMarketPage() {
           });
         }
 
-        // Sort
-        result.sort((a, b) => {
-            const aName = a.projectName ?? "";
-            const bName = b.projectName ?? "";
-
-            switch (sortOption) {
-                case "name-asc":
-                return aName.localeCompare(
-                  bName,
-                    "th"
-                );
-
-                case "name-desc":
-                return bName.localeCompare(
-                  aName,
-                    "th"
-                );
-
-                case "newest":
-                return (
-                    new Date(b.createdAt).getTime() -
-                    new Date(a.createdAt).getTime()
-                );
-
-                case "oldest":
-                return (
-                    new Date(a.createdAt).getTime() -
-                    new Date(b.createdAt).getTime()
-                );
-
-                default:
-                return 0;
-              }
-            }
-          );
-        return result;
+        // Default sorting: project name A-Z (Thai)
+        result.sort((a, b) =>
+          (a.projectName ?? "").localeCompare(
+            b.projectName ?? "",
+            "th"
+          )
+        );
+      return result;
       }, [
         tors,
         query,
@@ -844,7 +832,8 @@ export default function TorMarketPage() {
         budgetFilter,
         documentTypeFilter,
         projectDocumentTypes,
-        sortOption,
+        statusFilter,
+        projectPublicationStatuses,
       ]);
 
     function resetFilters() {
@@ -854,7 +843,7 @@ export default function TorMarketPage() {
         setYearFilter("all");
         setBudgetFilter("all");
         setDocumentTypeFilter([]);
-        setSortOption("name-asc");
+        setStatusFilter("all");
     }
 
     async function handleViewDetails(tor: MarketTor) {
@@ -1030,11 +1019,11 @@ export default function TorMarketPage() {
                 placeholder="ประเภทเอกสาร"
               />
               
-              {/* Sort */}
+              {/* TOR Status */}
               <FilterDropdown
-                value={sortOption}
-                options={sortOptions}
-                onChange={setSortOption}
+                value={statusFilter}
+                options={statusOptions}
+                onChange={setStatusFilter}
                 className="sort-filter-dropdown"
               />
 

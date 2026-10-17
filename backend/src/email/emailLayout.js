@@ -99,7 +99,6 @@ function emailLayout({
                             sTealORs · ระบบค้นหาและจัดการ TOR
                         </td>
                     </tr>
-                </tr>
             </table>
             </td>
             </tr>
