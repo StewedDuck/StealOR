@@ -8,6 +8,7 @@ const {
   analyzeProcurementInput,
   computeAnalysisFingerprint,
   coverageFingerprint,
+  resolveDeadline,
   resolvePriceField,
 } = require("../src/services/procurementAnalysis/analysisService");
 const {
@@ -549,6 +550,95 @@ test("price resolution distinguishes absence, incomplete coverage, and same-fiel
   ], true, true);
   assert.equal(ambiguous.status, "ambiguous");
   assert.equal(ambiguous.conflicts.length, 2);
+});
+
+function verifiedDeadlineCandidate({
+  date,
+  end = "12:00",
+  textRef,
+}) {
+  return {
+    evidenceStatus: "VERIFIED",
+    interpretationStatus: "RULE_SUPPORTED",
+    dateText: date,
+    timeText: `09:00-${end}`,
+    normalizedDate: date,
+    submissionWindow: { start: "09:00", end },
+    closingDateTime: `${date}T${end}:00+07:00`,
+    timezone: "Asia/Bangkok",
+    evidence: {
+      archiveCategory: "invitation",
+      textRef,
+    },
+  };
+}
+
+test("deadline resolution prefers one public annoudoc deadline over a conflicting detailed doc deadline", () => {
+  const announcement = verifiedDeadlineCandidate({
+    date: "2024-01-04",
+    textRef: "pdfs/66129206858/invitation/files/annoudoc_2101000000_66129206858.txt",
+  });
+  const detailed = verifiedDeadlineCandidate({
+    date: "2024-01-09",
+    textRef: "pdfs/66129206858/invitation/files/doc_2101000000_66129206858.txt",
+  });
+
+  const resolved = resolveDeadline(
+    "biddingClosingDate",
+    [announcement, detailed],
+    true
+  );
+
+  assert.equal(resolved.status, "found");
+  assert.equal(resolved.normalizedDate, "2024-01-04");
+  assert.equal(resolved.closingDateTime, "2024-01-04T12:00:00+07:00");
+  assert.equal(resolved.evidence.length, 1);
+  assert.equal(resolved.evidence[0].textRef, announcement.evidence.textRef);
+});
+
+test("deadline resolution remains ambiguous for conflicting public announcements", () => {
+  const firstAnnouncement = verifiedDeadlineCandidate({
+    date: "2024-01-04",
+    textRef: "pdfs/project/invitation/files/annoudoc_first.txt",
+  });
+  const secondAnnouncement = verifiedDeadlineCandidate({
+    date: "2024-01-05",
+    textRef: "pdfs/project/invitation/files/annoudoc_second.txt",
+  });
+  const detailed = verifiedDeadlineCandidate({
+    date: "2024-01-09",
+    textRef: "pdfs/project/invitation/files/doc_project.txt",
+  });
+
+  const resolved = resolveDeadline(
+    "biddingClosingDate",
+    [firstAnnouncement, secondAnnouncement, detailed],
+    true
+  );
+
+  assert.equal(resolved.status, "ambiguous");
+  assert.equal(resolved.normalizedDate, null);
+  assert.equal(resolved.conflicts.length, 3);
+});
+
+test("deadline resolution remains ambiguous when a conflicting source is not doc or annoudoc", () => {
+  const detailed = verifiedDeadlineCandidate({
+    date: "2024-01-09",
+    textRef: "pdfs/project/invitation/files/doc_project.txt",
+  });
+  const other = verifiedDeadlineCandidate({
+    date: "2024-01-10",
+    textRef: "pdfs/project/invitation/files/Attach_TOR_1.txt",
+  });
+
+  const resolved = resolveDeadline(
+    "biddingClosingDate",
+    [detailed, other],
+    true
+  );
+
+  assert.equal(resolved.status, "ambiguous");
+  assert.equal(resolved.normalizedDate, null);
 });
 
 test("in-memory analysis produces two prices, Thai TOR sections, and the bidding deadline", async () => {
