@@ -120,6 +120,10 @@ const govProjectSchema = new mongoose.Schema(
     contract_status: { type: String },
     raw_data: { type: Object }, // Optional: stores raw DGA response payload
     documents: { type: documentsSchema, default: () => ({}) },
+    // Populated only by the separately guarded procurement-analysis importer.
+    // The importer stores a compact frontend projection; evidence and local
+    // processing diagnostics remain in analysis.json and are not persisted.
+    procurementAnalysis: { type: mongoose.Schema.Types.Mixed, default: undefined },
     // Keep the legacy extraction structure until migration verification and a
     // separately approved cleanup. Existing download code still reads it.
     documentExtraction: { type: documentExtractionSchema, default: () => ({}) },

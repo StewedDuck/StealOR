@@ -34,6 +34,8 @@ export type MarketTor = {
   projectName: string;
   agencyName: string;
   budget: number | null;
+  allocatedBudget?: number | null;
+  referencePriceEstimate?: number | null;
   deadline?: string | null;
   description?: string;
   status: string;
@@ -54,6 +56,8 @@ export type MarketTorDetail = {
   agencyName: string;
 
   budget: number | null;
+  allocatedBudget?: number | null;
+  referencePriceEstimate?: number | null;
   submissionDeadline: string | null;
 
   contactName: string;
@@ -72,6 +76,22 @@ export type MarketTorDetail = {
 
   createdAt: string;
   updatedAt: string;
+
+  contractorQualifications?: {
+    generalLegal: string[];
+    projectSpecific: string[];
+  };
+  
+  technicalRequirements?: string[];
+  deliverables?: string[];
+  
+  biddingClosingDate?: {
+    date: string | null;
+    startTime: string | null;
+    endTime: string | null;
+    dateTime: string | null;
+    timezone: string | null;
+  } | null;
 };
 
 export type SavedTor = {
@@ -101,4 +121,7 @@ export type SavedTor = {
     unmatchedRequirements?: string[];
   } | null;
   savedAt: string;
+
+  allocatedBudget?: number | null;
+  referencePriceEstimate?: number | null;
 };

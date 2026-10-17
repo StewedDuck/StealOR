@@ -15,9 +15,11 @@ const {
 const MAX_ARCHIVE_ENTRIES = 1_000;
 // Official Invitation packages can contain a standard document set plus many
 // separately uploaded TOR attachments. Keep bounded per-file overhead while
-// leaving the independent 100 MiB aggregate extraction limit in force.
+// leaving an independent aggregate extraction limit in force. A verified
+// public Draft package can contain two roughly 80 MiB PDFs, so 100 MiB is too
+// low for legitimate archives while 200 MiB remains a strict zip-bomb bound.
 const MAX_PDF_COUNT = 50;
-const MAX_TOTAL_PDF_BYTES = 100 * 1024 * 1024;
+const MAX_TOTAL_PDF_BYTES = 200 * 1024 * 1024;
 
 function normalizedArchivePath(entryPath) {
   return String(entryPath || "").replace(/\\/g, "/");

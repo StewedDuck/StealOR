@@ -4,9 +4,16 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   APPLY_CONFIRMATION,
+  BYTES_PER_MB,
   DEFAULT_DELAY_MS,
+  DEFAULT_DOWNLOAD_TIMEOUT_MS,
+  DEFAULT_MAX_DOWNLOAD_MB,
+  MAX_DOWNLOAD_TIMEOUT_MS,
+  MAX_DOWNLOAD_MB,
   PROJECT_PROJECTION,
   boundedDelay,
+  boundedDownloadTimeoutMs,
+  boundedMaxDownloadMb,
   createDryRunReport,
   createDownloadThrottle,
   executeProjects,
@@ -65,6 +72,70 @@ test("download delay defaults to 750 ms and is bounded", () => {
     () => parseArgs(["--project-id", "68059426756", "--delay-ms", "1.5"]),
     /integer from 0 to 5000/
   );
+});
+
+test("download size defaults to 150 MB and accepts only whole MB values up to 250", () => {
+  assert.equal(
+    parseArgs(["--project-id", "68059426756"]).maxDownloadMb,
+    DEFAULT_MAX_DOWNLOAD_MB
+  );
+  assert.equal(
+    parseArgs([
+      "--project-id",
+      "68059426756",
+      "--max-download-mb",
+      "250",
+    ]).maxDownloadMb,
+    250
+  );
+  assert.equal(DEFAULT_MAX_DOWNLOAD_MB, 150);
+  assert.equal(MAX_DOWNLOAD_MB, 250);
+  assert.equal(boundedMaxDownloadMb(1), 1);
+  assert.equal(boundedMaxDownloadMb(250), 250);
+  for (const invalidValue of ["0", "1.5", "251", "not-a-number"]) {
+    assert.throws(
+      () =>
+        parseArgs([
+          "--project-id",
+          "68059426756",
+          "--max-download-mb",
+          invalidValue,
+        ]),
+      /integer from 1 to 250/
+    );
+  }
+});
+
+test("download timeout defaults to ten minutes and is configurable up to thirty minutes", () => {
+  assert.equal(
+    parseArgs(["--project-id", "68059426756"]).downloadTimeoutMs,
+    DEFAULT_DOWNLOAD_TIMEOUT_MS
+  );
+  assert.equal(DEFAULT_DOWNLOAD_TIMEOUT_MS, 600_000);
+  assert.equal(MAX_DOWNLOAD_TIMEOUT_MS, 1_800_000);
+  assert.equal(boundedDownloadTimeoutMs(1_000), 1_000);
+  assert.equal(boundedDownloadTimeoutMs(1_800_000), 1_800_000);
+  assert.equal(
+    parseArgs([
+      "--project-id",
+      "68059426756",
+      "--download-timeout-ms",
+      "900000",
+    ]).downloadTimeoutMs,
+    900_000
+  );
+  for (const invalidValue of ["999", "1.5", "1800001", "not-a-number"]) {
+    assert.throws(
+      () =>
+        parseArgs([
+          "--project-id",
+          "68059426756",
+          "--download-timeout-ms",
+          invalidValue,
+        ]),
+      /integer from 1000 to 1800000/
+    );
+  }
 });
 
 test("download throttle waits only before attempts after the first", async () => {
@@ -236,6 +307,39 @@ test("apply execution continues after a project-level failure", async () => {
   assert.equal(result.reports[1].projectId, "65077164290");
 });
 
+test("apply execution forwards the configured download size in bytes", async () => {
+  let receivedDependencies;
+  await executeProjects(
+    [{ project_id: "68059426756", documents: {} }],
+    {
+      tempRoot: "C:\\temporary-phase-b",
+      maxDownloadMb: 250,
+      downloadTimeoutMs: 900_000,
+    },
+    {
+      downloadOptions: { existingOption: true },
+      async processProjectDocumentExtractions(
+        project,
+        options,
+        dependencies
+      ) {
+        receivedDependencies = dependencies;
+        return {
+          projectId: project.project_id,
+          categories: [],
+          summary: { extracted: 0, skipped: 3, failed: 0 },
+        };
+      },
+    }
+  );
+
+  assert.deepEqual(receivedDependencies.downloadOptions, {
+    existingOption: true,
+    maxBytes: 250 * BYTES_PER_MB,
+    timeoutMs: 900_000,
+  });
+});
+
 test("run dry-run reads MongoDB but never invokes extraction or writes MongoDB", async () => {
   const events = [];
   const project = {
@@ -280,6 +384,8 @@ test("run dry-run reads MongoDB but never invokes extraction or writes MongoDB",
   });
 
   assert.equal(output.mode, "dry-run");
+  assert.equal(output.options.maxDownloadMb, 150);
+  assert.equal(output.options.downloadTimeoutMs, 600_000);
   assert.equal(output.summary.usableCategories, 1);
   assert.equal(output.exitCode, 0);
   assert.deepEqual(
@@ -316,6 +422,10 @@ test("confirmed run applies sequential extraction and reports partial failure", 
       APPLY_CONFIRMATION,
       "--force",
       "--redownload",
+      "--max-download-mb",
+      "250",
+      "--download-timeout-ms",
+      "900000",
     ],
     {
       mongoUri: "mongodb://test.invalid/stealor",
@@ -357,6 +467,8 @@ test("confirmed run applies sequential extraction and reports partial failure", 
   );
 
   assert.equal(output.mode, "apply");
+  assert.equal(output.options.maxDownloadMb, 250);
+  assert.equal(output.options.downloadTimeoutMs, 900_000);
   assert.equal(output.summary.processedProjects, 2);
   assert.equal(output.summary.extractedCategories, 2);
   assert.equal(output.summary.skippedCategories, 3);

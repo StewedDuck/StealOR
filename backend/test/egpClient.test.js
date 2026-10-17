@@ -1568,6 +1568,9 @@ test("draft e-bidding discovery selects the only valid initial ZIP", async () =>
           })
         );
       }
+      if (url.pathname.endsWith("getTorZipList")) {
+        return new Response(JSON.stringify({ response: { responseCode: 0 }, data: [] }));
+      }
       assert.equal(url.searchParams.get("itemNo"), "1");
       return new Response(
         JSON.stringify({
@@ -1580,7 +1583,7 @@ test("draft e-bidding discovery selects the only valid initial ZIP", async () =>
 
   const result = await adapter.discoverDraftEbidding("68059426756");
 
-  assert.equal(requested.length, 5);
+  assert.equal(requested.length, 7);
   assert.equal(result.category, DOCUMENT_CATEGORY.DRAFT_EBIDDING);
   assert.equal(result.status, "available");
   assert.equal(result.lookupMethod, LOOKUP_METHOD.DRAFT_TEMP);

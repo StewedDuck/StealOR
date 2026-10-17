@@ -31,10 +31,31 @@ function formatDate(value: string | null) {
     return dateFormatter.format(date);
 }
 
+
 export default function TorDetailModal({
     tor,
     onClose,
 }: TorDetailModalProps) {
+
+    const isGovernment = "source" in tor && tor.source === "government";
+
+    const qualifications = isGovernment
+        ? tor.contractorQualifications
+        : undefined;
+
+    const generalLegal = qualifications?.generalLegal ?? [];
+    const projectSpecific = qualifications?.projectSpecific ?? [];
+
+    const technicalRequirements = isGovernment
+        ? tor.technicalRequirements ?? []
+        : [];
+
+    const deliverables = isGovernment
+        ? tor.deliverables ?? []
+        : [];
+
+    const hasAnalyzedQualifications = generalLegal.length > 0 || projectSpecific.length > 0;
+
     return (
         <div
             className="tor-modal-overlay"
@@ -85,9 +106,22 @@ export default function TorDetailModal({
                     <div className="tor-info-card">
                         <span>งบประมาณ</span>
                         <strong>
-                            {formatBudget(tor.budget)}
+                            {formatBudget(
+                            "allocatedBudget" in tor
+                                ? tor.allocatedBudget ?? tor.budget
+                                : tor.budget
+                            )}
                         </strong>
                     </div>
+
+                    {"source" in tor && tor.source === "government" && (
+                        <div className="tor-info-card">
+                            <span>ราคากลาง</span>
+                            <strong>
+                            {formatBudget(tor.referencePriceEstimate ?? null)}
+                            </strong>
+                        </div>
+                    )}
 
                     <div className="tor-info-card">
                         <span>กำหนดส่ง</span>
@@ -95,14 +129,6 @@ export default function TorDetailModal({
                             {formatDate(tor.submissionDeadline)}
                         </strong>
                     </div>
-
-                    <div className="tor-info-card">
-                        <span>ผู้ติดต่อ</span>
-                        <strong>
-                            {tor.contactName || "ไม่ระบุ"}
-                        </strong>
-                    </div>
-
                 </div>
 
 
@@ -124,23 +150,19 @@ export default function TorDetailModal({
 
 
                     {/* Objectives */}
-                    {tor.objectives.length > 0 && (
-                        <section className="tor-section">
+                    <section className="tor-section">
+                        <h3>วัตถุประสงค์</h3>
 
-                            <h3>วัตถุประสงค์</h3>
-
+                        {(tor.objectives?.length ?? 0) > 0 ? (
                             <ul>
-                                {tor.objectives.map(
-                                    (item, index) => (
-                                        <li key={index}>
-                                            {item}
-                                        </li>
-                                    )
-                                )}
+                            {tor.objectives.map((item, index) => (
+                                <li key={index}>{item}</li>
+                            ))}
                             </ul>
-
-                        </section>
-                    )}
+                        ) : (
+                            <p>ยังไม่มีข้อมูลวัตถุประสงค์</p>
+                        )}
+                    </section>
 
 
                     {/* Scope of Work */}
@@ -162,16 +184,70 @@ export default function TorDetailModal({
                         </section>
                     )}
 
+                    {/* Government Contractor Qualifications */}
+                    {isGovernment && hasAnalyzedQualifications && (
+                        <section className="tor-section">
+                            <h3>คุณสมบัติผู้รับจ้าง</h3>
+
+                            {generalLegal.length > 0 && (
+                                <div className="tor-analysis-group">
+                                    <h4>คุณสมบัติทั่วไปและข้อกำหนดทางกฎหมาย</h4>
+                                    <ul>
+                                        {generalLegal.map((item, index) => (
+                                            <li key={`legal-${index}`}>{item}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {projectSpecific.length > 0 && (
+                                <div className="tor-analysis-group">
+                                    <h4>คุณสมบัติเฉพาะโครงการ</h4>
+                                    <ul>
+                                        {projectSpecific.map((item, index) => (
+                                            <li key={`specific-${index}`}>{item}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </section>
+                    )}
+
+                    {/* Technical Requirements */}
+                    {isGovernment && technicalRequirements.length > 0 && (
+                        <section className="tor-section">
+                            <h3>ข้อกำหนดทางเทคนิค</h3>
+                            <ul>
+                                {technicalRequirements.map((item, index) => (
+                                    <li key={index}>{item}</li>
+                                ))}
+                            </ul>
+                        </section>
+                    )}
+
+                    {/* Deliverables */}
+                        {isGovernment && deliverables.length > 0 && (
+                        <section className="tor-section">
+                            <h3>สิ่งที่ต้องส่งมอบ</h3>
+                            <ul>
+                                {deliverables.map((item, index) => (
+                                    <li key={index}>{item}</li>
+                                ))}
+                            </ul>
+                        </section>
+                    )}
+
 
                     {/* Requirements */}
-                    {tor.requirements.length > 0 && (
+                    {!hasAnalyzedQualifications &&
+                    (tor.requirements?.length ?? 0) > 0 && (
                         <section className="tor-section">
 
                             <h3>คุณสมบัติที่ต้องการ</h3>
 
                             <div className="qualification-list">
 
-                                {tor.requirements.map(
+                                {tor.requirements?.map(
                                     (requirement, index) => (
 
                                         <div

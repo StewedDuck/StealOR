@@ -119,6 +119,22 @@ OCR is intentionally deferred to a later milestone. This initial source is
 stored as `sourceDocumentType: "price_estimate"`; the service does not claim
 that a price document contains every field from the complete TOR.
 
+### Local procurement analysis
+
+`npm run analyze:procurement` reads each project's existing classification
+manifests and selects supported, non-`JUNK` TXT documents. Each selected TXT is
+read in full and sent to Gemini in exactly one request. The analyzer does not
+split, overlap, retry, or automatically shorten a document. If a whole document
+cannot be processed (including a model input/output limit or invalid response),
+the failure is recorded for that document and processing continues with the
+remaining documents.
+
+The structured response keeps the seven TOR section codes and evidence rules.
+The former ten-item TOR ceiling has been removed, and the request uses a
+16,384-token output budget. Exact quotations are still verified against the
+original full TXT before a candidate can be accepted. Generated `analysis.json`
+remains schema version 3; `summary.md` is its human-readable view.
+
 ---
 
 ## Prerequisites

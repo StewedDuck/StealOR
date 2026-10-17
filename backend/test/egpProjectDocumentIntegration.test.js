@@ -60,6 +60,9 @@ test("real adapter contract produces all normalized project document categories"
         JSON.stringify({ response: { responseCode: "1" }, data: null })
       );
     }
+    if (url.pathname.endsWith("getTorZipList")) {
+      return new Response(JSON.stringify({ response: { responseCode: 0 }, data: [] }));
+    }
     const evidence = publicInvitationEvidenceResponse(url, true);
     if (evidence) return evidence;
     throw new Error(`Unexpected request: ${url}`);
@@ -82,6 +85,8 @@ test("real adapter contract produces all normalized project document categories"
     "/egp-oann10-service/pb/a-egp-allt-project/announcement/getProjectDetail?projectId=68059426756",
     "/egp-oann10-service/pb/a-egp-allt-project/announcement/greenBook?mode=LINK&methodId=16&tempProjectId=68059426756&pageAnnounceType=B0",
     "/egp-approval-service/apv-common/infoProcureDocAnnounZipAdj?projectId=68059426756&itemNo=1",
+    "/egp-oann10-service/pb/a-egp-allt-project/announcement/getTorZipList?projectId=68059426756&methodId=16&projectVersion=3&typeProject=6&stepId=C01&typeId=03",
+    "/egp-oann10-service/pb/a-egp-allt-project/announcement/getTorZipList?projectId=68059426756&methodId=16&projectVersion=3&typeProject=6&stepId=C01&typeId=04",
   ]);
   assert.equal(result.documents.priceEstimate.fileId, "price-file-id");
   assert.equal(result.documents.invitation.fileId, "invitation-file-id");

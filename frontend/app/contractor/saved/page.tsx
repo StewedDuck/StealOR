@@ -43,6 +43,17 @@ import { getUserProfile } from "@/lib/torApi";
 import TORDocumentModal from "@/components/TORDocumentModal";
 import TorDeadlineBadge from "@/components/TorDeadlineBadge";
 import { getDeadlineInfo } from "@/lib/torDeadline";
+import {
+  getLocalProjectDocuments,
+} from "@/lib/torApi";
+
+import {
+  getGovernmentPublicationStatus,
+  getInternalPublicationStatus,
+  type PublicationStatus,
+} from "@/lib/torPublicationStatus";
+
+import "@/components/TorBadges.css";
 
 type SourceFilter = 
   | 'all'
@@ -217,6 +228,7 @@ export default function SavedPage() {
   const [reviews, setReviews] = useState<Comment[]>([]);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState("");
+  const [projectPublicationStatuses, setProjectPublicationStatuses] = useState<Record<string, PublicationStatus>>({});
   const [documentTor, setDocumentTor] = useState<{
     projectId: string;
     projectName: string;
@@ -372,22 +384,60 @@ export default function SavedPage() {
       setLoading(false);
       return;
     }
-
-    setLoading(true);
-    setError("");
-
-    getBookmarks(userId)
-      .then((bookmarks) => {
-        setSavedTors(bookmarks);
-      })
-      .catch((err) => {
-        setError(
-          err instanceof Error ? err.message : "โหลด TOR ที่บันทึกไม่สำเร็จ",
+  
+    async function loadBookmarks() {
+      try {
+        setLoading(true);
+        setError("");
+  
+        const bookmarks = await getBookmarks(userId!);
+  
+        const governmentTors = bookmarks.filter(
+          (tor) => tor.source === "government" && tor.projectId
         );
-      })
-      .finally(() => {
+  
+        const results = await Promise.all(
+          governmentTors.map(async (tor) => {
+            const projectId = tor.projectId!;
+  
+            try {
+              const documents = await getLocalProjectDocuments(projectId);
+  
+              return {
+                projectId,
+                status: getGovernmentPublicationStatus(documents),
+              };
+            } catch (error) {
+              console.error("Failed to check invitation:", projectId, error);
+  
+              return {
+                projectId,
+                status: "unknown" as PublicationStatus,
+              };
+            }
+          })
+        );
+  
+        const statusMap: Record<string, PublicationStatus> = {};
+  
+        results.forEach(({ projectId, status }) => {
+          statusMap[projectId] = status;
+        });
+  
+        setProjectPublicationStatuses(statusMap);
+        setSavedTors(bookmarks);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "โหลด TOR ที่บันทึกไม่สำเร็จ"
+        );
+      } finally {
         setLoading(false);
-      });
+      }
+    }
+  
+    loadBookmarks();
   }, [userId]);
 
   useEffect(() => {
@@ -435,32 +485,29 @@ export default function SavedPage() {
       );
     }
   
-    // STATUS  
+    // STATUS
     if (statusFilter !== "all") {
       result = result.filter((tor) => {
-        const status = tor.status?.toLowerCase() ?? "";
-        const days = getDaysUntil(tor.deadline);
-        if (statusFilter === "draft") {
-          return (
-            tor.source === "internal" &&
-            status === "draft"
-          );
-        }
-  
-        if (statusFilter === "published") {
-          // not draft and deadline
-          return (
-            status !== "draft" &&
-            (days === null || days >= 0)
-          );
-        }
-  
+        const publicationStatus =
+          tor.source === "government"
+            ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
+            : getInternalPublicationStatus(tor.status);
+
+        const isClosed =
+          getDeadlineInfo(tor.deadline).status === "closed";
+
         if (statusFilter === "closed") {
-          return (
-            days !== null &&
-            days < 0
-          );
+          return isClosed;
         }
+
+        if (statusFilter === "draft") {
+          return !isClosed && publicationStatus === "draft";
+        }
+
+        if (statusFilter === "published") {
+          return !isClosed && publicationStatus === "open";
+        }
+
         return true;
       });
     }
@@ -468,7 +515,7 @@ export default function SavedPage() {
     // BUDGET  
     if (budgetFilter !== "all") {
       result = result.filter((tor) => {
-        const budget = tor.budget;
+        const budget = tor.allocatedBudget ?? tor.budget;
   
         if (budget == null) {
           return false;
@@ -584,6 +631,7 @@ export default function SavedPage() {
     budgetFilter,
     timeFilter,
     yearFilter,
+    projectPublicationStatuses,
   ]);
 
   async function handleRemoveBookmark(tor: SavedTor) {
@@ -853,12 +901,21 @@ export default function SavedPage() {
               {filteredTors.map((tor) => {
                 const deadline = tor.deadline;
 
-                const daysLeft = getDaysUntil(deadline);
-                const isClosed = daysLeft !== null && daysLeft < 0;
+                const deadlineInfo = getDeadlineInfo(deadline);
+                const isClosed = deadlineInfo.status === "closed";
 
-                const isDraft =
-                    tor.source === "internal" &&
-                    tor.status?.toLowerCase() === "draft";
+                const publicationStatus =
+                  tor.source === "government"
+                    ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
+                    : getInternalPublicationStatus(tor.status);
+
+                const statusLabel = isClosed
+                  ? "ปิดรับแล้ว"
+                  : publicationStatus === "open"
+                    ? "Open"
+                    : publicationStatus === "draft"
+                      ? "Draft"
+                      : "Unknown";
 
                 const matchPercent = tor.match?.percent;
 
@@ -877,19 +934,17 @@ export default function SavedPage() {
                         </span>
 
                         <span
-                            className={`tor-status-badge ${
-                                isClosed
-                                    ? "closed"
-                                    : isDraft
-                                    ? "draft"
-                                    : "open"
-                            }`}
+                          className={`tor-status-badge ${
+                            isClosed
+                              ? "tor-status-closed"
+                              : publicationStatus === "open"
+                                ? "tor-status-open"
+                                : publicationStatus === "draft"
+                                  ? "tor-status-draft"
+                                  : "tor-status-unknown"
+                          }`}
                         >
-                            {isClosed
-                                ? "ปิดรับแล้ว"
-                                : isDraft
-                                ? "Draft"
-                                : tor.status || "เปิดรับ"}
+                          {statusLabel}
                         </span>
 
                         {tor.projectId && (
@@ -913,13 +968,26 @@ export default function SavedPage() {
                       </div>
 
                       <div className="saved-card-meta">
-                        {/* Budget */}
-
+                        {/* Budget and Reference Price */}
                         <div className="saved-meta-item">
-                          <span className="saved-money-icon">฿</span>
-
-                          <strong>{formatBudget(tor.budget)}</strong>
+                          <span>
+                            งบประมาณ:{" "}
+                            <strong>
+                              {formatBudget(tor.allocatedBudget ?? tor.budget)}
+                            </strong>
+                          </span>
                         </div>
+
+                        {tor.source === "government" && (
+                          <div className="saved-meta-item">
+                            <span>
+                              ราคากลาง:{" "}
+                              <strong>
+                                {formatBudget(tor.referencePriceEstimate ?? null)}
+                              </strong>
+                            </span>
+                          </div>
+                        )}
 
                         {/* Type */}
                         <div className="saved-meta-item">

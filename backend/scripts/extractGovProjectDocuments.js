@@ -14,6 +14,11 @@ const {
 const APPLY_CONFIRMATION = "EXTRACT_GOV_PROJECT_DOCUMENTS";
 const DEFAULT_DELAY_MS = 750;
 const MAX_DELAY_MS = 5_000;
+const DEFAULT_MAX_DOWNLOAD_MB = 150;
+const MAX_DOWNLOAD_MB = 250;
+const DEFAULT_DOWNLOAD_TIMEOUT_MS = 10 * 60_000;
+const MAX_DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
+const BYTES_PER_MB = 1024 * 1024;
 const PROJECT_PROJECTION = {
   _id: 1,
   project_id: 1,
@@ -44,6 +49,34 @@ function boundedDelay(value = DEFAULT_DELAY_MS) {
   return delay;
 }
 
+function boundedMaxDownloadMb(value = DEFAULT_MAX_DOWNLOAD_MB) {
+  const maxDownloadMb = Number(value);
+  if (
+    !Number.isInteger(maxDownloadMb) ||
+    maxDownloadMb < 1 ||
+    maxDownloadMb > MAX_DOWNLOAD_MB
+  ) {
+    throw new Error(
+      `--max-download-mb must be an integer from 1 to ${MAX_DOWNLOAD_MB}`
+    );
+  }
+  return maxDownloadMb;
+}
+
+function boundedDownloadTimeoutMs(value = DEFAULT_DOWNLOAD_TIMEOUT_MS) {
+  const timeoutMs = Number(value);
+  if (
+    !Number.isInteger(timeoutMs) ||
+    timeoutMs < 1_000 ||
+    timeoutMs > MAX_DOWNLOAD_TIMEOUT_MS
+  ) {
+    throw new Error(
+      `--download-timeout-ms must be an integer from 1000 to ${MAX_DOWNLOAD_TIMEOUT_MS}`
+    );
+  }
+  return timeoutMs;
+}
+
 function createDownloadThrottle(delayMs, dependencies = {}) {
   const delay = boundedDelay(delayMs);
   const sleep =
@@ -69,6 +102,8 @@ function parseArgs(argv = process.argv.slice(2)) {
     force: false,
     redownload: false,
     delayMs: DEFAULT_DELAY_MS,
+    maxDownloadMb: DEFAULT_MAX_DOWNLOAD_MB,
+    downloadTimeoutMs: DEFAULT_DOWNLOAD_TIMEOUT_MS,
     json: false,
   };
 
@@ -91,6 +126,16 @@ function parseArgs(argv = process.argv.slice(2)) {
       index += 1;
     } else if (argument === "--delay-ms") {
       options.delayMs = boundedDelay(requireValue(argv, index, argument));
+      index += 1;
+    } else if (argument === "--max-download-mb") {
+      options.maxDownloadMb = boundedMaxDownloadMb(
+        requireValue(argv, index, argument)
+      );
+      index += 1;
+    } else if (argument === "--download-timeout-ms") {
+      options.downloadTimeoutMs = boundedDownloadTimeoutMs(
+        requireValue(argv, index, argument)
+      );
       index += 1;
     } else if (argument === "--all") {
       options.all = true;
@@ -137,6 +182,10 @@ function parseArgs(argv = process.argv.slice(2)) {
     throw new Error("--confirm is valid only with --apply");
   }
   options.delayMs = boundedDelay(options.delayMs);
+  options.maxDownloadMb = boundedMaxDownloadMb(options.maxDownloadMb);
+  options.downloadTimeoutMs = boundedDownloadTimeoutMs(
+    options.downloadTimeoutMs
+  );
 
   return options;
 }
@@ -158,6 +207,8 @@ function createDryRunReport(projects, options = {}) {
       force: options.force === true,
       redownload: options.redownload === true,
       delayMs: boundedDelay(options.delayMs),
+      maxDownloadMb: boundedMaxDownloadMb(options.maxDownloadMb),
+      downloadTimeoutMs: boundedDownloadTimeoutMs(options.downloadTimeoutMs),
     },
     summary: planned.summary,
     projects: planned.reports,
@@ -219,6 +270,18 @@ async function executeProjects(projects, options, dependencies = {}) {
     processProjectDocumentExtractions;
   const reports = [];
   const summary = createApplySummary(projects.length);
+  const maxDownloadMb = boundedMaxDownloadMb(options.maxDownloadMb);
+  const downloadTimeoutMs = boundedDownloadTimeoutMs(
+    options.downloadTimeoutMs
+  );
+  const processDependencies = {
+    ...dependencies,
+    downloadOptions: {
+      ...(dependencies.downloadOptions || {}),
+      maxBytes: maxDownloadMb * BYTES_PER_MB,
+      timeoutMs: downloadTimeoutMs,
+    },
+  };
 
   for (const project of projects) {
     const projectId = String(project?.project_id || "").trim() || null;
@@ -230,7 +293,7 @@ async function executeProjects(projects, options, dependencies = {}) {
           force: options.force,
           redownload: options.redownload,
         },
-        dependencies
+        processDependencies
       );
       reports.push(report);
       summary.processedProjects += 1;
@@ -302,6 +365,8 @@ async function run(argv = process.argv.slice(2), dependencies = {}) {
           force: options.force,
           redownload: options.redownload,
           delayMs: options.delayMs,
+          maxDownloadMb: options.maxDownloadMb,
+          downloadTimeoutMs: options.downloadTimeoutMs,
         },
         tempRoot,
         summary: executed.summary,
@@ -342,10 +407,17 @@ if (require.main === module) {
 
 module.exports = {
   APPLY_CONFIRMATION,
+  BYTES_PER_MB,
   DEFAULT_DELAY_MS,
+  DEFAULT_DOWNLOAD_TIMEOUT_MS,
+  DEFAULT_MAX_DOWNLOAD_MB,
   MAX_DELAY_MS,
+  MAX_DOWNLOAD_TIMEOUT_MS,
+  MAX_DOWNLOAD_MB,
   PROJECT_PROJECTION,
   boundedDelay,
+  boundedDownloadTimeoutMs,
+  boundedMaxDownloadMb,
   createDryRunReport,
   createDownloadThrottle,
   executeProjects,

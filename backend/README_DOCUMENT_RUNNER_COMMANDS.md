@@ -167,7 +167,39 @@ Each project's `documents` field in MongoDB will contain:
 
 ---
 
-## 6. What's Next? (Transition to Phase B)
+## 6. Draft Comment Deadline Backfill
+
+Normal Phase A enrichment now saves `documents.draftEbidding.commentDeadlineAt`
+with the selected Draft ZIP when e-GP provides a deadline matched to that ZIP's
+template ID. New projects do not need this backfill after their normal Phase A
+run. `procurementAnalysis.biddingClosingDate` remains a separate bid deadline.
+
+For projects already in MongoDB, preview the deadline-only backfill without
+writing to MongoDB:
+
+```powershell
+node scripts/backfillDraftCommentDeadlines.js --project-id 69099214663
+node scripts/backfillDraftCommentDeadlines.js --limit 5
+node scripts/backfillDraftCommentDeadlines.js --all
+```
+
+The dry-run report shows each stored ZIP filename, revision, and planned old/new
+deadline. The backfill has a separate guarded apply mode for use only after the
+dry run is reviewed. It updates only `documents.draftEbidding.commentDeadlineAt`;
+the stored Draft reference must still match the snapshot read for that project.
+The runner waits two seconds between projects by default and stops when e-GP
+returns HTTP 429. Start with one project or `--limit 5` before attempting `--all`.
+Projects without a stored Draft ZIP are skipped without contacting e-GP. After
+a rate limit, `--after-project-id <last-completed-id>` resumes the sorted scan
+from the next project; the rate-limited project itself should be retried.
+For the frontend Draft fallback only, add `--draft-only`. It selects MongoDB
+records where `documents.invitation.status` is `not_found` and
+`documents.draftEbidding.status` is `available`; projects with an available or
+unverified Invitation are excluded before any e-GP request.
+
+---
+
+## 7. What's Next? (Transition to Phase B)
 
 Once Phase A populates `documents` metadata in MongoDB, proceed to **Phase B** to actually download ZIPs and extract their PDFs to disk:
 

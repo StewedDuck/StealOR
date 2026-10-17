@@ -7,6 +7,7 @@ const {
 const { ERROR_KIND, EgpServiceError } = require("./errors");
 const { validateFileId, validateZipFileName } = require("./validation");
 const { request, readMetadataJson } = require("./transport");
+const { lookupSelectedDraftCommentDeadline } = require("./draftCommentDeadline");
 const {
   createDocumentMetadata,
   createNotFoundMetadata,
@@ -253,7 +254,7 @@ function assertSupportedProcess5DraftPayload(payload, { allowArray }) {
   });
 }
 
-function selectDraftCandidate(projectId, candidates, reachedRevisionLimit) {
+async function selectDraftCandidate(projectId, candidates, reachedRevisionLimit, options) {
   if (candidates.length === 0) {
     return createNotFoundMetadata(
       projectId,
@@ -286,6 +287,18 @@ function selectDraftCandidate(projectId, candidates, reachedRevisionLimit) {
   }
 
   const selected = uniqueLatest.values().next().value;
+  const templateIsRevisionSpecific = !candidates.some((candidate) =>
+    candidate !== selected && candidate.templateId === selected.templateId &&
+    (candidate.revision !== selected.revision || candidate.fileId !== selected.fileId)
+  );
+  const commentDeadlineAt = templateIsRevisionSpecific
+    ? await lookupSelectedDraftCommentDeadline(
+      projectId,
+      selected.templateId,
+      selected.revision,
+      options
+    )
+    : null;
   return createDocumentMetadata({
     projectId,
     category: DOCUMENT_CATEGORY.DRAFT_EBIDDING,
@@ -296,6 +309,7 @@ function selectDraftCandidate(projectId, candidates, reachedRevisionLimit) {
       revision: selected.revision,
       version: selected.revision === 0 ? "initial" : `revision_${selected.revision}`,
       candidateCount: candidates.length,
+      commentDeadlineAt,
     },
   });
 }
@@ -387,7 +401,7 @@ async function getDraftEbiddingMetadata(projectId, options, publicDocuments) {
     options
   );
   return {
-    ...selectDraftCandidate(projectId, verifiedCandidates, reachedRevisionLimit),
+    ...(await selectDraftCandidate(projectId, verifiedCandidates, reachedRevisionLimit, options)),
     lookupAttempts: attempts,
   };
 }

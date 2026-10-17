@@ -7,11 +7,16 @@ const path = require("node:path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  MAX_TOTAL_PDF_BYTES,
   isSafePhaseBArchivePath,
   planDocumentExtractionBatch,
   planProjectDocumentExtraction,
   stagePdfArchive,
 } = require("../src/services/govProjectDocumentExtractionService");
+
+test("Phase B permits legitimate large archives within a 200 MiB hard bound", () => {
+  assert.equal(MAX_TOTAL_PDF_BYTES, 200 * 1024 * 1024);
+});
 
 function crc32(buffer) {
   let crc = 0xffffffff;
