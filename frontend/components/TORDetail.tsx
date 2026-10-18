@@ -3,10 +3,12 @@
 import { X, CheckCircle2 } from "lucide-react";
 import type { Tor, MarketTorDetail } from "@/types/tor";
 import "./TORDetail.css"
+import TorStatusProgress from "@/components/TorStatusProgress";
 
 type TorDetailModalProps = {
     tor: Tor | MarketTorDetail;
     onClose: () => void;
+    progressStatus?: "draft" | "open" | "closed" | "unknown";
 };
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
@@ -35,9 +37,14 @@ function formatDate(value: string | null) {
 export default function TorDetailModal({
     tor,
     onClose,
+    progressStatus = "unknown",
 }: TorDetailModalProps) {
 
     const isGovernment = "source" in tor && tor.source === "government";
+
+    const deadline = "biddingClosingDate" in tor
+        ? tor.biddingClosingDate?.dateTime ?? tor.submissionDeadline
+        : tor.submissionDeadline;
 
     const qualifications = isGovernment
         ? tor.contractorQualifications
@@ -135,16 +142,14 @@ export default function TorDetailModal({
                 {/* Body */}
                 <div className="tor-modal-body">
 
+                    {/* Progress Bar */}
+                    <TorStatusProgress status={progressStatus} />
+
                     {/* Description */}
                     {tor.description && (
                         <section className="tor-section">
-
                             <h3>รายละเอียดโครงการ</h3>
-
-                            <p>
-                                {tor.description}
-                            </p>
-
+                            <p>{tor.description}</p>
                         </section>
                     )}
 

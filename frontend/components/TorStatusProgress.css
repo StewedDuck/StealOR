@@ -1,0 +1,160 @@
+.tor-progress {
+  background: #FCFCFA;
+  border: 1px solid #E1E4E6;
+  border-radius: 14px;
+  padding: 22px 24px;
+  margin: 20px 0 24px;
+  color: #26323D;
+}
+
+.tor-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.tor-progress-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #26323D;
+}
+
+.tor-progress-status {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #F5F5F2;
+  color: #26323D;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tor-progress-status-open {
+  background: #E8EFFB;
+  color: #4B7DB8;
+}
+
+.tor-progress-status-closed {
+  background: #E8EAEC;
+  color: #1F2933;
+}
+
+.tor-progress-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  position: relative;
+  isolation: isolate;
+}
+
+.tor-progress-steps::before {
+  content: "";
+  position: absolute;
+  height: 3px;
+  background: #DCE1E5;
+  top: 16px;
+  left: 16.6667%;
+  right: 16.6667%;
+  z-index: -1;
+}
+
+.tor-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 7px;
+  position: relative;
+}
+
+.tor-progress-node {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #FCFCFA;
+  border: 3px solid #C7CFD5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  color: #FCFCFA;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.tor-progress-step.completed .tor-progress-node {
+  background: #4B7DB8;
+  border-color: #4B7DB8;
+}
+
+.tor-progress-step.current .tor-progress-node {
+  background: #1F2933;
+  border-color: #1F2933;
+  font-size: 12px;
+}
+
+.tor-progress-step strong {
+  font-size: 13px;
+  color: #7A8791;
+}
+
+.tor-progress-step.current strong {
+  color: #26323D;
+}
+
+.tor-progress-step.completed strong {
+  color: #4B7DB8;
+}
+
+.tor-progress-step small {
+  font-size: 11px;
+  color: #98A2AC;
+}
+
+.tor-progress-draft.current .tor-progress-node {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.tor-progress-open.current .tor-progress-node {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.tor-progress-closed.current .tor-progress-node {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.tor-progress-status-draft {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.tor-progress-status-open {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.tor-progress-status-closed {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+@media (max-width: 600px) {
+  .tor-progress {
+    padding: 18px 12px;
+  }
+
+  .tor-progress-step strong {
+    font-size: 12px;
+  }
+
+  .tor-progress-step small {
+    font-size: 10px;
+  }
+}

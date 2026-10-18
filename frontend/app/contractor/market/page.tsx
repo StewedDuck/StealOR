@@ -420,6 +420,7 @@ export default function TorMarketPage() {
     const [error, setError] = useState("");
 
     const [activeTor, setActiveTor] = useState<MarketTorDetail | null>(null);
+    const [activeProgressStatus, setActiveProgressStatus] = useState< "draft" | "open" | "closed" | "unknown">("unknown");
 
     const [documentTor, setDocumentTor] = useState<{ projectId: string; projectName: string; } | null>(null);
 
@@ -847,6 +848,17 @@ export default function TorMarketPage() {
     }
 
     async function handleViewDetails(tor: MarketTor) {
+
+        const publicationStatus = tor.source === "government"
+            ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
+            : getInternalPublicationStatus(tor.status);
+
+        const progressStatus = getDeadlineInfo(tor.deadline).status === "closed"
+                ? "closed"
+                : publicationStatus;
+
+        setActiveProgressStatus(progressStatus);
+
         console.log("CLICK:", tor);
 
         if (!tor.projectId) {
@@ -1339,6 +1351,7 @@ export default function TorMarketPage() {
         {activeTor && (
             <TorDetailModal
                 tor={activeTor}
+                progressStatus={activeProgressStatus}
                 onClose={() => setActiveTor(null)}
             />
         )}
