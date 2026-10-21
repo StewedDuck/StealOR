@@ -13,19 +13,29 @@ import {
     CalendarDays,
     Wallet,
     Users,
+    FileText,
+    Clock3,
+    Building2,
   } from "lucide-react";
 
 import Sidebar from "@/components/sideBar";
 import { useToast } from "@/components/toast/ToastProvider";
+
 
 import {
     getUserProfile,
     updateUserProfile,
     getBookmarks,
     type UserProfile,
+    type PastProject,
+    type CertificationDetail,
+    type LegalEligibility,
+    type TeamQualification,
 } from "@/lib/torApi";
 
 import "./account.css";
+
+import FilterDropdown from "@/components/FilterDropdown";
 
 type ContractorType = "individual" | "company" | "freelance_team";
 type WorkMode = "onsite" | "remote" | "hybrid";
@@ -94,6 +104,41 @@ const certificationOptions = [
   "CompTIA Security+",
 ];
 
+
+const emptyLegalEligibility: LegalEligibility = {
+    registrationNumber: "",
+    bankruptcyStatus: "unknown",
+    debarmentStatus: "unknown",
+    evidenceUrl: "",
+};
+
+const emptyPastProject = (): PastProject => ({
+    projectName: "",
+    projectType: "",
+    projectValue: null,
+    durationMonths: null,
+    clientName: "",
+    completedAt: null,
+    evidenceUrl: "",
+});
+
+const emptyCertification = (): CertificationDetail => ({
+    name: "",
+    holderType: "individual",
+    holderName: "",
+    issuedAt: null,
+    expiresAt: null,
+    evidenceUrl: "",
+});
+
+const emptyTeamRole = (): TeamQualification => ({
+    role: "",
+    memberCount: 1,
+    experienceYears: 0,
+    educationLevel: "unspecified",
+    skills: [],
+});
+
 export default function ProfilePage() {
     const { data: session, status } = useSession();
     const { showToast } = useToast();
@@ -137,6 +182,49 @@ export default function ProfilePage() {
     const [newSkill, setNewSkill] = useState("");
     const [savedTorCount, setSavedTorCount] = useState(0);
 
+    const [pastProjects, setPastProjects] = useState<PastProject[]>([]);
+    const [editingPastProjectIndex, setEditingPastProjectIndex] = useState<number | null>(null);
+
+    const [certificationDetails, setCertificationDetails] = useState<CertificationDetail[]>([]);
+    const [editingCertificationIndex, setEditingCertificationIndex] = useState<number | null>(null);
+
+    const [legalEligibility, setLegalEligibility] = useState<LegalEligibility>({ ...emptyLegalEligibility });
+    const [editingTeamIndex, setEditingTeamIndex] = useState<number | null>(null);
+
+    const [teamQualifications, setTeamQualifications] = useState<TeamQualification[]>([]);
+
+    function setPastProject(
+        index: number,
+        changes: Partial<PastProject>
+    ) {
+        setPastProjects((prev) =>
+            prev.map((item, i) =>
+                i === index ? { ...item, ...changes } : item
+            )
+        );
+    }
+
+    function setCertificationDetail(
+        index: number,
+        changes: Partial<CertificationDetail>
+    ) {
+        setCertificationDetails((prev) =>
+            prev.map((item, i) =>
+                i === index ? { ...item, ...changes } : item
+            )
+        );
+    }
+
+    function setTeamQualification(
+        index: number,
+        changes: Partial<TeamQualification>
+    ) {
+        setTeamQualifications((prev) =>
+            prev.map((item, i) =>
+                i === index ? { ...item, ...changes } : item
+            )
+        );
+    }
     const email = session?.user?.email;
 
     // LOAD PROFILE
@@ -190,7 +278,15 @@ export default function ProfilePage() {
             setHasGovernmentExperience(
                 profileData.hasGovernmentExperience ?? null
             );
-    
+
+
+            setPastProjects(profileData.pastProjects ?? []);
+            setCertificationDetails(profileData.certificationDetails ?? []);
+            setLegalEligibility(
+                profileData.legalEligibility ?? { ...emptyLegalEligibility }
+            );
+            setTeamQualifications(profileData.teamQualifications ?? []);
+
             setSavedTorCount(bookmarks.length);
     
         } catch (error) {
@@ -289,6 +385,15 @@ export default function ProfilePage() {
         setHasGovernmentExperience(
             profile.hasGovernmentExperience ?? null
         );
+
+
+        setPastProjects(profile.pastProjects ?? []);
+        setCertificationDetails(profile.certificationDetails ?? []);
+        setLegalEligibility(
+            profile.legalEligibility ?? { ...emptyLegalEligibility }
+        );
+        setTeamQualifications(profile.teamQualifications ?? []);
+
         setNewSkill("");
     }
 
@@ -312,6 +417,8 @@ export default function ProfilePage() {
 
         try {
             setSaving(true);
+
+            console.log("Sending pastProjects:", pastProjects);
 
             const updated =
                 await updateUserProfile(email, {
@@ -342,9 +449,23 @@ export default function ProfilePage() {
                     registeredCapital,
                     maxPastProjectValue,
                     hasGovernmentExperience,
+
+                    pastProjects,
+                    certificationDetails,
+                    legalEligibility,
+                    teamQualifications,
                 });
 
+                console.log("Backend returned pastProjects:", updated.pastProjects);
+
             setProfile(updated);
+
+            setPastProjects(updated.pastProjects ?? []);
+            setCertificationDetails(updated.certificationDetails ?? []);
+            setLegalEligibility(
+                updated.legalEligibility ?? { ...emptyLegalEligibility }
+            );
+            setTeamQualifications(updated.teamQualifications ?? []);
 
             setName(updated.name || "");
             setPhone(updated.phone || "");
@@ -572,16 +693,17 @@ export default function ProfilePage() {
                                     ประเภทผู้รับจ้าง
                                 </label>
 
-                                <select
+                                <FilterDropdown
                                     value={contractorType}
-                                    onChange={(e) =>
-                                    setContractorType(e.target.value as ContractorType)
+                                    options={[
+                                        { value: "individual", label: "บุคคลทั่วไป" },
+                                        { value: "company", label: "บริษัท" },
+                                        { value: "freelance_team", label: "ทีมฟรีแลนซ์" },
+                                    ]}
+                                    onChange={(value) =>
+                                        setContractorType(value as ContractorType)
                                     }
-                                >
-                                    <option value="individual">บุคคลทั่วไป</option>
-                                    <option value="company">บริษัท</option>
-                                    <option value="freelance_team">ทีมฟรีแลนซ์</option>
-                                </select>
+                                />
                             </div>
 
                             <div className="profile-field">
@@ -670,90 +792,305 @@ export default function ProfilePage() {
                                 </div>
 
                                 {skills.filter(
-                                (skill) =>
-                                    !Object.values(skillGroups).flat().includes(skill)
-                                ).length > 0 && (
-                                <div className="profile-chip-list profile-custom-skills">
-                                    {skills
-                                    .filter(
-                                        (skill) =>
+                                    (skill) =>
                                         !Object.values(skillGroups).flat().includes(skill)
-                                    )
-                                    .map((skill) => (
-                                        <span className="skill-tag" key={skill}>
-                                            {skill}
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveSkill(skill)}
-                                                aria-label={`ลบ ${skill}`}
-                                            >
-                                                <X size={13} />
-                                            </button>
-                                        </span>
-                                    ))}
-                                </div>
+                                ).length > 0 && (
+                                    <div className="profile-chip-list profile-custom-skills">
+                                        {skills
+                                        .filter(
+                                            (skill) =>
+                                            !Object.values(skillGroups).flat().includes(skill)
+                                        )
+                                        .map((skill) => (
+                                            <span className="skill-tag" key={skill}>
+                                                {skill}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveSkill(skill)}
+                                                    aria-label={`ลบ ${skill}`}
+                                                >
+                                                    <X size={13} />
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                     </section>
 
-                    {/* TWO COLUMN GRID */}
-                    <div className="profile-details-grid">
-
-                    {/* EXPERIENCE */}
-                    <section className="profile-form-card">
+                    <div className="profile-full-row">
+                        {/* EXPERIENCE */}
+                        <section className="profile-form-card">
                             <div className="profile-section-heading">
-                            <BriefcaseBusiness size={19} />
-                            <h2>3. ประสบการณ์ทำงาน</h2>
-                        </div>
-
-                        <div className="profile-divider" />
-
-                        <div className="profile-field">
-                            <label>จำนวนปีประสบการณ์</label>
-                            <input
-                                type="number"
-                                min={0}
-                                value={experienceYears}
-                                onChange={(e) =>
-                                setExperienceYears(Math.max(0, Number(e.target.value) || 0))
-                                }
-                            />
-                        </div>
-
-                        <div className="profile-field">
-                            <label>สรุปประสบการณ์</label>
-                            <textarea
-                                rows={4}
-                                value={experienceSummary}
-                                onChange={(e) => setExperienceSummary(e.target.value)}
-                                placeholder="อธิบายประสบการณ์ที่ผ่านมา"
-                            />
-                        </div>
-
-                        <div className="profile-option-group">
-                            <h3>ประเภทโครงการที่เคยทำ</h3>
-                            <div className="profile-chip-list">
-                                {projectOptions.map((item) => (
-                                <button
-                                    key={item}
-                                    type="button"
-                                    aria-pressed={projectTypes.includes(item)}
-                                    className={`profile-chip ${
-                                    projectTypes.includes(item) ? "selected" : ""
-                                    }`}
-                                    onClick={() =>
-                                    toggleSelection(item, projectTypes, setProjectTypes)
-                                    }
-                                >
-                                    {item}
-                                </button>
-                                ))}
+                                <BriefcaseBusiness size={19} />
+                                <h2>3. ประสบการณ์ทำงาน</h2>
                             </div>
-                        </div>
-                    </section>
 
-                    <div className="profile-details-stack">
+                            <div className="profile-divider" />
 
+                            <div className="profile-field">
+                                <label>จำนวนปีประสบการณ์</label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={experienceYears}
+                                    onChange={(e) =>
+                                    setExperienceYears(Math.max(0, Number(e.target.value) || 0))
+                                    }
+                                />
+                            </div>
+
+                            <div className="profile-field">
+                                <label>สรุปประสบการณ์</label>
+                                <textarea
+                                    rows={4}
+                                    value={experienceSummary}
+                                    onChange={(e) => setExperienceSummary(e.target.value)}
+                                    placeholder="อธิบายประสบการณ์ที่ผ่านมา"
+                                />
+                            </div>
+
+                            <div className="profile-option-group">
+                                <h3>ประเภทโครงการที่เคยทำ</h3>
+                                <div className="profile-chip-list">
+                                    {projectOptions.map((item) => (
+                                        <button
+                                            key={item}
+                                            type="button"
+                                            aria-pressed={projectTypes.includes(item)}
+                                            className={`profile-chip ${
+                                                projectTypes.includes(item) ? "selected" : ""
+                                            }`}
+                                            onClick={() =>
+                                                toggleSelection(item, projectTypes, setProjectTypes)
+                                            }
+                                        >
+                                            {item}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="profile-divider" />
+                            <div className="profile-list-heading">
+                                <h3>ผลงานที่ผ่านมา (Past Projects)</h3>
+
+                                <button
+                                    type="button"
+                                    className="add-skill-button"
+                                    onClick={() => {
+                                        const newIndex = pastProjects.length;
+                                        setPastProjects((prev) => [
+                                            ...prev,
+                                            emptyPastProject(),
+                                        ]);
+                                        setEditingPastProjectIndex(newIndex);
+                                    }}
+                                >
+                                    <Plus size={15} />
+                                    เพิ่มผลงาน
+                                </button>
+                            </div>
+
+                            {pastProjects.map((project, index) => (
+                                <div className="profile-entry-card" key={index}>
+                                    <div className="profile-entry-header">
+                                        <strong>ผลงานที่ {index + 1}</strong>
+                                        <button
+                                            type="button"
+                                            className="profile-remove-button"
+                                            onClick={() => {
+                                                setPastProjects((prev) =>
+                                                    prev.filter((_, i) => i !== index)
+                                                );
+                                                setEditingPastProjectIndex((current) => {
+                                                    if (current === null) return null;
+                                                    if (current === index) return null;
+                                                    return current > index ? current - 1 : current;
+                                                });
+                                            }}
+                                        >
+                                            <X size={15} /> ลบ
+                                        </button>
+                                    </div>
+
+                                    {editingPastProjectIndex === index ? (
+                                        <>
+                                            <div className="profile-grid">
+                                                <div className="profile-field">
+                                                    <label>ชื่อโปรเจกต์</label>
+                                                    <input
+                                                        value={project.projectName}
+                                                        onChange={(e) =>
+                                                            setPastProject(index, {
+                                                                projectName: e.target.value,
+                                                            })
+                                                        }
+                                                        placeholder="Government Web Portal"
+                                                    />
+                                                </div>
+
+                                                <div className="profile-field">
+                                                    <label>ประเภทโครงการ</label>
+                                                    <FilterDropdown
+                                                        value={project.projectType}
+                                                        options={[
+                                                            { value: "", label: "เลือกประเภท" },
+                                                            ...projectOptions.map((type) => ({
+                                                                value: type,
+                                                                label: type,
+                                                            })),
+                                                        ]}
+                                                        onChange={(value) =>
+                                                            setPastProject(index, {
+                                                                projectType: value,
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="profile-field">
+                                                    <label>มูลค่าโครงการ (บาท)</label>
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        value={project.projectValue ?? ""}
+                                                        onChange={(e) =>
+                                                            setPastProject(index, {
+                                                                projectValue:
+                                                                    e.target.value === ""
+                                                                        ? null
+                                                                        : Number(e.target.value),
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="profile-field">
+                                                    <label>ระยะเวลา (เดือน)</label>
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        value={project.durationMonths ?? ""}
+                                                        onChange={(e) =>
+                                                            setPastProject(index, {
+                                                                durationMonths:
+                                                                    e.target.value === ""
+                                                                        ? null
+                                                                        : Number(e.target.value),
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="profile-field">
+                                                    <label>ลูกค้า / หน่วยงาน</label>
+                                                    <input
+                                                        value={project.clientName}
+                                                        onChange={(e) =>
+                                                            setPastProject(index, {
+                                                                clientName: e.target.value,
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="profile-field">
+                                                    <label>วันที่เสร็จสิ้น</label>
+                                                    <input
+                                                        type="date"
+                                                        value={project.completedAt?.slice(0, 10) ?? ""}
+                                                        onChange={(e) =>
+                                                            setPastProject(index, {
+                                                                completedAt: e.target.value || null,
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="profile-summary-actions">
+                                                <button
+                                                    type="button"
+                                                    className="add-skill-button"
+                                                    onClick={() => {
+                                                        if (!project.projectName.trim()) {
+                                                            alert("กรุณากรอกชื่อโปรเจกต์");
+                                                            return;
+                                                        }
+
+                                                        setEditingPastProjectIndex(null);
+                                                    }}
+                                                >
+                                                    บันทึกผลงาน
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="past-project-summary">
+                                            <div className="past-project-main">
+                                                <div className="past-project-icon">
+                                                    <FileText size={23} />
+                                                </div>
+
+                                                <div className="past-project-title">
+                                                    <h4>{project.projectName || "ยังไม่ระบุชื่อโครงการ"}</h4>
+                                                    <p>
+                                                        ประเภทโครงการ: {project.projectType || "-"}
+                                                    </p>
+                                                    <p>
+                                                        มูลค่าโครงการ:{" "}
+                                                        {project.projectValue != null
+                                                            ? `${project.projectValue.toLocaleString("th-TH")} บาท`
+                                                            : "-"}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="past-project-detail">
+                                                <span>ระยะเวลา</span>
+                                                <strong>
+                                                    <Clock3 size={17} />
+                                                    {project.durationMonths != null
+                                                        ? `${project.durationMonths} เดือน`
+                                                        : "-"}
+                                                </strong>
+                                            </div>
+
+                                            <div className="past-project-detail">
+                                                <span>ลูกค้า / หน่วยงาน</span>
+                                                <strong>
+                                                    <Building2 size={17} />
+                                                    {project.clientName || "-"}
+                                                </strong>
+                                            </div>
+
+                                            <div className="past-project-detail">
+                                                <span>วันที่เสร็จสิ้น</span>
+                                                <strong>
+                                                    <CalendarDays size={17} />
+                                                    {project.completedAt?.slice(0, 10) || "-"}
+                                                </strong>
+                                            </div>
+
+                                            <div className="past-project-actions">
+                                                <button
+                                                    type="button"
+                                                    className="past-project-edit"
+                                                    onClick={() => setEditingPastProjectIndex(index)}
+                                                >
+                                                    แก้ไข
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </section>
+                    </div>
+
+                    {/* Three COLUMN GRID */}
+                    <div className="profile-three-column-row">
                         {/* BUDGET */}
                         <section className="profile-form-card">
                             <div className="profile-section-heading">
@@ -762,7 +1099,6 @@ export default function ProfilePage() {
                             </div>
 
                             <div className="profile-divider" />
-
                             <div className="profile-grid">
                                 <div className="profile-field">
                                     <label>งบประมาณขั้นต่ำ (บาท)</label>
@@ -771,10 +1107,9 @@ export default function ProfilePage() {
                                         min={0}
                                         value={minProjectBudget ?? ""}
                                         onChange={(e) =>
-                                        setMinProjectBudget(
-                                            e.target.value === "" ? null : Number(e.target.value)
-                                        )
-                                        }
+                                            setMinProjectBudget(
+                                                e.target.value === "" ? null : Number(e.target.value)
+                                        )}
                                         placeholder="ไม่ระบุ"
                                     />
                                 </div>
@@ -786,10 +1121,9 @@ export default function ProfilePage() {
                                         min={0}
                                         value={maxProjectBudget ?? ""}
                                         onChange={(e) =>
-                                        setMaxProjectBudget(
-                                            e.target.value === "" ? null : Number(e.target.value)
-                                        )
-                                        }
+                                            setMaxProjectBudget(
+                                                e.target.value === "" ? null : Number(e.target.value)
+                                        )}
                                         placeholder="ไม่ระบุ"
                                     />
                                 </div>
@@ -804,7 +1138,6 @@ export default function ProfilePage() {
                             </div>
 
                             <div className="profile-divider" />
-
                             <div className="profile-chip-list">
                                 {areaOptions.map((area) => (
                                 <button
@@ -812,10 +1145,10 @@ export default function ProfilePage() {
                                     type="button"
                                     aria-pressed={serviceAreas.includes(area)}
                                     className={`profile-chip ${
-                                    serviceAreas.includes(area) ? "selected" : ""
+                                        serviceAreas.includes(area) ? "selected" : ""
                                     }`}
                                     onClick={() =>
-                                    toggleSelection(area, serviceAreas, setServiceAreas)
+                                        toggleSelection(area, serviceAreas, setServiceAreas)
                                     }
                                 >
                                     {area}
@@ -823,11 +1156,6 @@ export default function ProfilePage() {
                                 ))}
                             </div>
                         </section>
-                    </div>
-                    </div>
-
-                    {/* THREE COLUMN GRID */}
-                    <div className="profile-triple-grid">
 
                         {/* WORK MODE */}
                         <section className="profile-form-card">
@@ -853,9 +1181,9 @@ export default function ProfilePage() {
                                         }`}
                                         onClick={() =>
                                             toggleSelection(
-                                            value,
-                                            workModes,
-                                            (values) => setWorkModes(values as WorkMode[])
+                                                value,
+                                                workModes,
+                                                (values) => setWorkModes(values as WorkMode[])
                                             )
                                         }
                                     >
@@ -864,7 +1192,10 @@ export default function ProfilePage() {
                                 ))}
                             </div>
                         </section>
+                    </div>
 
+                    {/* THREE COLUMN GRID */}
+                    <div className="profile-vertical-grid">
                         {/* CERTIFICATIONS */}
                         <section className="profile-form-card">
                             <div className="profile-section-heading">
@@ -891,6 +1222,207 @@ export default function ProfilePage() {
                                     </button>
                                 ))}
                             </div>
+
+                            <div className="profile-divider" />
+
+                            <div className="profile-list-heading">
+                                <h3>รายละเอียดใบรับรอง</h3>
+                                <button
+                                    type="button"
+                                    className="add-skill-button"
+                                    onClick={() => {
+                                        const newIndex = certificationDetails.length;
+                                    
+                                        setCertificationDetails((prev) => [
+                                            ...prev,
+                                            emptyCertification(),
+                                        ]);
+                                    
+                                        setEditingCertificationIndex(newIndex);
+                                    }}
+                                >
+                                    <Plus size={15} />
+                                    เพิ่มใบรับรอง
+                                </button>
+                            </div>
+                            
+                            {certificationDetails.map((cert, index) => (
+                                <div className="profile-entry-card" key={index}>
+                                    <div className="profile-entry-header">
+                                        <strong>ใบรับรองที่ {index + 1}</strong>
+
+                                        <button
+                                            type="button"
+                                            className="profile-remove-button"
+                                            onClick={() => {
+                                                setCertificationDetails((prev) =>
+                                                    prev.filter((_, i) => i !== index)
+                                                );
+                                                setEditingCertificationIndex((current) => {
+                                                    if (current === null || current === index) return null;
+                                                    return current > index ? current - 1 : current;
+                                                });
+                                            }}
+                                        >
+                                            <X size={15} /> ลบ
+                                        </button>
+                                    </div>
+
+                                    {editingCertificationIndex === index ? (
+                                        <>
+                                            <div className="profile-grid">
+                                                <div className="profile-field profile-full-width">
+                                                    <label>ชื่อใบรับรอง</label>
+                                                    <input
+                                                        list="profile-cert-options"
+                                                        value={cert.name}
+                                                        onChange={(e) =>
+                                                            setCertificationDetail(index, {
+                                                                name: e.target.value,
+                                                            })
+                                                        }
+                                                        placeholder="AWS Certification"
+                                                    />
+                                                    <datalist id="profile-cert-options">
+                                                        {certificationOptions.map((option) => (
+                                                            <option key={option} value={option} />
+                                                        ))}
+                                                    </datalist>
+                                                </div>
+
+                                                <div className="profile-field">
+                                                    <label>ประเภทผู้ถือใบรับรอง</label>
+                                                    <FilterDropdown
+                                                        value={cert.holderType}
+                                                        options={[
+                                                            { value: "individual", label: "บุคคล" },
+                                                            { value: "company", label: "บริษัท" },
+                                                        ]}
+                                                        onChange={(value) =>
+                                                            setCertificationDetail(index, {
+                                                                holderType: value as CertificationDetail["holderType"],
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="profile-field">
+                                                    <label>ชื่อผู้ถือใบรับรอง</label>
+                                                    <input
+                                                        value={cert.holderName}
+                                                        onChange={(e) =>
+                                                            setCertificationDetail(index, {
+                                                                holderName: e.target.value,
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="profile-field">
+                                                    <label>วันที่ออก</label>
+                                                    <input
+                                                        type="date"
+                                                        value={cert.issuedAt?.slice(0, 10) ?? ""}
+                                                        onChange={(e) =>
+                                                            setCertificationDetail(index, {
+                                                                issuedAt: e.target.value || null,
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="profile-field">
+                                                    <label>วันหมดอายุ</label>
+                                                    <input
+                                                        type="date"
+                                                        value={cert.expiresAt?.slice(0, 10) ?? ""}
+                                                        onChange={(e) =>
+                                                            setCertificationDetail(index, {
+                                                                expiresAt: e.target.value || null,
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="profile-summary-actions">
+                                                <button
+                                                    type="button"
+                                                    className="add-skill-button"
+                                                    onClick={() => {
+                                                        if (!cert.name.trim()) {
+                                                            showToast("กรุณากรอกชื่อใบรับรอง", "error");
+                                                            return;
+                                                        }
+
+                                                        setEditingCertificationIndex(null);
+                                                    }}
+                                                >
+                                                    บันทึกใบรับรอง
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="profile-horizontal-summary">
+                                            <div className="profile-horizontal-main">
+                                                <div className="profile-detail-icon">
+                                                    <Award size={22} />
+                                                </div>
+
+                                                <div className="profile-horizontal-title">
+                                                    <h4>{cert.name || "ยังไม่ระบุชื่อใบรับรอง"}</h4>
+                                                    <span>
+                                                        {cert.holderType === "company"
+                                                            ? "ใบรับรองสำหรับบริษัท"
+                                                            : "ใบรับรองสำหรับบุคคล"}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="profile-horizontal-field">
+                                                <span>ผู้ถือใบรับรอง</span>
+                                                <strong>{cert.holderName || "-"}</strong>
+                                            </div>
+
+                                            <div className="profile-horizontal-field">
+                                                <span>วันที่ออก</span>
+                                                <strong>
+                                                    {cert.issuedAt
+                                                        ? new Date(cert.issuedAt).toLocaleDateString("th-TH", {
+                                                            day: "numeric",
+                                                            month: "short",
+                                                            year: "numeric",
+                                                        })
+                                                        : "-"}
+                                                </strong>
+                                            </div>
+
+                                            <div className="profile-horizontal-field">
+                                                <span>วันหมดอายุ</span>
+                                                <strong>
+                                                    {cert.expiresAt
+                                                        ? new Date(cert.expiresAt).toLocaleDateString("th-TH", {
+                                                            day: "numeric",
+                                                            month: "short",
+                                                            year: "numeric",
+                                                        })
+                                                        : "-"}
+                                                </strong>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                className="profile-detail-edit"
+                                                onClick={() => setEditingCertificationIndex(index)}
+                                            >
+                                                แก้ไข
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+
+
                         </section>
 
                         {/* AVAILABILITY */}
@@ -913,16 +1445,17 @@ export default function ProfilePage() {
 
                             <div className="profile-field">
                                 <label>ระยะเวลาโครงการที่ต้องการ</label>
-                                <select
+                                <FilterDropdown
                                     value={preferredProjectDuration}
-                                    onChange={(e) => setPreferredProjectDuration(e.target.value)}
-                                >
-                                    <option value="">ไม่ระบุ</option>
-                                    <option value="less_than_3_months">น้อยกว่า 3 เดือน</option>
-                                    <option value="3_to_6_months">3–6 เดือน</option>
-                                    <option value="6_to_12_months">6–12 เดือน</option>
-                                    <option value="more_than_12_months">มากกว่า 12 เดือน</option>
-                                </select>
+                                    options={[
+                                        { value: "", label: "ไม่ระบุ" },
+                                        { value: "less_than_3_months", label: "น้อยกว่า 3 เดือน" },
+                                        { value: "3_to_6_months", label: "3–6 เดือน" },
+                                        { value: "6_to_12_months", label: "6–12 เดือน" },
+                                        { value: "more_than_12_months", label: "มากกว่า 12 เดือน" },
+                                    ]}
+                                    onChange={(value) => setPreferredProjectDuration(value)}
+                                />
                             </div>
                         </section>
                     </div>
@@ -1028,6 +1561,302 @@ export default function ProfilePage() {
                             />
                         </div>
                     </section>
+
+                    {/* LEGAL ELIGIBILITY */}
+                    <section className="profile-form-card profile-section-full">
+                        <div className="profile-section-heading">
+                            <Award size={19} />
+                            <h2>10. คุณสมบัติทางกฎหมาย (Legal & Eligibility)</h2>
+                        </div>
+
+                        <p className="profile-section-description">
+                            ข้อมูลที่กรอกเป็นการแจ้งด้วยตนเอง
+                            ยังไม่ถือว่าผ่านการตรวจสอบหรือมีสิทธิ์ยื่นข้อเสนอโดยอัตโนมัติ
+                        </p>
+
+                        <div className="profile-divider" />
+
+                        <div className="profile-grid">
+                            <div className="profile-field profile-full-width">
+                                <label>เลขทะเบียนนิติบุคคล (กรณีบริษัท)</label>
+                                <input
+                                    value={legalEligibility.registrationNumber}
+                                    onChange={(e) =>
+                                        setLegalEligibility((prev) => ({
+                                            ...prev,
+                                            registrationNumber: e.target.value,
+                                        }))
+                                    }
+                                    placeholder="เลขทะเบียนบริษัท"
+                                    disabled={contractorType !== "company"}
+                                />
+                            </div>
+
+                            <div className="profile-field">
+                                <label>สถานะล้มละลาย</label>
+                                <FilterDropdown
+                                    value={legalEligibility.bankruptcyStatus}
+                                    options={[
+                                        { value: "unknown", label: "ยังไม่ยืนยัน" },
+                                        { value: "no", label: "ไม่เป็นบุคคลล้มละลาย" },
+                                        { value: "yes", label: "เป็นบุคคลล้มละลาย" },
+                                    ]}
+                                    onChange={(value) => 
+                                        setLegalEligibility((prev) => ({
+                                            ...prev,
+                                            bankruptcyStatus: value as
+                                                LegalEligibility["bankruptcyStatus"],
+                                        }))
+                                    }
+                                />
+                            </div>
+
+                            <div className="profile-field">
+                                <label>สถานะผู้ทิ้งงาน</label>
+                                <FilterDropdown
+                                     value={legalEligibility.debarmentStatus}
+                                    options={[
+                                        { value: "unknown", label: "ยังไม่ยืนยัน" },
+                                        { value: "no", label: "ไม่อยู่ในบัญชีผู้ทิ้งงาน" },
+                                        { value: "yes", label: "อยู่ในบัญชีผู้ทิ้งงาน" },
+                                    ]}
+                                    onChange={(value) => 
+                                        setLegalEligibility((prev) => ({
+                                            ...prev,
+                                            debarmentStatus: value as LegalEligibility["debarmentStatus"],
+                                        }))
+                                    }
+                                />
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* TEAM QUALIFICATIONS */}
+                    <section className="profile-form-card profile-section-full">
+                        <div className="profile-section-heading">
+                            <Users size={19} />
+                            <h2>11. คุณสมบัติทีมงาน (Team Qualifications)</h2>
+                        </div>
+
+                        <p className="profile-section-description">
+                            ระบุตำแหน่ง จำนวนคน และทักษะของทีม
+                            เพื่อใช้เปรียบเทียบกับ TOR
+                        </p>
+
+                        <div className="profile-divider" />
+
+                        <div className="profile-list-heading">
+                            <h3>ตำแหน่งในทีม</h3>
+                            <button
+                                type="button"
+                                className="add-skill-button"
+                                onClick={() => {
+                                    const newIndex = teamQualifications.length;
+                                
+                                    setTeamQualifications((prev) => [
+                                        ...prev,
+                                        emptyTeamRole(),
+                                    ]);
+                                
+                                    setEditingTeamIndex(newIndex);
+                                }}
+                            >
+                                <Plus size={15} />
+                                เพิ่มตำแหน่ง
+                            </button>
+                        </div>
+                        
+                        {teamQualifications.map((team, index) => (
+                            <div className="profile-entry-card" key={index}>
+                                <div className="profile-entry-header">
+                                    <strong>ตำแหน่งที่ {index + 1}</strong>
+
+                                    <button
+                                        type="button"
+                                        className="profile-remove-button"
+                                        onClick={() => {
+                                            setTeamQualifications((prev) =>
+                                                prev.filter((_, i) => i !== index)
+                                            );
+                                            setEditingTeamIndex((current) => {
+                                                if (current === null || current === index) return null;
+                                                return current > index ? current - 1 : current;
+                                            });
+                                        }}
+                                    >
+                                        <X size={15} /> ลบ
+                                    </button>
+                                </div>
+
+                                {editingTeamIndex === index ? (
+                                    <>
+                                        <div className="profile-grid">
+                                            <div className="profile-field">
+                                                <label>ตำแหน่ง</label>
+                                                <input
+                                                    value={team.role}
+                                                    onChange={(e) =>
+                                                        setTeamQualification(index, {
+                                                            role: e.target.value,
+                                                        })
+                                                    }
+                                                    placeholder="Software Developer"
+                                                />
+                                            </div>
+
+                                            <div className="profile-field">
+                                                <label>จำนวนคน</label>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    value={team.memberCount}
+                                                    onChange={(e) =>
+                                                        setTeamQualification(index, {
+                                                            memberCount: Math.max(
+                                                                1,
+                                                                Number(e.target.value) || 1
+                                                            ),
+                                                        })
+                                                    }
+                                                />
+                                            </div>
+
+                                            <div className="profile-field">
+                                                <label>ประสบการณ์เฉลี่ย/ขั้นต่ำ (ปี)</label>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    value={team.experienceYears}
+                                                    onChange={(e) =>
+                                                        setTeamQualification(index, {
+                                                            experienceYears: Math.max(
+                                                                0,
+                                                                Number(e.target.value) || 0
+                                                            ),
+                                                        })
+                                                    }
+                                                />
+                                            </div>
+
+                                            <div className="profile-field">
+                                                <label>วุฒิการศึกษาขั้นต่ำ</label>
+                                                <FilterDropdown
+                                                    value={team.educationLevel ?? "unspecified"}
+                                                    options={[
+                                                        { value: "unspecified", label: "ไม่ระบุ" },
+                                                        { value: "vocational", label: "ปวช." },
+                                                        { value: "diploma", label: "ปวส." },
+                                                        { value: "bachelor", label: "ปริญญาตรี" },
+                                                        { value: "master", label: "ปริญญาโท" },
+                                                        { value: "doctorate", label: "ปริญญาเอก" },
+                                                    ]}
+                                                    onChange={(value) =>
+                                                        setTeamQualification(index, {
+                                                            educationLevel: value as TeamQualification["educationLevel"],
+                                                        })
+                                                    }
+                                                />
+                                            </div>
+
+                                            <div className="profile-field">
+                                                <label>Skills (คั่นด้วย comma)</label>
+                                                <input
+                                                    value={team.skills.join(", ")}
+                                                    onChange={(e) =>
+                                                        setTeamQualification(index, {
+                                                            skills: e.target.value.split(","),
+                                                        })
+                                                    }
+                                                    placeholder="React, Node.js, TypeScript"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="profile-summary-actions">
+                                            <button
+                                                type="button"
+                                                className="add-skill-button"
+                                                onClick={() => {
+                                                    if (!team.role.trim()) {
+                                                        showToast("กรุณากรอกตำแหน่ง", "error");
+                                                        return;
+                                                    }
+
+                                                    setEditingTeamIndex(null);
+                                                }}
+                                            >
+                                                บันทึกตำแหน่ง
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="profile-horizontal-summary">
+                                        <div className="profile-horizontal-main">
+                                            <div className="profile-detail-icon">
+                                                <Users size={22} />
+                                            </div>
+
+                                            <div className="profile-horizontal-title">
+                                                <h4>{team.role || "ยังไม่ระบุตำแหน่ง"}</h4>
+                                                <span>คุณสมบัติทีมงาน</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="profile-horizontal-field">
+                                            <span>จำนวนสมาชิก</span>
+                                            <strong>{team.memberCount} คน</strong>
+                                        </div>
+
+                                        <div className="profile-horizontal-field">
+                                            <span>ประสบการณ์</span>
+                                            <strong>{team.experienceYears} ปี</strong>
+                                        </div>
+
+                                        <div className="profile-horizontal-field">
+                                            <span>วุฒิการศึกษาขั้นต่ำ</span>
+                                            <strong>
+                                                {({
+                                                    unspecified: "ไม่ระบุ",
+                                                    vocational: "ปวช.",
+                                                    diploma: "ปวส.",
+                                                    bachelor: "ปริญญาตรี",
+                                                    master: "ปริญญาโท",
+                                                    doctorate: "ปริญญาเอก",
+                                                } as Record<string, string>)[
+                                                    team.educationLevel ?? "unspecified"
+                                                ] ?? "ไม่ระบุ"}
+                                            </strong>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            className="profile-detail-edit"
+                                            onClick={() => setEditingTeamIndex(index)}
+                                        >
+                                            แก้ไข
+                                        </button>
+
+                                        {team.skills.some((skill) => skill.trim()) && (
+                                            <div className="profile-horizontal-skills">
+                                                <span>ทักษะ:</span>
+                                                {team.skills
+                                                    .filter((skill) => skill.trim())
+                                                    .map((skill, skillIndex) => (
+                                                        <span
+                                                            className="profile-horizontal-skill"
+                                                            key={skillIndex}
+                                                        >
+                                                            {skill.trim()}
+                                                        </span>
+                                                    ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </section>
+
 
                     {/* ACTIONS */}
                     <div className="profile-actions profile-actions-bottom">

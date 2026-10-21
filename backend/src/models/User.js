@@ -1,5 +1,168 @@
 const mongoose = require('mongoose');
 
+const pastProjectSchema = new mongoose.Schema(
+    {
+        projectName: { 
+            type: String, 
+            required: true, 
+            trim: true 
+        },
+
+        projectType: { 
+            type: String, 
+            default: "", 
+            trim: true 
+        },
+
+        projectValue: { 
+            type: Number, 
+            default: null, 
+            min: 0 
+        },
+
+        durationMonths: { 
+            type: Number, 
+            default: null, 
+            min: 0 
+        },
+
+        clientName: { 
+            type: String, 
+            default: "", 
+            trim: true 
+        },
+
+        completedAt: { 
+            type: Date, 
+            default: null 
+        },
+
+        evidenceUrl: { 
+            type: String, 
+            default: "", 
+            trim: true 
+        },
+    }, 
+    { 
+        _id: false 
+    }
+);
+    
+const certificationDetailSchema = new mongoose.Schema(
+    {
+        name: { 
+            type: String, 
+            required: true, 
+            trim: true 
+        },
+
+        holderType: {
+        type: String,
+        enum: ["company", "individual"],
+        default: "individual",
+        },
+
+        holderName: { 
+            type: String, 
+            default: "", 
+            trim: true 
+        },
+
+        issuedAt: { 
+            type: Date, 
+            default: null 
+        },
+
+        expiresAt: { 
+            type: Date, 
+            default: null 
+        },
+
+        evidenceUrl: { 
+            type: String, 
+            default: "", 
+            trim: true 
+        },
+    }, 
+    { 
+        _id: false 
+    }
+);
+    
+const teamQualificationSchema = new mongoose.Schema(
+    {
+        role: { 
+            type: String, 
+            required: true, 
+            trim: true 
+        },
+
+        memberCount: { 
+            type: Number, 
+            required: true, 
+            min: 1 
+        },
+
+        experienceYears: { 
+            type: Number, 
+            default: 0, 
+            min: 0 
+        },
+
+        educationLevel: {
+            type: String,
+            enum: [
+              "unspecified",
+              "vocational",
+              "diploma",
+              "bachelor",
+              "master",
+              "doctorate",
+            ],
+            default: "unspecified",
+        },
+
+        skills: { 
+            type: [String], 
+            default: [] 
+        },
+    },
+    {
+         _id: false 
+    }
+);
+    
+const legalEligibilitySchema = new mongoose.Schema(
+    {
+        registrationNumber: { 
+            type: String, 
+            default: "", 
+            trim: true 
+        },
+
+        bankruptcyStatus: {
+            type: String,
+            enum: ["no", "yes", "unknown"],
+            default: "unknown",
+        },
+
+        debarmentStatus: {
+            type: String,
+            enum: ["no", "yes", "unknown"],
+            default: "unknown",
+        },
+        
+        evidenceUrl: { 
+            type: String, 
+            default: "", 
+            trim: true 
+        },
+    }, { 
+        _id: false 
+    }
+);
+  
+
 const userSchema = new mongoose.Schema(
     {
         name: {
@@ -141,6 +304,26 @@ const userSchema = new mongoose.Schema(
         hasGovernmentExperience: {
             type: Boolean,
             default: null,
+        },
+
+        pastProjects: {
+            type: [pastProjectSchema],
+            default: [],
+        },
+
+        certificationDetails: {
+            type: [certificationDetailSchema],
+            default: [],
+        },
+
+        legalEligibility: {
+            type: legalEligibilitySchema,
+            default: () => ({}),
+        },
+
+        teamQualifications: {
+            type: [teamQualificationSchema],
+            default: [],
         },
 
         accountRole: {

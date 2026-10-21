@@ -113,6 +113,16 @@ async function getProfile(req, res) {
                 maxPastProjectValue: user.maxPastProjectValue ?? null,
                 hasGovernmentExperience: user.hasGovernmentExperience ?? null,
 
+                pastProjects: user.pastProjects || [],
+                certificationDetails: user.certificationDetails || [],
+                legalEligibility: user.legalEligibility || {
+                    registrationNumber: "",
+                    bankruptcyStatus: "unknown",
+                    debarmentStatus: "unknown",
+                    evidenceUrl: "",
+                },
+                teamQualifications: user.teamQualifications || [],
+
                 accountRole: user.accountRole,
                 verificationStatus: user.verificationStatus,
             },
@@ -161,6 +171,11 @@ async function updateProfile(req, res) {
             registeredCapital,
             maxPastProjectValue,
             hasGovernmentExperience,
+
+            pastProjects,
+            certificationDetails,
+            legalEligibility,
+            teamQualifications,
         } = req.body;
 
         const user = await User.findOne({
@@ -319,6 +334,151 @@ async function updateProfile(req, res) {
             user.hasGovernmentExperience = hasGovernmentExperience;
         }
 
+
+        const isValidHttpUrl = (value) => {
+            if (!value) return true;
+
+            try {
+                return ["http:", "https:"].includes(
+                    new URL(value).protocol
+                );
+            } catch {
+                return false;
+            }
+        };
+
+        const validDate = (value) => !value || !Number.isNaN(new Date(value).getTime());
+
+        const nonnegative = (value) => value == null || (Number.isFinite(Number(value)) && Number(value) >= 0);
+
+        const normalizeEvidence = (value) => String(value ?? "").trim();
+
+        if (pastProjects !== undefined) {
+            if (
+                !Array.isArray(pastProjects) ||
+                pastProjects.some((p) =>
+                    !p ||
+                    !String(p.projectName ?? "").trim() ||
+                    !nonnegative(p.projectValue) ||
+                    !nonnegative(p.durationMonths) ||
+                    !validDate(p.completedAt) ||
+                    !isValidHttpUrl(normalizeEvidence(p.evidenceUrl))
+                )
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    error: "ข้อมูลผลงานที่ผ่านมาไม่ถูกต้อง",
+                });
+            }
+
+            user.pastProjects = pastProjects.map((p) => ({
+                projectName: String(p.projectName).trim(),
+                projectType: String(p.projectType ?? "").trim(),
+                projectValue:
+                    p.projectValue == null || p.projectValue === ""
+                        ? null
+                        : Number(p.projectValue),
+                durationMonths:
+                    p.durationMonths == null || p.durationMonths === ""
+                        ? null
+                        : Number(p.durationMonths),
+                clientName: String(p.clientName ?? "").trim(),
+                completedAt: p.completedAt || null,
+                evidenceUrl: normalizeEvidence(p.evidenceUrl),
+            }));
+        }
+
+        if (certificationDetails !== undefined) {
+            if (
+                !Array.isArray(certificationDetails) ||
+                certificationDetails.some((c) =>
+                    !c ||
+                    !String(c.name ?? "").trim() ||
+                    !["company", "individual"].includes(c.holderType) ||
+                    !validDate(c.issuedAt) ||
+                    !validDate(c.expiresAt) ||
+                    (
+                        c.issuedAt &&
+                        c.expiresAt &&
+                        new Date(c.expiresAt) < new Date(c.issuedAt)
+                    ) ||
+                    !isValidHttpUrl(normalizeEvidence(c.evidenceUrl))
+                )
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    error: "ข้อมูลใบรับรองไม่ถูกต้อง",
+                });
+            }
+
+            user.certificationDetails = certificationDetails.map((c) => ({
+                name: String(c.name).trim(),
+                holderType: c.holderType,
+                holderName: String(c.holderName ?? "").trim(),
+                issuedAt: c.issuedAt || null,
+                expiresAt: c.expiresAt || null,
+                evidenceUrl: normalizeEvidence(c.evidenceUrl),
+            }));
+        }
+
+        if (legalEligibility !== undefined) {
+            if (
+                !legalEligibility ||
+                typeof legalEligibility !== "object" ||
+                !["no", "yes", "unknown"].includes(
+                    legalEligibility.bankruptcyStatus
+                ) ||
+                !["no", "yes", "unknown"].includes(
+                    legalEligibility.debarmentStatus
+                ) ||
+                !isValidHttpUrl(
+                    normalizeEvidence(legalEligibility.evidenceUrl)
+                )
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    error: "ข้อมูลคุณสมบัติทางกฎหมายไม่ถูกต้อง",
+                });
+            }
+
+            user.legalEligibility = {
+                registrationNumber: String(
+                    legalEligibility.registrationNumber ?? ""
+                ).trim(),
+                bankruptcyStatus: legalEligibility.bankruptcyStatus,
+                debarmentStatus: legalEligibility.debarmentStatus,
+                evidenceUrl: normalizeEvidence(legalEligibility.evidenceUrl),
+            };
+        }
+
+        if (teamQualifications !== undefined) {
+            if (
+                !Array.isArray(teamQualifications) ||
+                teamQualifications.some((t) =>
+                    !t ||
+                    !String(t.role ?? "").trim() ||
+                    !Number.isInteger(Number(t.memberCount)) ||
+                    Number(t.memberCount) < 1 ||
+                    !nonnegative(t.experienceYears) ||
+                    !Array.isArray(t.skills)
+                )
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    error: "ข้อมูลคุณสมบัติทีมงานไม่ถูกต้อง",
+                });
+            }
+
+            user.teamQualifications = teamQualifications.map((t) => ({
+                role: String(t.role).trim(),
+                memberCount: Number(t.memberCount),
+                experienceYears: Number(t.experienceYears ?? 0),
+                educationLevel: t.educationLevel ?? "unspecified",
+                skills: normalizeList(t.skills),
+            }));
+        }
+
+
         await user.save();
 
         return res.json({
@@ -353,6 +513,16 @@ async function updateProfile(req, res) {
                 additionalInfo: user.additionalInfo,
                 accountRole: user.accountRole,
                 verificationStatus: user.verificationStatus,
+
+                pastProjects: user.pastProjects || [],
+                certificationDetails: user.certificationDetails || [],
+                legalEligibility: user.legalEligibility || {
+                    registrationNumber: "",
+                    bankruptcyStatus: "unknown",
+                    debarmentStatus: "unknown",
+                    evidenceUrl: "",
+                },
+                teamQualifications: user.teamQualifications || [],
             },
             message: "Profile updated successfully",
         });

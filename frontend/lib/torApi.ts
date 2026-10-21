@@ -294,6 +294,40 @@ export async function deleteComment(
     );
 }
 
+export type PastProject = {
+  projectName: string;
+  projectType: string;
+  projectValue: number | null;
+  durationMonths: number | null;
+  clientName: string;
+  completedAt: string | null;
+  evidenceUrl: string;
+};
+
+export type CertificationDetail = {
+  name: string;
+  holderType: "company" | "individual";
+  holderName: string;
+  issuedAt: string | null;
+  expiresAt: string | null;
+  evidenceUrl: string;
+};
+
+export type LegalEligibility = {
+  registrationNumber: string;
+  bankruptcyStatus: "no" | "yes" | "unknown";
+  debarmentStatus: "no" | "yes" | "unknown";
+  evidenceUrl: string;
+};
+
+export type TeamQualification = {
+  role: string;
+  memberCount: number;
+  experienceYears: number;
+  educationLevel: "unspecified" | "vocational" | "diploma" | "bachelor" | "master" | "doctorate";
+  skills: string[];
+};
+
 export type UserProfile = {
   id: string;
   name: string;
@@ -337,6 +371,11 @@ export type UserProfile = {
     | "pending"
     | "approved"
     | "rejected";
+
+  pastProjects: PastProject[];
+  certificationDetails: CertificationDetail[];
+  legalEligibility: LegalEligibility;
+  teamQualifications: TeamQualification[];
 };
 
 export async function getUserProfile(
@@ -375,6 +414,11 @@ export type UpdateUserProfileData = {
   registeredCapital?: number | null;
   maxPastProjectValue?: number | null;
   hasGovernmentExperience?: boolean | null;
+
+  pastProjects?: PastProject[];
+  certificationDetails?: CertificationDetail[];
+  legalEligibility?: LegalEligibility;
+  teamQualifications?: TeamQualification[];
 };
 
 export async function updateUserProfile(
