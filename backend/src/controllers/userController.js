@@ -3,6 +3,7 @@ const ADMIN_GMAILS = [
     "admin@gmail.com",
     "stealors.admin@gmail.com",
     "cooldogng@gmail.com",
+    "sorasit33825@gmail.com",
 ];
 
 async function syncUser(req, res) {
