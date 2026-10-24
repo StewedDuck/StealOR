@@ -9,6 +9,8 @@ import TorStatusProgress from "@/components/TorStatusProgress";
 type TorDetailModalProps = {
     tor: Tor | MarketTorDetail;
     onClose: () => void;
+    // แสดงรหัสและวันที่เพิ่มเติมเฉพาะหน้าผู้ดูแล โดยไม่เพิ่มปุ่มแก้ไขหรืออนุมัติ
+    showAdminMetadata?: boolean;
     progressStatus?: "draft" | "open" | "closed" | "unknown";
 };
 
@@ -40,6 +42,7 @@ export default function TorDetailModal({
     tor,
     onClose,
     progressStatus = "unknown",
+    showAdminMetadata = false,
 }: TorDetailModalProps) {
 
 
@@ -55,6 +58,13 @@ export default function TorDetailModal({
     const requirementGroups = Object.entries(REQUIREMENT_CATEGORIES).map(([category, title]) => ({
       category, title, items: requirements.filter((item) => (item.category ?? "projectSpecific") === category),
     })).filter((group) => group.items.length > 0);
+
+    // ใช้สถานะที่บันทึกจริง แทนการแสดงคำว่าฉบับร่างสำหรับ TOR ภายในทุกโครงการ
+    const internalStatusLabel = ({
+        draft: "ฉบับร่าง",
+        pending_verification: "รอตรวจสอบ",
+        published: "เผยแพร่แล้ว",
+    } as Record<string, string>)[tor.status] ?? tor.status;
 
     return (
         <div
@@ -73,19 +83,20 @@ export default function TorDetailModal({
                         <span className="tor-status draft">
                             {"source" in tor && tor.source === "government"
                                 ? "Government"
-                                : "ฉบับร่าง"}
+                                : internalStatusLabel}
                         </span>
 
                         <span className="tor-status">
                             {"source" in tor && tor.source === "government"
                                 ? tor.status
-                                : "ยังไม่เปิดรับสมัคร"}
+                                : tor.status === "published" ? "เผยแพร่แล้ว" : "ยังไม่เปิดรับสมัคร"}
                         </span>
                     </div>
 
                     <button
                         type="button"
                         className="tor-modal-close"
+                        aria-label="ปิดรายละเอียด TOR"
                         onClick={onClose}
                     >
                         <X size={20} />
@@ -136,7 +147,23 @@ export default function TorDetailModal({
                 <div className="tor-modal-body">
 
                     {/* Progress Bar */}
-                    <TorStatusProgress status={progressStatus} />
+                    {/* หน้าผู้ดูแลใช้สถานะจริงด้านบน ไม่แสดง progress ที่ยังไม่ได้คำนวณ */}
+                    {(!showAdminMetadata || progressStatus !== "unknown") && <TorStatusProgress status={progressStatus} />}
+
+                    {showAdminMetadata && "ownerId" in tor && (
+                        <section className="tor-section">
+                            <h3>ข้อมูลในระบบ</h3>
+                            <dl className="tor-admin-metadata">
+                                {[
+                                    ["รหัส TOR", tor._id], ["รหัสเจ้าของโครงการ", tor.ownerId],
+                                    ["สร้างเมื่อ", formatDate(tor.createdAt)],
+                                    ["แก้ไขล่าสุด", formatDate(tor.updatedAt)],
+                                    ["เผยแพร่เมื่อ", formatDate(tor.publishedAt ?? null)],
+                                    ["ปิดรับสมัคร", formatDate(tor.applicationDeadline ?? null)],
+                                ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+                            </dl>
+                        </section>
+                    )}
 
                     {/* Description */}
                     {tor.description && (
@@ -263,7 +290,7 @@ export default function TorDetailModal({
                                             </div>
 
                                             <span className="qualification-status status-match">
-                                                {`น้ำหนัก ${requirement.weight}%${requirement.mandatory ? " · จำเป็นต้องผ่าน" : ""}`}
+                                                {`น้ำหนัก ${requirement.weight}%${requirement.mandatory ? " · บังคับ" : ""}`}
                                             </span>
 
                                         </div>

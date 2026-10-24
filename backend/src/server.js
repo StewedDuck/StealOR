@@ -36,6 +36,7 @@ app.use("/api/notifications", notificationRoutes );
 app.use("/api/verifications", verificationRoutes);
 
 app.use("/api/admin/users", adminUserRoutes);
+app.use("/api/admin/tors", require("./routes/adminTorRoutes"));
 
 app.post(
   "/api/test/deadline-reminders",

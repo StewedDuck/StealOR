@@ -301,3 +301,8 @@
   overflow-wrap: anywhere;
 }
   
+/* ข้อมูลสำหรับผู้ดูแล ใช้กริดเดียวกันทั้งเดสก์ท็อปและมือถือ และตัดบรรทัดรหัสยาว */
+.tor-admin-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 18px; border: 1px solid #E2E5E8; border-radius: 10px; background: #F7F7F4; }
+.tor-admin-metadata dt { color: #687580; font-size: 12px; }
+.tor-admin-metadata dd { margin: 5px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .tor-admin-metadata { grid-template-columns: 1fr; } }

@@ -1,3 +1,5 @@
+import type { Tor } from "@/types/tor";
+
 export type AdminUser = {
     _id: string;
     name: string;
@@ -63,4 +65,21 @@ export function updateAdminUserStatus(
             body: JSON.stringify({ isActive }),
         }
     );
+}
+
+export async function getAdminTors(): Promise<Tor[]> {
+    const response = await fetch("/api/admin/tors", { cache: "no-store" });
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`ไม่สามารถโหลด TOR ได้: API ส่งข้อมูลที่ไม่ใช่ JSON (HTTP ${response.status})`);
+    }
+    if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "ไม่สามารถโหลดข้อมูล TOR ได้");
+    }
+    if (!Array.isArray(result.data)) {
+        throw new Error("รูปแบบข้อมูลรายการ TOR ไม่ถูกต้อง");
+    }
+    return result.data;
 }
