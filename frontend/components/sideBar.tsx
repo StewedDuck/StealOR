@@ -99,6 +99,11 @@ const projectOwnerMenuItems: MenuSection[] = [
                 icon: "LayoutDashboard",
             },
             {
+                name: "การแจ้งเตือน",
+                href: "/project_own/notifications",
+                icon: "BellRing",
+            },
+            {
                 name: "สร้าง TOR",
                 href: "/project_own/create_TOR",
                 icon: "Plus",
@@ -235,7 +240,8 @@ export default function Sidebar () {
             return;
         }
     
-        getContractorNotifications(email)
+        let cancelled = false;
+        const loadCount = () => getContractorNotifications(email)
             .then((notifications) => {
                 const unreadCount =
                     notifications.filter(
@@ -243,7 +249,7 @@ export default function Sidebar () {
                             !notification.read
                     ).length;
     
-                setNotificationCount(unreadCount);
+                if (!cancelled) setNotificationCount(unreadCount);
             })
             .catch((error) => {
                 console.error(
@@ -251,9 +257,11 @@ export default function Sidebar () {
                     error
                 );
     
-                setNotificationCount(0);
+                if (!cancelled) setNotificationCount(0);
             });
-    
+        void loadCount();
+        const timer = setInterval(() => void loadCount(), 30000);
+        return () => { cancelled = true; clearInterval(timer); };
     }, [
         session?.user?.email,
         pathname,

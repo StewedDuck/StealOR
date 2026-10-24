@@ -110,12 +110,32 @@ const emptyLegalEligibility: LegalEligibility = {
     bankruptcyStatus: "unknown",
     debarmentStatus: "unknown",
     evidenceUrl: "",
+
+    legalCapacity: null,
+    liquidationStatus: "unknown",
+    suspensionStatus: "unknown",
+
+    isJuristicPerson: null,
+    isEGPRegistered: null,
+    hasConflictOfInterest: null,
+
+    hasCourtImmunity: null,
+    hasCourtImmunityWaiver: null,
+
+    hasAntiCorruptionPolicy: null,
+    hasSignedIntegrityAgreement: null,
+    meetsProcurementCommitteeQualifications: null,
+
+    companyRegistrationDate: null,
+    netWorth: null,
 };
 
 const emptyPastProject = (): PastProject => ({
     projectName: "",
     projectType: "",
     projectValue: null,
+    hasContract: null,
+    contractValue: null,
     durationMonths: null,
     clientName: "",
     completedAt: null,
@@ -138,6 +158,48 @@ const emptyTeamRole = (): TeamQualification => ({
     educationLevel: "unspecified",
     skills: [],
 });
+
+type NullableBooleanField = {
+    label: string;
+    value: boolean | null | undefined;
+    onChange: (value: boolean | null) => void;
+};
+
+function BooleanEligibilityField({
+    label,
+    value,
+    onChange,
+}: NullableBooleanField) {
+    return (
+        <div className="profile-field">
+            <label>{label}</label>
+
+            <FilterDropdown
+                value={
+                    value === true
+                        ? "yes"
+                        : value === false
+                        ? "no"
+                        : "unknown"
+                }
+                options={[
+                    { value: "unknown", label: "ยังไม่ระบุ" },
+                    { value: "yes", label: "ใช่" },
+                    { value: "no", label: "ไม่ใช่" },
+                ]}
+                onChange={(selected) =>
+                    onChange(
+                        selected === "yes"
+                            ? true
+                            : selected === "no"
+                            ? false
+                            : null
+                    )
+                }
+            />
+        </div>
+    );
+}
 
 export default function ProfilePage() {
     const { data: session, status } = useSession();
@@ -761,7 +823,6 @@ export default function ProfilePage() {
                                             toggleSelection(skill, skills, setSkills)
                                             }
                                         >
-                                            {skills.includes(skill) && "✓ "}
                                             {skill}
                                         </button>
                                         ))}
@@ -967,6 +1028,57 @@ export default function ProfilePage() {
                                                 </div>
 
                                                 <div className="profile-field">
+                                                    <label>มีสัญญาจ้างสำหรับโครงการนี้หรือไม่</label>
+
+                                                    <FilterDropdown
+                                                        value={
+                                                            project.hasContract === true
+                                                                ? "yes"
+                                                                : project.hasContract === false
+                                                                ? "no"
+                                                                : "unknown"
+                                                        }
+                                                        options={[
+                                                            { value: "unknown", label: "ยังไม่ระบุ" },
+                                                            { value: "yes", label: "มีสัญญาจ้าง" },
+                                                            { value: "no", label: "ไม่มีสัญญาจ้าง" },
+                                                        ]}
+                                                        onChange={(value) =>
+                                                            setPastProject(index, {
+                                                                hasContract:
+                                                                    value === "yes"
+                                                                        ? true
+                                                                        : value === "no"
+                                                                        ? false
+                                                                        : null,
+                                                                contractValue:
+                                                                    value === "no" ? null : project.contractValue,
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="profile-field">
+                                                    <label>มูลค่าสัญญาจ้าง (บาท)</label>
+
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        value={project.contractValue ?? ""}
+                                                        disabled={project.hasContract !== true}
+                                                        onChange={(e) =>
+                                                            setPastProject(index, {
+                                                                contractValue:
+                                                                    e.target.value === ""
+                                                                        ? null
+                                                                        : Number(e.target.value),
+                                                            })
+                                                        }
+                                                        placeholder="เช่น 10000000"
+                                                    />
+                                                </div>
+
+                                                <div className="profile-field">
                                                     <label>ระยะเวลา (เดือน)</label>
                                                     <input
                                                         type="number"
@@ -1044,6 +1156,23 @@ export default function ProfilePage() {
                                                             ? `${project.projectValue.toLocaleString("th-TH")} บาท`
                                                             : "-"}
                                                     </p>
+                                                    <p>
+                                                        สัญญาจ้าง:{" "}
+                                                        {project.hasContract === true
+                                                            ? "มีสัญญาจ้าง"
+                                                            : project.hasContract === false
+                                                            ? "ไม่มีสัญญาจ้าง"
+                                                            : "ยังไม่ระบุ"}
+                                                    </p>
+
+                                                    {project.hasContract === true && (
+                                                        <p>
+                                                            มูลค่าสัญญาจ้าง:{" "}
+                                                            {project.contractValue != null
+                                                                ? `${project.contractValue.toLocaleString("th-TH")} บาท`
+                                                                : "ยังไม่ระบุ"}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -1626,6 +1755,105 @@ export default function ProfilePage() {
                                             debarmentStatus: value as LegalEligibility["debarmentStatus"],
                                         }))
                                     }
+                                />
+                            </div>
+
+                            <div className="profile-field">
+                                <label>สถานะการชำระบัญชี</label>
+                                <FilterDropdown
+                                    value={legalEligibility.liquidationStatus ?? "unknown"}
+                                    options={[
+                                        { value: "unknown", label: "ยังไม่ระบุ" },
+                                        { value: "no", label: "ไม่อยู่ระหว่างชำระบัญชี" },
+                                        { value: "yes", label: "อยู่ระหว่างชำระบัญชี" },
+                                    ]}
+                                    onChange={(value) =>
+                                        setLegalEligibility((prev) => ({
+                                            ...prev,
+                                            liquidationStatus:
+                                                value as LegalEligibility["liquidationStatus"],
+                                        }))
+                                    }
+                                />
+                            </div>
+
+                            <div className="profile-field">
+                                <label>สถานะการระงับสิทธิ์</label>
+                                <FilterDropdown
+                                    value={legalEligibility.suspensionStatus ?? "unknown"}
+                                    options={[
+                                        { value: "unknown", label: "ยังไม่ระบุ" },
+                                        { value: "no", label: "ไม่ถูกระงับสิทธิ์" },
+                                        { value: "yes", label: "ถูกระงับสิทธิ์" },
+                                    ]}
+                                    onChange={(value) =>
+                                        setLegalEligibility((prev) => ({
+                                            ...prev,
+                                            suspensionStatus:
+                                                value as LegalEligibility["suspensionStatus"],
+                                        }))
+                                    }
+                                />
+                            </div>
+
+                            {([
+                                ["legalCapacity", "มีความสามารถตามกฎหมาย"],
+                                ["isJuristicPerson", "เป็นนิติบุคคล"],
+                                ["isEGPRegistered", "ลงทะเบียนในระบบ e-GP แล้ว"],
+                                ["hasConflictOfInterest", "มีผลประโยชน์ทับซ้อน"],
+                                ["hasCourtImmunity", "ได้รับความคุ้มกันจากศาล"],
+                                ["hasCourtImmunityWaiver", "สละความคุ้มกันจากศาลแล้ว"],
+                                ["hasAntiCorruptionPolicy", "มีนโยบายต่อต้านการทุจริต"],
+                                ["hasSignedIntegrityAgreement", "ลงนามข้อตกลงคุณธรรมแล้ว"],
+                                [
+                                    "meetsProcurementCommitteeQualifications",
+                                    "มีคุณสมบัติตามข้อกำหนดของคณะกรรมการจัดซื้อจัดจ้าง",
+                                ],
+                            ] as const).map(([field, label]) => (
+                                <BooleanEligibilityField
+                                    key={field}
+                                    label={label}
+                                    value={legalEligibility[field]}
+                                    onChange={(value) =>
+                                        setLegalEligibility((prev) => ({
+                                            ...prev,
+                                            [field]: value,
+                                        }))
+                                    }
+                                />
+                            ))}
+
+                            <div className="profile-field">
+                                <label>วันที่จดทะเบียนบริษัท</label>
+                                <input
+                                    type="date"
+                                    value={
+                                        legalEligibility.companyRegistrationDate?.slice(0, 10) ?? ""
+                                    }
+                                    onChange={(e) =>
+                                        setLegalEligibility((prev) => ({
+                                            ...prev,
+                                            companyRegistrationDate: e.target.value || null,
+                                        }))
+                                    }
+                                />
+                            </div>
+
+                            <div className="profile-field">
+                                <label>มูลค่าสินทรัพย์สุทธิ (บาท)</label>
+                                <input
+                                    type="number"
+                                    value={legalEligibility.netWorth ?? ""}
+                                    onChange={(e) =>
+                                        setLegalEligibility((prev) => ({
+                                            ...prev,
+                                            netWorth:
+                                                e.target.value === ""
+                                                    ? null
+                                                    : Number(e.target.value),
+                                        }))
+                                    }
+                                    placeholder="ไม่ระบุ"
                                 />
                             </div>
                         </div>

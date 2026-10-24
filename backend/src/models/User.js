@@ -14,16 +14,27 @@ const pastProjectSchema = new mongoose.Schema(
             trim: true 
         },
 
-        projectValue: { 
-            type: Number, 
-            default: null, 
-            min: 0 
+        projectValue: {
+            type: Number,
+            default: null,
+            min: 0
         },
-
-        durationMonths: { 
-            type: Number, 
-            default: null, 
-            min: 0 
+        
+        hasContract: {
+            type: Boolean,
+            default: null
+        },
+        
+        contractValue: {
+            type: Number,
+            default: null,
+            min: 0
+        },
+        
+        durationMonths: {
+            type: Number,
+            default: null,
+            min: 0
         },
 
         clientName: { 
@@ -152,10 +163,84 @@ const legalEligibilitySchema = new mongoose.Schema(
             default: "unknown",
         },
         
-        evidenceUrl: { 
-            type: String, 
-            default: "", 
-            trim: true 
+        legalCapacity: {
+            type: Boolean,
+            default: null
+        },
+        
+        liquidationStatus: {
+            type: String,
+            enum: ["no", "yes", "unknown"],
+            default: "unknown"
+        },
+        
+        suspensionStatus: {
+            type: String,
+            enum: ["no", "yes", "unknown"],
+            default: "unknown"
+        },
+        
+        isJuristicPerson: {
+            type: Boolean,
+            default: null
+        },
+        
+        isEGPRegistered: {
+            type: Boolean,
+            default: null
+        },
+        
+        hasConflictOfInterest: {
+            type: Boolean,
+            default: null
+        },
+        
+        hasCourtImmunity: {
+            type: Boolean,
+            default: null
+        },
+        
+        hasCourtImmunityWaiver: {
+            type: Boolean,
+            default: null
+        },
+        
+        hasAntiCorruptionPolicy: {
+            type: Boolean,
+            default: null
+        },
+        
+        hasSignedIntegrityAgreement: {
+            type: Boolean,
+            default: null
+        },
+        
+        meetsProcurementCommitteeQualifications: {
+            type: Boolean,
+            default: null
+        },
+        
+        companyRegistrationDate: {
+            type: Date,
+            default: null
+        },
+        
+        netWorth: {
+            type: Number,
+            default: null
+        },
+
+        netWorthFinancialYear: {
+            type: Number,
+            default: null,
+            min: 1900,
+            max: 2200
+        },
+        
+        evidenceUrl: {
+            type: String,
+            default: "",
+            trim: true
         },
     }, { 
         _id: false 

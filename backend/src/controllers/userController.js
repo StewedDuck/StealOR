@@ -17,6 +17,14 @@ async function syncUser(req, res) {
         }
 
         const normalizedEmail = email.trim().toLowerCase();
+
+        if (normalizedEmail !== req.profileEmail) {
+            return res.status(403).json({
+                success: false,
+                error: "User identity mismatch",
+            });
+        }
+
         let user = await User.findOne({
             email: normalizedEmail,
         });
@@ -63,9 +71,14 @@ async function syncUser(req, res) {
 
 async function getProfile(req, res) {
     try {
-        const email = req.params.email
-            .trim()
-            .toLowerCase();
+        const email = req.profileEmail;
+
+        if (req.params.email.trim().toLowerCase() !== email) {
+            return res.status(403).json({
+                success: false,
+                error: "You cannot access another user's profile",
+            });
+        }
 
         const user = await User.findOne({
             email,
@@ -115,6 +128,7 @@ async function getProfile(req, res) {
 
                 pastProjects: user.pastProjects || [],
                 certificationDetails: user.certificationDetails || [],
+
                 legalEligibility: user.legalEligibility || {
                     registrationNumber: "",
                     bankruptcyStatus: "unknown",
@@ -142,9 +156,14 @@ async function getProfile(req, res) {
 
 async function updateProfile(req, res) {
     try {
-        const email = req.params.email
-            .trim()
-            .toLowerCase();
+        const email = req.profileEmail;
+
+        if (req.params.email.trim().toLowerCase() !== email) {
+            return res.status(403).json({
+                success: false,
+                error: "You cannot access another user's profile",
+            });
+        }
 
         const {
             name,
@@ -362,7 +381,21 @@ async function updateProfile(req, res) {
                     !nonnegative(p.projectValue) ||
                     !nonnegative(p.durationMonths) ||
                     !validDate(p.completedAt) ||
-                    !isValidHttpUrl(normalizeEvidence(p.evidenceUrl))
+                    !isValidHttpUrl(normalizeEvidence(p.evidenceUrl)) ||
+                
+                    (
+                        p.hasContract !== undefined &&
+                        p.hasContract !== null &&
+                        typeof p.hasContract !== "boolean"
+                    ) ||
+                
+                    !nonnegative(p.contractValue) ||
+                
+                    (
+                        p.hasContract === false &&
+                        p.contractValue != null &&
+                        p.contractValue !== ""
+                    )
                 )
             ) {
                 return res.status(400).json({
@@ -374,14 +407,24 @@ async function updateProfile(req, res) {
             user.pastProjects = pastProjects.map((p) => ({
                 projectName: String(p.projectName).trim(),
                 projectType: String(p.projectType ?? "").trim(),
+            
                 projectValue:
                     p.projectValue == null || p.projectValue === ""
                         ? null
                         : Number(p.projectValue),
+            
+                hasContract: p.hasContract ?? null,
+            
+                contractValue:
+                    p.contractValue == null || p.contractValue === ""
+                        ? null
+                        : Number(p.contractValue),
+            
                 durationMonths:
                     p.durationMonths == null || p.durationMonths === ""
                         ? null
                         : Number(p.durationMonths),
+            
                 clientName: String(p.clientName ?? "").trim(),
                 completedAt: p.completedAt || null,
                 evidenceUrl: normalizeEvidence(p.evidenceUrl),
@@ -422,33 +465,144 @@ async function updateProfile(req, res) {
         }
 
         if (legalEligibility !== undefined) {
-            if (
+            const statusFields = [
+                "bankruptcyStatus",
+                "debarmentStatus",
+                "liquidationStatus",
+                "suspensionStatus",
+            ];
+        
+            const booleanFields = [
+                "legalCapacity",
+                "isJuristicPerson",
+                "isEGPRegistered",
+                "hasConflictOfInterest",
+                "hasCourtImmunity",
+                "hasCourtImmunityWaiver",
+                "hasAntiCorruptionPolicy",
+                "hasSignedIntegrityAgreement",
+                "meetsProcurementCommitteeQualifications",
+            ];
+        
+            const invalid =
                 !legalEligibility ||
                 typeof legalEligibility !== "object" ||
-                !["no", "yes", "unknown"].includes(
-                    legalEligibility.bankruptcyStatus
+                Array.isArray(legalEligibility) ||
+        
+                statusFields.some(
+                    (field) =>
+                        legalEligibility[field] !== undefined &&
+                        !["no", "yes", "unknown"].includes(
+                            legalEligibility[field]
+                        )
                 ) ||
-                !["no", "yes", "unknown"].includes(
-                    legalEligibility.debarmentStatus
+        
+                booleanFields.some(
+                    (field) =>
+                        legalEligibility[field] !== undefined &&
+                        legalEligibility[field] !== null &&
+                        typeof legalEligibility[field] !== "boolean"
                 ) ||
-                !isValidHttpUrl(
-                    normalizeEvidence(legalEligibility.evidenceUrl)
-                )
-            ) {
+        
+                (
+                    legalEligibility.netWorth !== undefined &&
+                    legalEligibility.netWorth !== null &&
+                    legalEligibility.netWorth !== "" &&
+                    !Number.isFinite(Number(legalEligibility.netWorth))
+                ) ||
+
+                (
+                    legalEligibility.netWorthFinancialYear !== undefined &&
+                    legalEligibility.netWorthFinancialYear !== null &&
+                    legalEligibility.netWorthFinancialYear !== "" &&
+                    (
+                        !Number.isInteger(Number(legalEligibility.netWorthFinancialYear)) ||
+                        Number(legalEligibility.netWorthFinancialYear) < 1900 ||
+                        Number(legalEligibility.netWorthFinancialYear) > 2200
+                    )
+                ) ||
+
+                (
+                    legalEligibility.companyRegistrationDate !== undefined &&
+                    !validDate(legalEligibility.companyRegistrationDate)
+                ) ||
+        
+                (
+                    legalEligibility.evidenceUrl !== undefined &&
+                    !isValidHttpUrl(
+                        normalizeEvidence(legalEligibility.evidenceUrl)
+                    )
+                );
+        
+            if (invalid) {
                 return res.status(400).json({
                     success: false,
                     error: "ข้อมูลคุณสมบัติทางกฎหมายไม่ถูกต้อง",
                 });
             }
 
-            user.legalEligibility = {
-                registrationNumber: String(
-                    legalEligibility.registrationNumber ?? ""
-                ).trim(),
-                bankruptcyStatus: legalEligibility.bankruptcyStatus,
-                debarmentStatus: legalEligibility.debarmentStatus,
-                evidenceUrl: normalizeEvidence(legalEligibility.evidenceUrl),
-            };
+            const existingLegal = user.legalEligibility?.toObject() || {};
+
+            const allowedLegalFields = [
+                "bankruptcyStatus",
+                "debarmentStatus",
+                "liquidationStatus",
+                "suspensionStatus",
+                "legalCapacity",
+                "isJuristicPerson",
+                "isEGPRegistered",
+                "hasConflictOfInterest",
+                "hasCourtImmunity",
+                "hasCourtImmunityWaiver",
+                "hasAntiCorruptionPolicy",
+                "hasSignedIntegrityAgreement",
+                "meetsProcurementCommitteeQualifications",
+            ];
+
+            const updatedLegal = { ...existingLegal };
+
+            for (const field of allowedLegalFields) {
+                if (legalEligibility[field] !== undefined) {
+                    updatedLegal[field] = legalEligibility[field];
+                }
+            }
+
+            if (legalEligibility.registrationNumber !== undefined) {
+                updatedLegal.registrationNumber = String(legalEligibility.registrationNumber).trim();
+            }
+
+            if (legalEligibility.companyRegistrationDate !== undefined) {
+                updatedLegal.companyRegistrationDate = legalEligibility.companyRegistrationDate || null;
+            }
+            
+            if (legalEligibility.netWorth !== undefined) {
+                updatedLegal.netWorth =
+                    legalEligibility.netWorth === null ||
+                    legalEligibility.netWorth === ""
+                        ? null
+                        : Number(legalEligibility.netWorth);
+            }
+
+            if (legalEligibility.netWorthFinancialYear !== undefined) {
+                updatedLegal.netWorthFinancialYear =
+                    legalEligibility.netWorthFinancialYear === null ||
+                    legalEligibility.netWorthFinancialYear === ""
+                        ? null
+                        : Number(legalEligibility.netWorthFinancialYear);
+            }
+
+            if (legalEligibility.evidenceUrl !== undefined) {
+                updatedLegal.evidenceUrl =
+                    normalizeEvidence(legalEligibility.evidenceUrl);
+            }
+
+            user.legalEligibility = updatedLegal;
+
+            if (legalEligibility.evidenceUrl !== undefined) {
+                updatedLegal.evidenceUrl = normalizeEvidence(legalEligibility.evidenceUrl);
+            }
+
+            user.legalEligibility = updatedLegal;
         }
 
         if (teamQualifications !== undefined) {

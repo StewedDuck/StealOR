@@ -12,7 +12,8 @@
     "backfill:draft-deadlines": "node scripts/backfillDraftCommentDeadlines.js",
     "extract:documents": "node scripts/extractGovProjectDocuments.js",
     "analyze:procurement": "node scripts/analyzeProcurementTexts.js",
-    "smoke:vertex": "node scripts/smokeTestVertexAI.js"
+    "smoke:vertex": "node scripts/smokeTestVertexAI.js",
+    "analyze:tor": "node scripts/analyzeRealTor.js"
   },
   "keywords": [],
   "author": "",
@@ -30,8 +31,10 @@
     "multer": "^2.4.0",
     "node-cron": "^4.6.0",
     "nodemailer": "^10.0.13",
+    "openai": "^7.40.0",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.4",
-    "unzipper": "^0.12.3"
+    "unzipper": "^0.12.3",
+    "zod": "^4.6.7"
   }
 }

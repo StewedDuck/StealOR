@@ -1,704 +1,129 @@
-const {
-    test,
-    describe,
-    beforeEach,
-} = require("node:test");
-
-const assert = require("node:assert/strict");
-
-// Mock data
-let mockBookmarks = [];
-let mockGovernmentProject = null;
-let mockInternalTor = null;
-let mockUser = null;
-let mockExistingNotification = null;
-
-let createdNotifications = [];
-let sentEmails = [];
-
-// Mock Bookmark
-const mockBookmark = {
-    find: async () => mockBookmarks,
-};
-
-// Mock GovProject
-const mockGovProject = {
-    findOne: () => ({
-        lean: async () => mockGovernmentProject,
-    }),
-};
-
-// Mock Tor
-const mockTor = {
-    findById: () => ({
-        lean: async () => mockInternalTor,
-    }),
-};
-
-// Mock User
-const mockUserModel = {
-    findOne: () => ({
-        lean: async () => mockUser,
-    }),
-};
-
-// Mock NotificationLog
-const mockNotificationLog = {
-
-    findOne: () => ({
-        lean: async () =>
-            mockExistingNotification,
-    }),
-
-    create: async (data) => {
-        createdNotifications.push(data);
-
-        return {
-            _id: "notification123",
-            ...data,
-        };
-    },
-};
-
-// Mock Email
-const mockDeadlineReminder = (data) => ({
-    subject: `Deadline: ${data.torTitle}`,
-    text: `TOR closes in ${data.daysLeft} days`,
-    html: `<p>TOR closes in ${data.daysLeft} days</p>`,
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { createReminderService, getDaysUntil } = require('../src/services/notifications/deadlineReminderService');
+const { createDeliveryService, eventKey, messageEmail } = require('../src/services/notifications/deliveryService');
+const now = new Date('2026-10-25T17:30:00Z'); // Oct 26 in Bangkok, Oct 25 in UTC.
+const query = value => ({ lean: async () => value });
+function fixture({ bookmarks = [], government, internal, owner, tors = [] } = {}) {
+    const events = [];
+    const service = createReminderService({
+        Bookmark: { find: () => query(bookmarks) }, GovProject: { findOne: () => query(government) },
+        Tor: { findById: () => query(internal), find: () => query(tors) },
+        User: { findOne: filter => query(filter.verificationStatus ? owner : { email: 'contractor@test.com', accountRole: 'contractor' }) },
+        notify: async value => events.push(value),
+    });
+    return { ...service, events };
+}
+test('deadline days follow Bangkok calendar independent of server timezone', () => {
+    assert.equal(getDaysUntil('2026-10-31T12:00:00+07:00', now), 5);
+    assert.equal(getDaysUntil('2026-10-27T12:00:00+07:00', now), 1);
+    assert.ok(Number.isNaN(getDaysUntil('invalid', now)));
+    assert.equal(getDaysUntil(null, now), null);
+});
+for (const days of [5, 1]) test(`saved internal TOR uses published application deadline at ${days} days`, async () => {
+    const f = fixture({ bookmarks: [{ userId: ' CONTRACTOR@test.com ', source: 'internal', torId: 'tor' }],
+        internal: { _id: 'tor', projectName: 'Project', status: 'published', applicationDeadline: `2026-10-${26 + days}T12:00:00+07:00`, submissionDeadline: '2020-01-01' } });
+    await f.checkDeadlineReminders(now);
+    assert.equal(f.events.length, 1);
+    assert.equal(f.events[0].type, days === 5 ? 'deadline_5_days' : 'deadline_1_day');
+});
+test('government reminder prefers analyzed bidding closing date', async () => {
+    const f = fixture({ bookmarks: [{ userId: 'a@test.com', source: 'government', projectId: '123' }], government: { _id: 'gov', project_name: 'Gov', procurementAnalysis: { biddingClosingDate: { dateTime: '2026-10-31T12:00:00+07:00' } }, raw_data: { deadline: '2020-01-01' } } });
+    await f.checkDeadlineReminders(now); assert.equal(f.events.length, 1);
+});
+for (const status of ['draft', 'pending_verification']) test(`no deadline mail for unpublished ${status} TOR`, async () => {
+    const f = fixture({ bookmarks: [{ userId: 'a@test.com', source: 'internal', torId: 'tor' }], internal: { status, applicationDeadline: '2026-10-31' } });
+    await f.checkDeadlineReminders(now); assert.equal(f.events.length, 0);
+});
+test('cancelled government TOR does not send reminders', async () => {
+    const f = fixture({ bookmarks: [{ userId: 'a@test.com', source: 'government', projectId: '123' }], government: { contract_status: 'ยกเลิก', raw_data: { deadline: '2026-10-31' } } });
+    await f.checkDeadlineReminders(now); assert.equal(f.events.length, 0);
+});
+for (const [deadline, type] of [['2026-10-29T12:00:00+07:00', 'owner_deadline_3_days'], ['2026-10-26T00:00:00+07:00', 'owner_deadline_today']]) test(`owner published reminder ${type}`, async () => {
+    const f = fixture({ owner: { email: 'owner@test.com' }, tors: [{ _id: 'tor', ownerId: 'owner@test.com', status: 'published', applicationDeadline: deadline, projectName: 'Project' }] });
+    await f.checkOwnerReminders(now); assert.equal(f.events[0].type, type);
+});
+test('verified owner receives expired draft reminder; unverified owner does not', async () => {
+    const tors = [{ _id: 'tor', ownerId: 'owner@test.com', status: 'draft', submissionDeadline: '2026-10-25', projectName: 'Draft' }];
+    const approved = fixture({ owner: { email: 'owner@test.com' }, tors });
+    await approved.checkOwnerReminders(now); assert.equal(approved.events[0].type, 'owner_draft_ready');
+    const unverified = fixture({ tors }); await unverified.checkOwnerReminders(now); assert.equal(unverified.events.length, 0);
+});
+test('future draft does not send a publish-ready reminder', async () => {
+    const f = fixture({ owner: { email: 'owner@test.com' }, tors: [{ status: 'draft', submissionDeadline: '2026-11-01' }] });
+    await f.checkOwnerReminders(now); assert.equal(f.events.length, 0);
+});
+function memoryDelivery() {
+    const rows = new Map();
+    return { rows, async updateMany() {}, async updateOne(filter, update) {
+        const key = filter.eventKey || [...rows.entries()].find(([, row]) => row._id === filter._id && row.token === filter.token)?.[0];
+        if (!key) return;
+        if (!rows.has(key)) rows.set(key, { _id: key, eventKey: key, ...update.$setOnInsert });
+        Object.assign(rows.get(key), update.$set);
+        for (const name of Object.keys(update.$unset || {})) delete rows.get(key)[name];
+    }, async findOneAndUpdate(filter, update) {
+        const row = [...rows.values()].find(item => item.attempts < 5 && ((item.state === 'pending' && item.nextAttemptAt <= filter.$or[0].nextAttemptAt.$lte) || (item.state === 'sending' && item.leaseUntil <= filter.$or[1].leaseUntil.$lte)));
+        if (!row) return null;
+        Object.assign(row, update.$set); row.attempts++; return { ...row };
+    } };
+}
+test('email retry keeps web event, retries independently and deduplicates successful send', async () => {
+    const delivery = memoryDelivery(); const logs = []; let sends = 0;
+    const service = createDeliveryService({ delivery, logs: { findOneAndUpdate: async (...args) => logs.push(args), updateOne: async () => {} }, send: async () => { if (++sends === 1) throw Error('SMTP down'); } });
+    const event = { key: 'one', user: { email: 'A@test.com' }, source: 'internal', torId: 'tor', type: 'deadline_1_day', title: 'Title', message: 'Message', url: 'http://localhost' };
+    await service.notify(event); await service.notify(event);
+    assert.equal(delivery.rows.size, 1);
+    assert.ok(logs.every(([, update]) => update.$setOnInsert.read === false));
+    await service.flush(new Date(Date.now() + 1000));
+    assert.equal(delivery.rows.get('one').state, 'pending');
+    await service.flush(new Date(Date.now() + 10 * 60000));
+    assert.equal(delivery.rows.get('one').state, 'sent');
+    await service.flush(new Date(Date.now() + 20 * 60000)); assert.equal(sends, 2);
+});
+test('changed deadline has a distinct delivery key and email escapes untrusted TOR text', () => {
+    assert.notEqual(eventKey(['tor', '2026-10-26']), eventKey(['tor', '2026-10-27']));
+    assert.doesNotMatch(messageEmail('<script>alert(1)</script>', '<img>', 'https://example.com').html, /<script>|<img>/);
 });
 
-
-const mockSendEmail = async (data) => {
-    sentEmails.push(data);
-
-    return {
-        success: true,
-    };
-};
-
-
-// Replace required modules
-const Module = require("module");
-
-const originalRequire =
-    Module.prototype.require;
-
-
-Module.prototype.require = function (path) {
-
-    if (path === "../../models/Bookmark") {
-        return mockBookmark;
-    }
-
-    if (path === "../../models/GovProject") {
-        return mockGovProject;
-    }
-
-    if (path === "../../models/Tor") {
-        return mockTor;
-    }
-
-    if (path === "../../models/User") {
-        return mockUserModel;
-    }
-
-    if (path === "../../models/NotificationLog") {
-        return mockNotificationLog;
-    }
-
-    if (path === "../../email/Contractor") {
-        return {
-            deadlineReminder:
-                mockDeadlineReminder,
-        };
-    }
-
-    if (path === "../../email/Mailer") {
-        return {
-            sendEmail: mockSendEmail,
-        };
-    }
-
-    return originalRequire.apply(
-        this,
-        arguments
-    );
-};
-
-// Import service AFTER mocks
-const {
-    checkDeadlineReminders,
-} = require(
-    "../src/services/notifications/deadlineReminderService"
-);
-
-
-// Restore normal require
-Module.prototype.require = originalRequire;
-
-// Helper
-function dateFromToday(days) {
-
-    const date = new Date();
-
-    date.setHours(12, 0, 0, 0);
-
-    date.setDate(
-        date.getDate() + days
-    );
-
-    return date;
-}
-
-// Tests
-describe(
-    "Deadline Reminder Notification Service",
-    () => {
-
-        beforeEach(() => {
-
-            // Reset everything before every test
-
-            mockBookmarks = [];
-
-            mockGovernmentProject = null;
-
-            mockInternalTor = null;
-
-            mockUser = {
-                name: "Test User",
-                email: "test@example.com",
-            };
-
-            mockExistingNotification = null;
-
-            createdNotifications = [];
-
-            sentEmails = [];
-        });
-
-        // TC01
-        // Government TOR - 5 days remaining
-        test(
-            "TC01 - should create deadline_5_days notification when government TOR has 5 days left",
-            async () => {
-
-                mockBookmarks = [
-                    {
-                        _id: "bookmark1",
-
-                        userId:
-                            "test@example.com",
-
-                        source:
-                            "government",
-
-                        projectId:
-                            "PROJECT001",
-
-                        torId: null,
-
-                        match: {
-                            percent: 80,
-                        },
-                    },
-                ];
-
-
-                mockGovernmentProject = {
-
-                    project_id:
-                        "PROJECT001",
-
-                    project_name:
-                        "Government Test TOR",
-
-                    raw_data: {
-
-                        project_description:
-                            "Test government project",
-
-                        submission_deadline:
-                            dateFromToday(5),
-                    },
-                };
-
-
-                await checkDeadlineReminders();
-
-
-                // Should create exactly one notification
-                assert.equal(
-                    createdNotifications.length,
-                    1
-                );
-
-
-                const notification =
-                    createdNotifications[0];
-
-
-                assert.equal(
-                    notification.type,
-                    "deadline_5_days"
-                );
-
-
-                assert.equal(
-                    notification.source,
-                    "government"
-                );
-
-
-                assert.equal(
-                    notification.projectId,
-                    "PROJECT001"
-                );
-
-
-                assert.equal(
-                    notification.torId,
-                    null
-                );
-
-
-                assert.equal(
-                    notification.read,
-                    false
-                );
-
-
-                assert.match(
-                    notification.title,
-                    /Government Test TOR/
-                );
-
-
-                assert.equal(
-                    notification.message,
-                    "รหัส TOR: PROJECT001"
-                );
-
-
-                // Email should also be sent
-                assert.equal(
-                    sentEmails.length,
-                    1
-                );
-            }
-        );
-
-        // TC02
-        // Government TOR - 1 day remaining
-        test(
-            "TC02 - should create deadline_1_day notification when government TOR has 1 day left",
-            async () => {
-
-                mockBookmarks = [
-                    {
-                        _id: "bookmark2",
-
-                        userId:
-                            "test@example.com",
-
-                        source:
-                            "government",
-
-                        projectId:
-                            "PROJECT002",
-
-                        torId: null,
-                    },
-                ];
-
-
-                mockGovernmentProject = {
-
-                    project_id:
-                        "PROJECT002",
-
-                    project_name:
-                        "One Day TOR",
-
-                    raw_data: {
-
-                        submission_deadline:
-                            dateFromToday(1),
-                    },
-                };
-
-
-                await checkDeadlineReminders();
-
-
-                assert.equal(
-                    createdNotifications.length,
-                    1
-                );
-
-
-                const notification =
-                    createdNotifications[0];
-
-
-                assert.equal(
-                    notification.type,
-                    "deadline_1_day"
-                );
-
-
-                assert.equal(
-                    notification.projectId,
-                    "PROJECT002"
-                );
-
-
-                assert.match(
-                    notification.title,
-                    /One Day TOR/
-                );
-
-
-                assert.equal(
-                    notification.message,
-                    "รหัส TOR: PROJECT002"
-                );
-
-
-                assert.equal(
-                    sentEmails.length,
-                    1
-                );
-            }
-        );
-
-        // TC03
-        // 4 days remaining -> do nothing
-        test(
-            "TC03 - should not create notification when TOR has 4 days left",
-            async () => {
-
-                mockBookmarks = [
-                    {
-                        _id: "bookmark3",
-
-                        userId:
-                            "test@example.com",
-
-                        source:
-                            "government",
-
-                        projectId:
-                            "PROJECT003",
-                    },
-                ];
-
-
-                mockGovernmentProject = {
-
-                    project_id:
-                        "PROJECT003",
-
-                    project_name:
-                        "Four Day TOR",
-
-                    raw_data: {
-
-                        submission_deadline:
-                            dateFromToday(4),
-                    },
-                };
-
-
-                await checkDeadlineReminders();
-
-
-                assert.equal(
-                    createdNotifications.length,
-                    0
-                );
-
-
-                assert.equal(
-                    sentEmails.length,
-                    0
-                );
-            }
-        );
-
-        // TC04
-        // No deadline
-        test(
-            "TC04 - should not create notification when TOR has no deadline",
-            async () => {
-
-                mockBookmarks = [
-                    {
-                        _id: "bookmark4",
-
-                        userId:
-                            "test@example.com",
-
-                        source:
-                            "government",
-
-                        projectId:
-                            "PROJECT004",
-                    },
-                ];
-
-
-                mockGovernmentProject = {
-
-                    project_id:
-                        "PROJECT004",
-
-                    project_name:
-                        "No Deadline TOR",
-
-                    raw_data: {},
-                };
-
-
-                await checkDeadlineReminders();
-
-
-                assert.equal(
-                    createdNotifications.length,
-                    0
-                );
-
-
-                assert.equal(
-                    sentEmails.length,
-                    0
-                );
-            }
-        );
-
-        // TC05
-        // Duplicate notification
-        test(
-            "TC05 - should not send duplicate deadline notification",
-            async () => {
-
-                mockBookmarks = [
-                    {
-                        _id: "bookmark5",
-
-                        userId:
-                            "test@example.com",
-
-                        source:
-                            "government",
-
-                        projectId:
-                            "PROJECT005",
-                    },
-                ];
-
-
-                mockGovernmentProject = {
-
-                    project_id:
-                        "PROJECT005",
-
-                    project_name:
-                        "Duplicate TOR",
-
-                    raw_data: {
-
-                        submission_deadline:
-                            dateFromToday(1),
-                    },
-                };
-
-
-                // Notification already exists
-                mockExistingNotification = {
-
-                    _id:
-                        "existingNotification",
-
-                    userId:
-                        "test@example.com",
-
-                    source:
-                        "government",
-
-                    projectId:
-                        "PROJECT005",
-
-                    type:
-                        "deadline_1_day",
-                };
-
-
-                await checkDeadlineReminders();
-
-
-                // Must NOT create another one
-                assert.equal(
-                    createdNotifications.length,
-                    0
-                );
-
-
-                // Must NOT send email again
-                assert.equal(
-                    sentEmails.length,
-                    0
-                );
-            }
-        );
-
-
-        // TC06
-        // Government TOR not found
-        test(
-            "TC06 - should not create notification when government TOR does not exist",
-            async () => {
-
-                mockBookmarks = [
-                    {
-                        _id: "bookmark6",
-
-                        userId:
-                            "test@example.com",
-
-                        source:
-                            "government",
-
-                        projectId:
-                            "NOT_FOUND",
-                    },
-                ];
-
-
-                mockGovernmentProject = null;
-
-
-                await checkDeadlineReminders();
-
-
-                assert.equal(
-                    createdNotifications.length,
-                    0
-                );
-
-
-                assert.equal(
-                    sentEmails.length,
-                    0
-                );
-            }
-        );
-
-
-        // TC07
-        // Internal TOR - 1 day
-        test(
-            "TC07 - should create deadline notification for internal TOR",
-            async () => {
-
-                mockBookmarks = [
-                    {
-                        _id: "bookmark7",
-
-                        userId:
-                            "test@example.com",
-
-                        source:
-                            "internal",
-
-                        projectId: null,
-
-                        torId:
-                            "internalTor123",
-
-                        match: {
-                            percent: 90,
-                        },
-                    },
-                ];
-
-
-                mockInternalTor = {
-
-                    _id:
-                        "internalTor123",
-
-                    projectName:
-                        "Internal Test TOR",
-
-                    description:
-                        "Internal TOR description",
-
-                    scopeOfWork: [
-                        "Develop system",
-                        "Testing",
-                    ],
-
-                    submissionDeadline:
-                        dateFromToday(1),
-                };
-
-
-                await checkDeadlineReminders();
-
-
-                assert.equal(
-                    createdNotifications.length,
-                    1
-                );
-
-
-                const notification =
-                    createdNotifications[0];
-
-
-                assert.equal(
-                    notification.type,
-                    "deadline_1_day"
-                );
-
-
-                assert.equal(
-                    notification.source,
-                    "internal"
-                );
-
-
-                assert.equal(
-                    notification.projectId,
-                    null
-                );
-
-
-                assert.equal(
-                    notification.torId,
-                    "internalTor123"
-                );
-
-
-                assert.match(
-                    notification.title,
-                    /Internal Test TOR/
-                );
-
-
-                assert.equal(
-                    notification.message,
-                    "รหัส TOR: internalTor123"
-                );
-
-
-                assert.equal(
-                    sentEmails.length,
-                    1
-                );
-            }
-        );
-
-    }
-);
+test('new matching creates web and email event only above 39, and skips unpublished TORs', async () => {
+    const { createMatchingNotificationService } = require('../src/services/notifications/matchingNotificationService');
+    const events = [];
+    let tor = { _id: 'tor', status: 'published', applicationDeadline: new Date('2099-01-01'), projectName: 'Test TOR' };
+    const run = createMatchingNotificationService({ Tor: { findById: () => query(tor) }, notify: async event => events.push(event) });
+    const user = { email: 'contractor@test.com' }, analysis = { torSource: 'internal', torId: 'tor' };
+    await run(user, analysis, { matchingPercentage: 39 }); assert.equal(events.length, 0);
+    await run(user, analysis, { matchingPercentage: 39.01 }); assert.equal(events.length, 1);
+    assert.equal(events[0].type, 'new_matching');
+    assert.match(events[0].url, /contractor\/matching$/);
+    tor = { ...tor, status: 'draft' };
+    await run(user, analysis, { matchingPercentage: 100 }); assert.equal(events.length, 1);
+});
+
+test('read notification updates are scoped to the authenticated recipient', async t => {
+    const NotificationLog = require('../src/models/NotificationLog');
+    const { markNotificationAsRead } = require('../src/controllers/notificationController');
+    let captured;
+    t.mock.method(NotificationLog, 'findOneAndUpdate', async filter => { captured = filter; return null; });
+    const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; } };
+    await markNotificationAsRead({ params: { id: '507f1f77bcf86cd799439011' }, profileEmail: 'mine@test.com' }, res);
+    assert.deepEqual(captured, { _id: '507f1f77bcf86cd799439011', userId: 'mine@test.com' });
+    assert.equal(res.code, 404);
+});
+
+test('failed email stops after five attempts and preserves terminal state', async () => {
+    const delivery = memoryDelivery(); let sends = 0;
+    const service = createDeliveryService({ delivery, send: async () => { sends++; throw Error('SMTP failure'); } });
+    await service.enqueueEmail('failure', 'test@example.com', { subject: 'Test', text: 'Test' });
+    for (let i = 1; i <= 6; i++) await service.flush(new Date(Date.now() + i * 3600000));
+    assert.equal(sends, 5);
+    assert.equal(delivery.rows.get('failure').state, 'failed');
+});
+
+test('expired worker leases are eligible for recovery by another delivery worker', async () => {
+    const delivery = memoryDelivery(); let sends = 0;
+    const service = createDeliveryService({ delivery, send: async () => { sends++; } });
+    await service.enqueueEmail('crash', 'test@example.com', { subject: 'Test', text: 'Test' });
+    Object.assign(delivery.rows.get('crash'), { state: 'sending', attempts: 1, token: 'old', leaseUntil: new Date(Date.now() - 1000) });
+    await service.flush(new Date());
+    assert.equal(sends, 1); assert.equal(delivery.rows.get('crash').state, 'sent');
+});

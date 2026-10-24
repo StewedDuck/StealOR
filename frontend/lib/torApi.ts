@@ -43,10 +43,12 @@ async function request<T>(
   init?: RequestInit
 ): Promise<T> {
   const url =
-  path.startsWith("/api/tors") &&
-  !path.startsWith("/api/tors/market")
-    ? path.replace(/^\/api\/tors/, "/api/owner-tors")
-    : `${API_URL}${path}`;
+    path === "/api/profile" || path.startsWith("/api/profile?") || path.startsWith('/api/notifications')
+      ? path
+      : path.startsWith("/api/tors") &&
+          !path.startsWith("/api/tors/market")
+        ? path.replace(/^\/api\/tors/, "/api/owner-tors")
+        : `${API_URL}${path}`;
 
   const response = await fetch(url, {
     ...init,
@@ -75,6 +77,13 @@ async function request<T>(
   const result = (await response.json()) as ApiResponse<T>;
 
   if (!response.ok || result.success === false) {
+    console.error("API Request Failed:", {
+      url,
+      method: init?.method ?? "GET",
+      status: response.status,
+      error: result.error ?? result.message,
+    });
+  
     throw new Error(
       result.error ??
         result.message ??
@@ -126,8 +135,8 @@ export const deleteTor = (id: string) => request<{ id: string }>(
   { method: "DELETE" }
 );
 
-export async function getMarketTors(): Promise<MarketTor[]> {
-  return request<MarketTor[]>("/api/tors/market");
+export async function getMarketTors(signal?: AbortSignal): Promise<MarketTor[]> {
+  return request<MarketTor[]>("/api/tors/market", { signal });
 }
 
 export async function getMarketTorById(
@@ -156,6 +165,7 @@ export type SavedTor = {
   agencyName: string;
 
   budget: number | null;
+  referencePriceEstimate?: number | null;
   deadline?: string | null;
 
   status: string;
@@ -180,34 +190,51 @@ export type SavedTor = {
   savedAt: string;
 };
 
+type CreateBookmarkOptions = {
+  savedFrom?: "market" | "matching";
+  match?: BookmarkMatch | null;
+};
+
 export async function createBookmark(
   userId: string,
-  projectId: string
+  projectId: string,
+  options: CreateBookmarkOptions = {}
 ) {
+  const {
+    savedFrom = "market",
+    match = null,
+  } = options;
+
   return request("/api/bookmarks", {
     method: "POST",
     body: JSON.stringify({
       userId,
       source: "government",
       projectId,
-      savedFrom: "market",
-      match: null,
+      savedFrom,
+      match,
     }),
   });
 }
 
 export async function createInternalBookmark(
   userId: string,
-  torId: string
+  torId: string,
+  options: CreateBookmarkOptions = {}
 ) {
+  const {
+    savedFrom = "market",
+    match = null,
+  } = options;
+
   return request("/api/bookmarks", {
     method: "POST",
     body: JSON.stringify({
       userId,
       source: "internal",
       torId,
-      savedFrom: "market",
-      match: null,
+      savedFrom,
+      match,
     }),
   });
 }
@@ -298,6 +325,10 @@ export type PastProject = {
   projectName: string;
   projectType: string;
   projectValue: number | null;
+
+  hasContract?: boolean | null;
+  contractValue?: number | null;
+
   durationMonths: number | null;
   clientName: string;
   completedAt: string | null;
@@ -318,6 +349,24 @@ export type LegalEligibility = {
   bankruptcyStatus: "no" | "yes" | "unknown";
   debarmentStatus: "no" | "yes" | "unknown";
   evidenceUrl: string;
+
+  legalCapacity?: boolean | null;
+  liquidationStatus?: "no" | "yes" | "unknown";
+  suspensionStatus?: "no" | "yes" | "unknown";
+
+  isJuristicPerson?: boolean | null;
+  isEGPRegistered?: boolean | null;
+  hasConflictOfInterest?: boolean | null;
+
+  hasCourtImmunity?: boolean | null;
+  hasCourtImmunityWaiver?: boolean | null;
+
+  hasAntiCorruptionPolicy?: boolean | null;
+  hasSignedIntegrityAgreement?: boolean | null;
+  meetsProcurementCommitteeQualifications?: boolean | null;
+
+  companyRegistrationDate?: string | null;
+  netWorth?: number | null;
 };
 
 export type TeamQualification = {
@@ -379,11 +428,9 @@ export type UserProfile = {
 };
 
 export async function getUserProfile(
-  email: string
+  _email: string
 ): Promise<UserProfile> {
-  return request<UserProfile>(
-    `/api/users/profile/${encodeURIComponent(email)}`
-  );
+  return request<UserProfile>("/api/profile");
 }
 
 export type UpdateUserProfileData = {
@@ -422,16 +469,13 @@ export type UpdateUserProfileData = {
 };
 
 export async function updateUserProfile(
-  email: string,
+  _email: string,
   data: UpdateUserProfileData
 ): Promise<UserProfile> {
-  return request<UserProfile>(
-    `/api/users/profile/${encodeURIComponent(email)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    }
-  );
+  return request<UserProfile>("/api/profile", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 }
 
 export type LocalDocumentFile = {
@@ -454,12 +498,14 @@ export type LocalProjectDocuments = {
 };
 
 export async function getLocalProjectDocuments(
-  projectId: string
+  projectId: string,
+  signal?: AbortSignal
 ): Promise<LocalProjectDocuments> {
     return request<LocalProjectDocuments>(
       `/api/gov-projects/${encodeURIComponent(
         projectId
-      )}/documents/local`
+      )}/documents/local`,
+      { signal }
     );
   }
 
@@ -472,13 +518,22 @@ export function getLocalDocumentUrl(
 export type ContractorNotificationType =
   | "deadline_5_days"
   | "deadline_1_day"
-  | "draft_updated";
+  | "draft_updated"
+  | "saved_tor_updated"
+  | "new_matching"
+  | "identity_verification_requested"
+  | "identity_verification_approved"
+  | "identity_verification_rejected"
+  | "owner_draft_ready"
+  | "owner_deadline_3_days"
+  | "owner_deadline_today";
 
   export type ContractorNotification = {
     _id: string;
     userId: string;
 
-    source: "government" | "internal";
+    source: "government" | "internal" | "verification";
+    verificationId?: string | null;
 
     projectId: string | null;
     torId: string | null;

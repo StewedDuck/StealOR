@@ -59,6 +59,12 @@ const torSchema = new mongoose.Schema(
       default: null,
       min: 0,
     },
+    referencePriceEstimate: {
+      type: Number,
+      default: null,
+      min: 0,
+      validate: { validator: value => value == null || Number.isFinite(value), message: 'ราคากลางต้องเป็นตัวเลขที่ถูกต้อง' },
+    },
     submissionDeadline: {
       type: Date,
       default: null,

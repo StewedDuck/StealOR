@@ -1,5 +1,7 @@
 "use client";
 
+import { shouldShowMatchingCard } from '@/lib/matchingStatus';
+
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 
@@ -39,6 +41,11 @@ import {
   RotateCcw,
 } from "lucide-react";
 import "./saved.css";
+import { TorMatchingCard, MatchingModal } from '@/components/TorMatchingCard';
+import { useAvailableTorMatching } from '@/hooks/useAvailableTorMatching';
+import { torBookmarkKey, savedTorToMarketTor } from '@/lib/torIdentity';
+import { getTorProgressStatus } from '@/lib/torPublicationStatus';
+import type { MatchedTor } from '@/types/matching';
 import { getUserProfile } from "@/lib/torApi";
 import TORDocumentModal from "@/components/TORDocumentModal";
 import TorDeadlineBadge from "@/components/TorDeadlineBadge";
@@ -203,6 +210,8 @@ export default function SavedPage() {
   const { data: session } = useSession();
   const { showToast } = useToast();
   const userId = session?.user?.email ?? null;
+  const matches = useAvailableTorMatching(userId);
+  const [selectedMatching, setSelectedMatching] = useState<MatchedTor | null>(null);
   const [displayName, setDisplayName] = useState("");
   const userName = displayName || session?.user?.name || "ผู้ใช้";
   const initials = userName
@@ -711,6 +720,7 @@ export default function SavedPage() {
         agencyName: internalTor.agencyName,
 
         budget: internalTor.budget,
+        referencePriceEstimate: internalTor.referencePriceEstimate ?? null,
 
         submissionDeadline: internalTor.submissionDeadline || null,
 
@@ -918,6 +928,19 @@ export default function SavedPage() {
                       : "Unknown";
 
                 const matchPercent = tor.match?.percent;
+
+                const matching = matches[torBookmarkKey(tor)];
+                if (shouldShowMatchingCard(matching) && !(tor.source === 'internal' && tor.status.toLowerCase() === 'draft')) {
+                  const marketTor = savedTorToMarketTor(tor);
+                  return <TorMatchingCard key={tor.bookmarkId} tor={marketTor} matching={matching}
+                    progressStatus={getTorProgressStatus(tor, publicationStatus)} saved={true}
+                    bookmarkLoading={removingId === tor.bookmarkId} detailLoading={detailLoading}
+                    onViewDetails={() => void handleViewSavedTor(tor)}
+                    onMatchingDetails={() => setSelectedMatching({ tor: marketTor, matching })}
+                    onBookmark={() => void handleRemoveBookmark(tor)}
+                    onDocuments={() => setDocumentTor({ projectId: tor.projectId!, projectName: tor.projectName })}
+                  />;
+                }
 
                 return (
                   <article key={tor.bookmarkId} className="saved-card">
@@ -1144,9 +1167,11 @@ export default function SavedPage() {
         </div>
       )}
 
+      {selectedMatching && <MatchingModal item={{ ...selectedMatching, matching: matches[`${selectedMatching.tor.source}:${selectedMatching.matching.torId}`] || matches[torBookmarkKey(selectedMatching.tor)] || selectedMatching.matching }} onClose={() => setSelectedMatching(null)} />}
       {activeTorDetail && (
         <TorDetailModal
           tor={activeTorDetail}
+          progressStatus={getTorProgressStatus({ ...activeTorDetail, deadline: activeTorDetail.submissionDeadline }, projectPublicationStatuses[activeTorDetail.projectId || ''])}
           onClose={() => setActiveTorDetail(null)}
         />
       )}

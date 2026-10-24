@@ -1,6 +1,6 @@
 "use client";
 
-import { X, CheckCircle2 } from "lucide-react";
+import { X } from "lucide-react";
 import type { Tor, MarketTorDetail } from "@/types/tor";
 import "./TORDetail.css"
 import TorStatusProgress from "@/components/TorStatusProgress";
@@ -121,14 +121,12 @@ export default function TorDetailModal({
                         </strong>
                     </div>
 
-                    {"source" in tor && tor.source === "government" && (
-                        <div className="tor-info-card">
-                            <span>ราคากลาง</span>
-                            <strong>
-                            {formatBudget(tor.referencePriceEstimate ?? null)}
-                            </strong>
-                        </div>
-                    )}
+                    <div className="tor-info-card">
+                        <span>ราคากลาง</span>
+                        <strong>
+                            {tor.referencePriceEstimate == null ? '-' : formatBudget(tor.referencePriceEstimate)}
+                        </strong>
+                    </div>
 
                     <div className="tor-info-card">
                         <span>กำหนดส่ง</span>
@@ -159,11 +157,11 @@ export default function TorDetailModal({
                         <h3>วัตถุประสงค์</h3>
 
                         {(tor.objectives?.length ?? 0) > 0 ? (
-                            <ul>
+                            <ol>
                             {tor.objectives.map((item, index) => (
                                 <li key={index}>{item}</li>
                             ))}
-                            </ul>
+                            </ol>
                         ) : (
                             <p>ยังไม่มีข้อมูลวัตถุประสงค์</p>
                         )}
@@ -176,7 +174,7 @@ export default function TorDetailModal({
 
                             <h3>ขอบเขตงาน</h3>
 
-                            <ul>
+                            <ol>
                                 {tor.scopeOfWork.map(
                                     (item, index) => (
                                         <li key={index}>
@@ -184,7 +182,7 @@ export default function TorDetailModal({
                                         </li>
                                     )
                                 )}
-                            </ul>
+                            </ol>
 
                         </section>
                     )}
@@ -197,22 +195,22 @@ export default function TorDetailModal({
                             {generalLegal.length > 0 && (
                                 <div className="tor-analysis-group">
                                     <h4>คุณสมบัติทั่วไปและข้อกำหนดทางกฎหมาย</h4>
-                                    <ul>
+                                    <ol>
                                         {generalLegal.map((item, index) => (
                                             <li key={`legal-${index}`}>{item}</li>
                                         ))}
-                                    </ul>
+                                    </ol>
                                 </div>
                             )}
 
                             {projectSpecific.length > 0 && (
                                 <div className="tor-analysis-group">
                                     <h4>คุณสมบัติเฉพาะโครงการ</h4>
-                                    <ul>
+                                    <ol>
                                         {projectSpecific.map((item, index) => (
                                             <li key={`specific-${index}`}>{item}</li>
                                         ))}
-                                    </ul>
+                                    </ol>
                                 </div>
                             )}
                         </section>
@@ -222,11 +220,11 @@ export default function TorDetailModal({
                     {isGovernment && technicalRequirements.length > 0 && (
                         <section className="tor-section">
                             <h3>ข้อกำหนดทางเทคนิค</h3>
-                            <ul>
+                            <ol>
                                 {technicalRequirements.map((item, index) => (
                                     <li key={index}>{item}</li>
                                 ))}
-                            </ul>
+                            </ol>
                         </section>
                     )}
 
@@ -234,11 +232,11 @@ export default function TorDetailModal({
                         {isGovernment && deliverables.length > 0 && (
                         <section className="tor-section">
                             <h3>สิ่งที่ต้องส่งมอบ</h3>
-                            <ul>
+                            <ol>
                                 {deliverables.map((item, index) => (
                                     <li key={index}>{item}</li>
                                 ))}
-                            </ul>
+                            </ol>
                         </section>
                     )}
 
@@ -261,7 +259,7 @@ export default function TorDetailModal({
                                         >
 
                                             <div className="qualification-icon">
-                                                <CheckCircle2 size={19} />
+                                                <span>{index + 1}.</span>
                                             </div>
 
                                             <div className="qualification-name">

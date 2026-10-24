@@ -4,7 +4,6 @@ const User = require("../models/User");
 const IdentityVerification = require("../models/IdentityVerification");
 const NotificationLog = require("../models/NotificationLog");
 const path = require("path");
-const { sendEmail } = require("../email/Mailer");
 const { verificationRequest } = require("../email/Admin");
 const { accountApproved, accountRejected } = require("../email/ProjectOwner");
 
@@ -31,19 +30,22 @@ function validatePhone(phone) {
     return /^\d{9,10}$/.test(phone);
 }
 
-async function sendVerificationEmail(to, email) {
+async function sendVerificationEmail(to, email, key) {
     if (!to) return;
-
     try {
-        await sendEmail({
-            to,
-            subject: email.subject,
-            text: email.text,
-            html: email.html,
-        });
-    } catch (error) {
-        console.error("Verification email failed:", error);
+        await require('../services/notifications/deliveryService').enqueueEmail(key, to, email);
+    } catch {
+        console.warn('[NOTIFICATION] Verification email queue unavailable');
     }
+}
+
+async function saveVerificationNotification(query, update, options) {
+    const status = query.type.replace('identity_verification_', '');
+    const key = `verification:${query.verificationId}:${status}:${query.userId.toLowerCase()}`;
+    if (update.$setOnInsert) update.$setOnInsert.eventKey = key;
+    if (update.$set) update.$set.eventKey = key;
+    try { return await NotificationLog.findOneAndUpdate(query, update, options); }
+    catch { console.warn('[NOTIFICATION] Verification web notification deferred'); }
 }
 
 // POST /api/verifications
@@ -211,7 +213,7 @@ async function submitVerification(req, res) {
 
         for (const admin of admins) {
             try {
-                await NotificationLog.findOneAndUpdate(
+                await saveVerificationNotification(
                     {
                         userId: admin.email,
                         source: "verification",
@@ -241,7 +243,7 @@ async function submitVerification(req, res) {
                     reviewUrl: `${process.env.APP_URL || "http://localhost:3000"}/admin/verification`,
                 });
 
-                await sendVerificationEmail(admin.email, email);
+                await sendVerificationEmail(admin.email, email, `verification:${verification._id}:requested:${admin.email.toLowerCase()}`);
             } catch (error) {
                 console.error(
                     `Failed to notify admin ${admin.email}:`,
@@ -752,7 +754,7 @@ async function approveVerification(req, res) {
 
 
         // Notify Project Owner
-        await NotificationLog.findOneAndUpdate(
+        await saveVerificationNotification(
             {
                 userId: owner.email,
                 source: "verification",
@@ -779,7 +781,7 @@ async function approveVerification(req, res) {
             name: owner.name,
         });
         
-        await sendVerificationEmail(owner.email, email);
+        await sendVerificationEmail(owner.email, email, `verification:${verification._id}:${verification.status}:${owner.email.toLowerCase()}`);
 
 
         return res.json({
@@ -902,7 +904,7 @@ async function rejectVerification(req, res) {
         await owner.save();
 
         // Notify Project Owner
-        await NotificationLog.findOneAndUpdate(
+        await saveVerificationNotification(
             {
                 userId: owner.email,
                 source: "verification",
@@ -930,7 +932,7 @@ async function rejectVerification(req, res) {
             reason: rejectionReason,
         });
         
-        await sendVerificationEmail(owner.email, email);
+        await sendVerificationEmail(owner.email, email, `verification:${verification._id}:${verification.status}:${owner.email.toLowerCase()}`);
 
         return res.json({
             success: true,

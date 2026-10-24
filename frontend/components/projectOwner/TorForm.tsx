@@ -14,7 +14,7 @@ type TorFormProps = {
 
 export const emptyTorForm: TorFormData = {
   projectName: "", agencyName: "", description: "", objectives: [""],
-  scopeOfWork: [""], requirements: [], budget: null, submissionDeadline: "",
+  scopeOfWork: [""], requirements: [], budget: null, referencePriceEstimate: null, submissionDeadline: "",
   contactName: "", contactEmail: "",
 };
 
@@ -27,6 +27,7 @@ export function toTorFormData(data: TorFormData): TorFormData {
     scopeOfWork: data.scopeOfWork?.length ? data.scopeOfWork : [""],
     requirements: data.requirements ?? [],
     budget: data.budget ?? null,
+    referencePriceEstimate: data.referencePriceEstimate ?? null,
     submissionDeadline: data.submissionDeadline ? data.submissionDeadline.slice(0, 10) : "",
     contactName: data.contactName ?? "",
     contactEmail: data.contactEmail ?? "",
@@ -107,6 +108,18 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
           </label>
 
           <label>
+            ราคากลาง (บาท) — ไม่บังคับ
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="ยังไม่ระบุ"
+              value={form.referencePriceEstimate ?? ""}
+              onChange={(e) => setForm({ ...form, referencePriceEstimate: e.target.value === "" ? null : Number(e.target.value) })}
+            />
+          </label>
+
+          <label>
             วันสิ้นสุดรับข้อเสนอ
             <input 
               type="date" 
@@ -182,7 +195,7 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
       <FormSection 
         number="04" 
         title="คุณสมบัติและเงื่อนไข" 
-        subtitle="กำหนดน้ำหนักและเงื่อนไขที่จำเป็น"
+        subtitle="กำหนดน้ำหนักแบบสัดส่วน (หากเป็น 0 ทุกข้อจะใช้เท่ากัน) ข้อที่จำเป็นต้องผ่านจะตรวจคุณสมบัติแยกจากคะแนน"
       >
         <div className={styles.list}>
           {form.requirements.map((requirement, index) => (

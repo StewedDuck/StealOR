@@ -111,3 +111,18 @@ test("Email Validation", async (t) => {
         assert.match(email.html, /ไม่ระบุหน่วยงาน/);
     });
 });
+test('all notification templates include branded HTML, plain-text fallback and escaped user data', () => {
+    const { notificationEmail } = require('../src/email/notificationEmail');
+    const { messageEmail } = require('../src/services/notifications/deliveryService');
+    for (const email of [newMatch(mockTOR), deadlineReminder(mockTOR), draftPublished(mockTOR), draftUpdated(mockTOR),
+        messageEmail('TOR update', 'Details', 'https://example.com'),
+        notificationEmail({ title: '<script>title</script>', message: '<img src=x>', name: '<b>Name</b>', projectName: '<script>TOR</script>', url: 'https://example.com', facts: [{ label: 'ปิดรับ', value: 'วันทดสอบ' }] })]) {
+        assert.match(email.html, /sTealORs/);
+        assert.match(email.html, /#1F2933/);
+        assert.match(email.html, /#4B7DB8/);
+        assert.match(email.html, /<table/);
+        assert.match(email.html, /<a href=/);
+        assert.doesNotMatch(email.html, /<script>|<img src=x>/);
+        assert.ok(email.text.length > 0);
+    }
+});
