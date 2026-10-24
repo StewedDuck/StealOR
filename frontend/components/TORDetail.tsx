@@ -1,7 +1,8 @@
 "use client";
 
 import { X, CheckCircle2 } from "lucide-react";
-import type { Tor, MarketTorDetail } from "@/types/tor";
+import { REQUIREMENT_CATEGORIES, type Tor, type MarketTorDetail } from "@/types/tor";
+import { normalizeTorRequirements } from "@/lib/torRequirements";
 import "./TORDetail.css"
 import TorStatusProgress from "@/components/TorStatusProgress";
 
@@ -34,34 +35,26 @@ function formatDate(value: string | null) {
 }
 
 
+// แสดงข้อมูลที่เจ้าของกรอกและข้อมูลโครงการรัฐด้วยหัวข้อเดียวกัน
 export default function TorDetailModal({
     tor,
     onClose,
     progressStatus = "unknown",
 }: TorDetailModalProps) {
 
+
+    // ข้อมูลรัฐใช้กลุ่มข้อความเดิม ส่วน TOR ภายในจัดหมวดจากรายการที่มีน้ำหนัก
     const isGovernment = "source" in tor && tor.source === "government";
-
-    const deadline = "biddingClosingDate" in tor
-        ? tor.biddingClosingDate?.dateTime ?? tor.submissionDeadline
-        : tor.submissionDeadline;
-
-    const qualifications = isGovernment
-        ? tor.contractorQualifications
-        : undefined;
-
-    const generalLegal = qualifications?.generalLegal ?? [];
-    const projectSpecific = qualifications?.projectSpecific ?? [];
-
-    const technicalRequirements = isGovernment
-        ? tor.technicalRequirements ?? []
-        : [];
-
-    const deliverables = isGovernment
-        ? tor.deliverables ?? []
-        : [];
-
+    const qualifications = isGovernment && "contractorQualifications" in tor ? tor.contractorQualifications : undefined;
+    const generalLegal = isGovernment ? qualifications?.generalLegal ?? [] : [];
+    const projectSpecific = isGovernment ? qualifications?.projectSpecific ?? [] : [];
+    const technicalRequirements = isGovernment && "technicalRequirements" in tor ? tor.technicalRequirements ?? [] : [];
+    const deliverables = isGovernment && "deliverables" in tor ? tor.deliverables ?? [] : [];
     const hasAnalyzedQualifications = generalLegal.length > 0 || projectSpecific.length > 0;
+    const requirements = isGovernment ? tor.requirements ?? [] : normalizeTorRequirements(tor);
+    const requirementGroups = Object.entries(REQUIREMENT_CATEGORIES).map(([category, title]) => ({
+      category, title, items: requirements.filter((item) => (item.category ?? "projectSpecific") === category),
+    })).filter((group) => group.items.length > 0);
 
     return (
         <div
@@ -121,7 +114,7 @@ export default function TorDetailModal({
                         </strong>
                     </div>
 
-                    {"source" in tor && tor.source === "government" && (
+                    {tor.referencePriceEstimate != null && (
                         <div className="tor-info-card">
                             <span>ราคากลาง</span>
                             <strong>
@@ -190,7 +183,7 @@ export default function TorDetailModal({
                     )}
 
                     {/* Government Contractor Qualifications */}
-                    {isGovernment && hasAnalyzedQualifications && (
+                    {hasAnalyzedQualifications && (
                         <section className="tor-section">
                             <h3>คุณสมบัติผู้รับจ้าง</h3>
 
@@ -219,7 +212,7 @@ export default function TorDetailModal({
                     )}
 
                     {/* Technical Requirements */}
-                    {isGovernment && technicalRequirements.length > 0 && (
+                    {technicalRequirements.length > 0 && (
                         <section className="tor-section">
                             <h3>ข้อกำหนดทางเทคนิค</h3>
                             <ul>
@@ -231,7 +224,7 @@ export default function TorDetailModal({
                     )}
 
                     {/* Deliverables */}
-                        {isGovernment && deliverables.length > 0 && (
+                        {deliverables.length > 0 && (
                         <section className="tor-section">
                             <h3>สิ่งที่ต้องส่งมอบ</h3>
                             <ul>
@@ -244,15 +237,14 @@ export default function TorDetailModal({
 
 
                     {/* Requirements */}
-                    {!hasAnalyzedQualifications &&
-                    (tor.requirements?.length ?? 0) > 0 && (
-                        <section className="tor-section">
+                    {requirementGroups.map((group) => (
+                        <section className="tor-section" key={group.category}>
 
-                            <h3>คุณสมบัติที่ต้องการ</h3>
+                            <h3>{group.title}</h3>
 
                             <div className="qualification-list">
 
-                                {tor.requirements?.map(
+                                {group.items.map(
                                     (requirement, index) => (
 
                                         <div
@@ -271,10 +263,7 @@ export default function TorDetailModal({
                                             </div>
 
                                             <span className="qualification-status status-match">
-                                                {requirement.mandatory
-                                                    ? "บังคับ"
-                                                    : `น้ำหนัก ${requirement.weight}%`
-                                                }
+                                                {`น้ำหนัก ${requirement.weight}%${requirement.mandatory ? " · จำเป็นต้องผ่าน" : ""}`}
                                             </span>
 
                                         </div>
@@ -285,7 +274,7 @@ export default function TorDetailModal({
                             </div>
 
                         </section>
-                    )}
+                    ))}
 
 
                     {/* Contact */}

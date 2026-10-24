@@ -1,10 +1,20 @@
+export const REQUIREMENT_CATEGORIES = {
+  generalLegal: "คุณสมบัติทั่วไปและข้อกำหนดทางกฎหมาย",
+  projectSpecific: "คุณสมบัติเฉพาะโครงการ",
+  technicalRequirements: "ข้อกำหนดทางเทคนิค",
+  deliverables: "สิ่งที่ต้องส่งมอบ",
+} as const;
+export type TorRequirementCategory = keyof typeof REQUIREMENT_CATEGORIES;
+
 export type TorRequirement = {
+  category?: TorRequirementCategory; // รายการเดิมที่ไม่มีหมวดจัดเป็นคุณสมบัติเฉพาะโครงการ
   description: string;
   weight: number;
   mandatory: boolean;
 };
 
 export type TorFormData = {
+  referencePriceEstimate?: number | null;
   projectName: string;
   agencyName: string;
   description: string;

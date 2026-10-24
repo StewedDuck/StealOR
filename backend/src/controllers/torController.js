@@ -10,14 +10,23 @@ const { sendEmail } = require("../email/Mailer");
 // const DEMO_OWNER_ID = "demo-project-owner";
 const EDITABLE_FIELDS = [
   "projectName", "agencyName", "description", "objectives", "scopeOfWork",
+  "referencePriceEstimate",
   "requirements", "budget", "submissionDeadline", "contactName", "contactEmail",
 ];
 const GovProject = require("../models/GovProject");
 
+// รับเฉพาะfieldที่เจ้าของแก้ได้ และจัดรูปแบบรายการก่อนบันทึกทั้งตอนสร้างและแก้ไข
 function prepareTorData(body) {
   const data = {};
   for (const field of EDITABLE_FIELDS) {
     if (body[field] !== undefined) data[field] = body[field];
+  }
+  if (data.referencePriceEstimate === "") data.referencePriceEstimate = null;
+  if (data.referencePriceEstimate != null &&
+      (typeof data.referencePriceEstimate !== "number" || !Number.isFinite(data.referencePriceEstimate) || data.referencePriceEstimate < 0)) {
+    const error = new Error("ราคากลางต้องเป็นตัวเลขตั้งแต่ศูนย์ขึ้นไป");
+    error.status = 400;
+    throw error;
   }
   if (Array.isArray(data.objectives)) {
     data.objectives = data.objectives.map((item) => String(item).trim()).filter(Boolean);
@@ -25,21 +34,36 @@ function prepareTorData(body) {
   if (Array.isArray(data.scopeOfWork)) {
     data.scopeOfWork = data.scopeOfWork.map((item) => String(item).trim()).filter(Boolean);
   }
-  if (Array.isArray(data.requirements)) {
-    data.requirements = data.requirements
-      .filter((item) => item && String(item.description || "").trim())
-      .map((item) => ({
-        description: String(item.description).trim(),
-        weight: Number(item.weight) || 0,
-        mandatory: Boolean(item.mandatory),
-      }));
+  // เก็บทุกหมวดใน requirements เท่านั้น โดยตรวจรายละเอียด weight และข้อบังคับก่อนบันทึก
+  const categories = ["generalLegal", "projectSpecific", "technicalRequirements", "deliverables"];
+  const invalidRequirement = () => {
+    const error = new Error("หมวดหมู่ รายละเอียด น้ำหนัก หรือข้อบังคับของรายการไม่ถูกต้อง");
+    error.status = 400;
+    throw error;
+  };
+  if (data.requirements !== undefined) {
+    if (!Array.isArray(data.requirements)) invalidRequirement();
+    data.requirements = data.requirements.map((item) => {
+      if (!item || typeof item.description !== "string" ||
+          !categories.includes(item.category ?? "projectSpecific") ||
+          (item.weight !== undefined && (typeof item.weight !== "number" || !Number.isFinite(item.weight) || item.weight < 0 || item.weight > 100)) ||
+          (item.mandatory !== undefined && typeof item.mandatory !== "boolean")) invalidRequirement();
+      return {
+        category: item.category ?? "projectSpecific",
+        description: item.description.trim(),
+        weight: item.weight ?? 0,
+        mandatory: item.mandatory ?? false,
+      };
+    }).filter((item) => item.description);
   }
   if (data.submissionDeadline === "") data.submissionDeadline = null;
   if (data.budget === "") data.budget = null;
   return data;
 }
 
+// ส่งข้อผิดพลาดข้อมูลจากฟอร์มเป็น 400 แทนข้อผิดพลาดภายในระบบ
 function handleError(res, error) {
+  if (error.status === 400) return res.status(400).json({ success: false, error: error.message });
   if (error instanceof mongoose.Error.ValidationError) {
     return res.status(400).json({ success: false, error: error.message });
   }
@@ -308,6 +332,7 @@ async function getMarketTors(req, res) {
   }
 }
 
+// ส่งรายละเอียด TOR ภายในให้ครบกลุ่มข้อมูลเดียวกับที่หน้ารายละเอียดโครงการรัฐใช้
 async function getMarketTorDetail(req, res) {
   try {
 
@@ -335,6 +360,7 @@ async function getMarketTorDetail(req, res) {
             objectives: internalTor.objectives,
             scopeOfWork: internalTor.scopeOfWork,
             requirements: internalTor.requirements,
+            referencePriceEstimate: internalTor.referencePriceEstimate,
             status: "เปิดรับสมัคร",
             createdAt: internalTor.createdAt,
             updatedAt: internalTor.updatedAt,

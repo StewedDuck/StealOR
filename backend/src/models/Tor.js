@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const requirementSchema = new mongoose.Schema(
   {
+    // แต่ละข้อเลือกหมวดได้ โดยใช้ช่องweightและข้อบังคับร่วมกัน
+    category: {
+      type: String,
+      enum: ["generalLegal", "projectSpecific", "technicalRequirements", "deliverables"],
+      default: "projectSpecific",
+    },
     description: {
       type: String,
       required: true,
@@ -50,6 +56,7 @@ const torSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    referencePriceEstimate: { type: Number, default: null, min: 0 },
     requirements: {
       type: [requirementSchema],
       default: [],

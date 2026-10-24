@@ -225,6 +225,16 @@ export default function DraftTOR() {
                                                 </b>
                                             </span>
 
+                                    
+                                            <span>
+                                                ราคากลาง
+                                                <b>
+                                                    {tor.referencePriceEstimate == null
+                                                        ? "ไม่ระบุ"
+                                                        : `${tor.referencePriceEstimate.toLocaleString("th-TH")} บาท`}
+                                                </b>
+                                            </span>
+
                                             <span>
                                                 วันปิดรับข้อเสนอ
                                                 <b>{formatDeadline(tor.submissionDeadline)}</b>

@@ -3,7 +3,8 @@
 import { useState, type FormEvent } from "react";
 import { Plus, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/components/toast/ToastProvider";
-import type { TorFormData } from "@/types/tor";
+import { REQUIREMENT_CATEGORIES, type TorFormData, type TorRequirementCategory } from "@/types/tor";
+import { normalizeTorRequirements } from "@/lib/torRequirements";
 import styles from "./TorForm.module.css";
 
 type TorFormProps = {
@@ -16,16 +17,19 @@ export const emptyTorForm: TorFormData = {
   projectName: "", agencyName: "", description: "", objectives: [""],
   scopeOfWork: [""], requirements: [], budget: null, submissionDeadline: "",
   contactName: "", contactEmail: "",
+  referencePriceEstimate: null,
 };
 
+// โหลดข้อมูลฟอร์มจาก requirements พร้อมหมวดหมู่ และเติมค่าเริ่มต้นเมื่อกลับมาแก้ไข
 export function toTorFormData(data: TorFormData): TorFormData {
   return {
+    referencePriceEstimate: data.referencePriceEstimate ?? null,
     projectName: data.projectName ?? "",
     agencyName: data.agencyName ?? "",
     description: data.description ?? "",
     objectives: data.objectives?.length ? data.objectives : [""],
     scopeOfWork: data.scopeOfWork?.length ? data.scopeOfWork : [""],
-    requirements: data.requirements ?? [],
+    requirements: normalizeTorRequirements(data),
     budget: data.budget ?? null,
     submissionDeadline: data.submissionDeadline ? data.submissionDeadline.slice(0, 10) : "",
     contactName: data.contactName ?? "",
@@ -33,6 +37,7 @@ export function toTorFormData(data: TorFormData): TorFormData {
   };
 }
 
+// ใช้ฟอร์มเดียวสำหรับสร้างและแก้ไข เพื่อให้ข้อมูลที่บันทึกมีโครงสร้างตรงกัน
 export default function TorForm({ initialData = emptyTorForm, submitLabel = "บันทึกร่าง", onSubmit }: TorFormProps) {
   const { showToast } = useToast();
   const [form, setForm] = useState<TorFormData>(() => toTorFormData(initialData));
@@ -43,6 +48,7 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
     setForm((current) => ({ ...current, [field]: current[field].map((item, i) => i === index ? value : item) }));
   }
 
+  // ตัดรายการว่างก่อนส่ง API โดยยังอนุญาตให้บันทึกข้อมูลร่างที่ไม่ครบได้
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -71,7 +77,7 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
       {error && <div className={styles.error}>{error}</div>}
       <FormSection number="01" title="ข้อมูลโครงการ" subtitle="รายละเอียดพื้นฐานของ TOR">
         <div className={styles.grid}>
-          
+
           <label className={styles.full}>
             ชื่อโครงการ 
             <b>*</b>
@@ -104,6 +110,12 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
                 { ...form, budget: e.target.value === "" ? null : Number(e.target.value) }
               )} 
             />
+          </label>
+
+          <label>
+            ราคากลาง (บาท)
+            <input type="number" min="0" step="any" value={form.referencePriceEstimate ?? ""}
+              onChange={(e) => setForm({ ...form, referencePriceEstimate: e.target.value === "" ? null : Number(e.target.value) })} />
           </label>
 
           <label>
@@ -146,7 +158,7 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
                   className={styles.listRow} 
                   key={`${field}-${index}`}
                 >
-                
+
                   <span>
                     {index + 1}
                   </span>
@@ -181,7 +193,7 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
 
       <FormSection 
         number="04" 
-        title="คุณสมบัติและเงื่อนไข" 
+        title="คุณสมบัติ ข้อกำหนด และสิ่งที่ส่งมอบ"
         subtitle="กำหนดน้ำหนักและเงื่อนไขที่จำเป็น"
       >
         <div className={styles.list}>
@@ -191,14 +203,30 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
               className={styles.requirement} 
               key={`requirement-${index}`}
             >
+              {/* แยกหมวดหมู่ไว้แถวบน เพื่อไม่ให้เบียดพื้นที่พิมพ์รายละเอียด */}
+              <div className={styles.requirementHeader}>
+                <span className={styles.requirementNumber}>ข้อ {index + 1}</span>
+                <label className={styles.categoryField}>
+                  หมวดหมู่
+                  <select aria-label={`หมวดหมู่ข้อ ${index + 1}`} value={requirement.category ?? "projectSpecific"}
+                  onChange={(e) => setForm((current) => ({ ...current, requirements: current.requirements.map((item, i) => i === index ? { ...item, category: e.target.value as TorRequirementCategory } : item) }))}>
+                  {Object.entries(REQUIREMENT_CATEGORIES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+              </div>
+              <div className={styles.requirementFields}>
+              <label className={styles.descriptionField}>
+                รายละเอียด
               <input 
+                aria-label={`รายละเอียดข้อ ${index + 1}`}
                 value={requirement.description} 
                 onChange={(e) => setForm((current) => ({ ...current, requirements: current.requirements.map((item, i) => i === index ? { ...item, description: e.target.value } : item) }))} 
-                placeholder="ระบุคุณสมบัติหรือเงื่อนไข" 
+                placeholder="ระบุคุณสมบัติ ข้อกำหนด หรือสิ่งที่ต้องส่งมอบ"
               />
-              
+              </label>
+
               <label>
-                น้ำหนัก
+                น้ำหนัก (%)
                 <input 
                   type="number" 
                   min="0" 
@@ -220,18 +248,21 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
 
               <button 
                 type="button" 
-                aria-label="ลบเงื่อนไข" 
+                className={styles.removeRequirement}
+                aria-label={`ลบข้อ ${index + 1}`}
+                title="ลบรายการ"
                 onClick={() => setForm((current) => ({ ...current, requirements: current.requirements.filter((_, i) => i !== index) }))}
               >
                 <Trash2 size={17} />
               </button>
+              </div>
 
             </div>
           ))}
 
           <button 
             className={styles.addButton} 
-            type="button" onClick={() => setForm((current) => ({ ...current, requirements: [...current.requirements, { description: "", weight: 0, mandatory: false }] }))}
+            type="button" onClick={() => setForm((current) => ({ ...current, requirements: [...current.requirements, { category: "projectSpecific", description: "", weight: 0, mandatory: false }] }))}
           >
             <Plus size={16} /> 
             เพิ่มเงื่อนไข
@@ -262,7 +293,7 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
               onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} 
             />
           </label>
-          
+
         </div>
       </FormSection>
 
@@ -288,7 +319,7 @@ function FormSection({ number, title, subtitle, children }: { number: string; ti
         <span>
           {number}
         </span>
-        
+
         <div>
           <h2>
             {title}
@@ -297,7 +328,7 @@ function FormSection({ number, title, subtitle, children }: { number: string; ti
             {subtitle}
           </p>
         </div>
-        
+
       </div>
       {children}
     </section>
