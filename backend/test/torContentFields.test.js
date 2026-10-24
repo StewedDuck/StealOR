@@ -9,7 +9,8 @@ function setup() {
   let saved;
   const torModel = {
     create: async (data) => { saved = { _id: "tor-id", ...data }; return saved; },
-    findOne: async () => saved,
+    // รองรับทั้ง await findOne และ lean สำหรับการตรวจเลขฉบับก่อนแก้ไข
+    findOne: () => ({ then: (resolve, reject) => Promise.resolve(saved).then(resolve, reject), lean: async () => saved }),
     findOneAndUpdate: async (_query, update) => { saved = { ...saved, ...update.$set }; return saved; },
   };
   const moduleStub = { exports: {} };
@@ -17,6 +18,7 @@ function setup() {
   vm.runInNewContext(fs.readFileSync(controller, "utf8"), {
     module: moduleStub, console,
     require: (name) => {
+      if (name === "./torReviewController") return require("../src/controllers/torReviewController");
       if (name === "mongoose") return require("mongoose");
       if (name === "../models/Tor") return torModel;
       if (name === "../models/Bookmark") return { find: () => ({ lean: async () => [] }) };

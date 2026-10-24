@@ -16,4 +16,7 @@ router.get("/", async (req, res) => {
     }
 });
 
+// ตรวจ TOR ผ่าน adminAuth เท่านั้น ไม่ใช้เส้นทางความคิดเห็นผู้รับจ้าง
+router.patch("/:id/review", require("../controllers/torReviewController").reviewTor);
+
 module.exports = router;

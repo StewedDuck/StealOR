@@ -185,15 +185,33 @@ async function updateTor(req, res) {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ success: false, error: "Invalid TOR id" });
     }
+    const current = await Tor.findOne({ _id: req.params.id, ownerId: req.ownerId, status: "draft" }).lean();
+    if (!current) return res.status(404).json({ success: false, error: "Draft TOR not found" });
+    if (current.reviewStatus === "pending") {
+      return res.status(409).json({ success: false, error: "TOR อยู่ระหว่างตรวจสอบ ยังแก้ไขไม่ได้" });
+    }
+    const data = prepareTorData(req.body);
+    // กดบันทึกโดยไม่เปลี่ยนเนื้อหาไม่นับเป็นฉบับใหม่ และไม่ปลดล็อกการส่งซ้ำหลังขอแก้ไข
+    const comparable = (key, value) => key === "submissionDeadline"
+      ? (value ? new Date(value).getTime() : null)
+      : JSON.stringify(value);
+    const changed = Object.keys(data).some(key => comparable(key, data[key]) !== comparable(key, current[key]));
+    if (!changed) return res.json({ success: true, data: current, message: "ไม่มีการเปลี่ยนแปลงเนื้อหา" });
+    const version = current.contentVersion ?? 1;
+    // แก้ร่างที่อนุมัติแล้วต้องส่งตรวจใหม่ และเก็บประวัติการตรวจเดิมไว้
+    // ตรวจ version และสถานะพร้อมกัน ป้องกันการแก้ไขชนกับการส่งตรวจ/เผยแพร่
     const tor = await Tor.findOneAndUpdate(
-      { _id: req.params.id, ownerId: req.ownerId, status: "draft" },
-      { $set: prepareTorData(req.body) },
+      { _id: req.params.id, ownerId: req.ownerId, status: "draft",
+        reviewStatus: { $ne: "pending" },
+        ...require("./torReviewController").versionFilter(version) },
+      { $set: { ...data, contentVersion: version + 1,
+        reviewStatus: "not_submitted", submittedVersion: null, submittedForReviewAt: null } },
       { new: true, runValidators: true }
     );
     if (!tor) {
-      return res.status(404).json({ 
+      return res.status(409).json({ 
         success: false, 
-        error: "Draft TOR not found" 
+        error: "TOR เปลี่ยนแปลงระหว่างแก้ไข กรุณาโหลดใหม่" 
       })
     };
     await notifyDraftUpdated(tor);
@@ -558,6 +576,10 @@ async function publishTor(req, res) {
         _id: id,
         ownerId: req.ownerId,
         status: "draft",
+        // บังคับที่ backend: อนุมัติแล้วและเลขฉบับยังตรงกับที่ส่งตรวจเท่านั้น
+        reviewStatus: "approved",
+        submittedVersion: { $ne: null },
+        $expr: { $eq: ["$contentVersion", "$submittedVersion"] },
       },
       {
         $set: {
@@ -573,9 +595,9 @@ async function publishTor(req, res) {
     );
 
     if (!tor) {
-      return res.status(404).json({
+      return res.status(409).json({
         success: false,
-        error: "ไม่พบ TOR ฉบับร่างที่สามารถเผยแพร่ได้",
+        error: "TOR ต้องได้รับอนุมัติฉบับปัจจุบันก่อนเผยแพร่",
       });
     }
 

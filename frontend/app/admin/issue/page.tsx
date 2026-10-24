@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import TorReviewPanel, { reviewLabels } from "@/components/TorReviewPanel";
 import TorDetailModal from "@/components/TORDetail";
 import Sidebar from "@/components/sideBarAdmin";
 import { getAdminTors } from "@/lib/adminApi";
@@ -37,7 +38,10 @@ export default function AdminTorsPage() {
         // ค้นหาชื่อโครงการหรือชื่อหน่วยงาน โดยรองรับตัวพิมพ์เล็ก/ใหญ่และ Unicode ที่เทียบเท่ากัน
         // ใช้ร่วมกับตัวกรองสถานะ และคำนวณใหม่ทันทีเมื่อพิมพ์หรือเปลี่ยนสถานะ
         const keyword = query.normalize("NFC").trim().toLowerCase();
-        return tors.filter(tor => (status === "all" || tor.status === status) &&
+        // pending เป็นสถานะตรวจ ไม่ใช่ status การเผยแพร่; ร่างที่ส่งตรวจยังคง status=draft
+        return tors.filter(tor => (status === "all" || (status === "pending_verification"
+            ? tor.reviewStatus === "pending"
+            : tor.status === status)) &&
             [tor.projectName, tor.agencyName].some(value =>
                 (value ?? "").normalize("NFC").toLowerCase().includes(keyword)));
     }, [tors, query, status]);
@@ -64,12 +68,13 @@ export default function AdminTorsPage() {
                         {error ? <p role="alert">{error}</p> : loading ? <p role="status">กำลังโหลดข้อมูล TOR...</p> : (
                             <div className="admin-users-table-wrap">
                                 <table className="admin-users-table">
-                                    <thead><tr><th>โครงการ / หน่วยงาน</th><th>เจ้าของโครงการ</th><th>งบประมาณ</th><th>สถานะ</th><th>แก้ไขล่าสุด</th><th>รายละเอียด</th></tr></thead>
+                                    <thead><tr><th>โครงการ / หน่วยงาน</th><th>เจ้าของโครงการ</th><th>งบประมาณ</th><th>สถานะ</th><th>การตรวจ TOR</th><th>แก้ไขล่าสุด</th><th>รายละเอียด</th></tr></thead>
                                     <tbody>{filtered.map(tor => <tr key={tor._id}>
                                         <td><strong>{tor.projectName}</strong><small>{tor.agencyName}</small></td>
                                         <td>{tor.contactName || "—"}<small>{tor.contactEmail || tor.ownerId}</small></td>
                                         <td>{money(tor.budget)}</td>
                                         <td>{statusLabels[tor.status] ?? tor.status}</td>
+                                        <td>{reviewLabels[tor.reviewStatus ?? "not_submitted"]}</td>
                                         <td>{date(tor.updatedAt)}</td>
                                         <td><button type="button" aria-label={`ดูรายละเอียด ${tor.projectName}`} onClick={() => setSelected(tor)}>ดูรายละเอียด</button></td>
                                     </tr>)}</tbody>
@@ -84,6 +89,11 @@ export default function AdminTorsPage() {
                         tor={selected}
                         onClose={() => setSelected(null)}
                         showAdminMetadata
+                        reviewPanel={<TorReviewPanel tor={selected} role="admin" onUpdated={updated => {
+                            // เปลี่ยนทั้งรายการและ modal หลังบันทึกผล โดยไม่ต้องโหลดหน้าใหม่
+                            setTors(current => current.map(item => item._id === updated._id ? updated : item));
+                            setSelected(updated);
+                        }} />}
                     />}
                 </div>
             </main>

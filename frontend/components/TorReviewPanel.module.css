@@ -1,0 +1,18 @@
+/* ป้องกันรูปแบบหน้ารายการและ modal ทับการแสดงผลประวัติตรวจ */
+.panel { padding: 20px; margin: 18px 0; border: 1px solid #dce2e7; border-radius: 12px; background: #f7f9fb; color: #26313e; overflow-wrap: anywhere; }
+.panel h3 { margin: 0 0 12px; }
+.badge { display: inline-block; border-radius: 20px; background: #e5edf6; padding: 5px 12px; margin-bottom: 12px; font-size: 13px; }
+.panel button, .panel a { display: inline-block; padding: 9px 14px; border: 1px solid #b9c9d9; border-radius: 8px; background: white; color: #224976; font: inherit; cursor: pointer; margin: 4px; }
+.panel button:disabled { opacity: .5; cursor: default; }
+.panel label { display: block; margin: 12px 0; }
+.panel textarea { display: block; width: 100%; box-sizing: border-box; padding: 12px; margin-top: 8px; border: 1px solid #cbd5df; border-radius: 8px; font: inherit; background: white; color: #26313e; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.panel details { margin-top: 16px; }
+.panel summary { cursor: pointer; }
+.entry { padding: 12px 0; border-bottom: 1px solid #dce2e7; }
+.entry p { white-space: pre-wrap; }
+.error { color: #b42318; }
+
+/* ประวัติแบบย่อสำหรับการ์ดร่าง*/
+.history { margin-top: 16px; color: #26313e; overflow-wrap: anywhere; }
+.history summary { cursor: pointer; font-size: 14px; }

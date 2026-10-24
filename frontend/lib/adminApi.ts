@@ -83,3 +83,14 @@ export async function getAdminTors(): Promise<Tor[]> {
     }
     return result.data;
 }
+
+// version ต้องมาจาก TOR ที่แอดมินอ่าน เพื่อไม่อนุมัติฉบับที่ถูกเปลี่ยนไปแล้ว
+export async function reviewAdminTor(id: string, decision: "approved" | "changes_requested", comment: string, version: number): Promise<Tor> {
+    const response = await fetch(`/api/admin/tors/${encodeURIComponent(id)}/review`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, comment, version }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error ?? "บันทึกผลตรวจไม่สำเร็จ");
+    return result.data;
+}

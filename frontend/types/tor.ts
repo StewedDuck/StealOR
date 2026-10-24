@@ -27,9 +27,25 @@ export type TorFormData = {
   contactEmail: string;
 };
 
+// การตรวจ TOR เป็นคนละขั้นตอนกับความคิดเห็นผู้รับจ้างและการยืนยันตัวตน
+export type TorReviewStatus = "not_submitted" | "pending" | "changes_requested" | "approved";
+export type TorReviewHistoryEntry = {
+  decision: "approved" | "changes_requested";
+  comment: string;
+  reviewedBy: string;
+  reviewedAt: string;
+  version: number;
+};
+
 export type Tor = TorFormData & {
   _id: string;
   ownerId: string;
+  // เมื่ออ่านข้อมูลเดิม ให้ถือว่ายังไม่ส่งตรวจ ไม่อนุมานว่าได้รับอนุมัติแล้ว
+  reviewStatus?: TorReviewStatus;
+  contentVersion?: number;
+  submittedVersion?: number | null;
+  submittedForReviewAt?: string | null;
+  reviewHistory?: TorReviewHistoryEntry[];
   status: "draft" | "pending_verification" | "published";
   applicationDeadline?: string | null;
   publishedAt?: string | null;

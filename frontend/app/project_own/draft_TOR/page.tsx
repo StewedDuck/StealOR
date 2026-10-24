@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import TorReviewPanel, { reviewLabels } from "@/components/TorReviewPanel";
 import Sidebar from "@/components/sideBar";
 import { useToast } from "@/components/toast/ToastProvider";
 import {
@@ -10,6 +11,7 @@ import {
     Search,
     Trash2,
     MessageCircle,
+    Send,
     X,
 } from "lucide-react";
 
@@ -17,6 +19,7 @@ import {
     deleteTor,
     getDraftTors,
     getComments,
+    submitTorReview,
 } from "@/lib/torApi";
 
 import type { Comment } from "@/lib/torApi";
@@ -48,6 +51,7 @@ export default function DraftTOR() {
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [submittingId, setSubmittingId] = useState("");
     const [deletingId, setDeletingId] = useState("");
     const [commentTor, setCommentTor] = useState<Tor | null>(null);
     const [comments, setComments] = useState<Comment[]>([]);
@@ -62,6 +66,18 @@ export default function DraftTOR() {
         const keyword = query.trim().toLocaleLowerCase("th");
         return keyword ? tors.filter((tor) => `${tor.projectName} ${tor.agencyName}`.toLocaleLowerCase("th").includes(keyword)) : tors;
     }, [query, tors]);
+
+    // ปุ่มส่งตรวจadmin
+    async function handleSubmitReview(tor: Tor) {
+        setSubmittingId(tor._id);
+        try {
+            const updated = await submitTorReview(tor._id);
+            setTors(current => current.map(item => item._id === updated._id ? updated : item));
+            showToast("ส่งให้ผู้ดูแลตรวจสอบแล้ว");
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "ส่งตรวจไม่สำเร็จ", "error");
+        } finally { setSubmittingId(""); }
+    }
 
     async function handleDelete(tor: Tor) {
         setDeletingId(tor._id);
@@ -184,6 +200,13 @@ export default function DraftTOR() {
                                             </div>
                                             
                                             <div className="draftTOR-cardActions">
+                                                {(tor.reviewStatus == null || tor.reviewStatus === "not_submitted" || tor.reviewStatus === "changes_requested") &&
+                                                    <button type="button" className="submit-review" disabled={submittingId === tor._id || tor.reviewStatus === "changes_requested"}
+                                                        title={tor.reviewStatus === "changes_requested" ? "กรุณาแก้ไขและบันทึก TOR ก่อนส่งตรวจอีกครั้ง" : "ส่งให้ผู้ดูแลตรวจสอบ"}
+                                                        onClick={() => handleSubmitReview(tor)}>
+                                                        <Send size={16} />{submittingId === tor._id ? "กำลังส่ง..." : "ส่งให้ผู้ดูแลตรวจสอบ"}
+                                                    </button>}
+
                                                 <button
                                                     onClick={() => handleViewComments(tor)}
                                                 >
@@ -192,6 +215,8 @@ export default function DraftTOR() {
                                                 </button>
 
                                                 <button
+                                                    disabled={tor.reviewStatus === "pending"}
+                                                    title={tor.reviewStatus === "pending" ? "อยู่ระหว่างตรวจสอบ" : "แก้ไข TOR"}
                                                     onClick={() =>
                                                         router.push(
                                                             `/project_own/draft_TOR/${tor._id}/edit`
@@ -269,7 +294,13 @@ export default function DraftTOR() {
                                                 }).format(new Date(tor.updatedAt))}
                                                 </b>
                                             </span>
+                                            {/* สถานะตรวจอยู่ถัดจากแก้ไขล่าสุด ลดพื้นที่ panel ในการ์ด */}
+                                            <span className="draftTOR-reviewStatus" data-status={tor.reviewStatus ?? "not_submitted"}>
+                                                {reviewLabels[tor.reviewStatus ?? "not_submitted"]}
+                                            </span>
                                         </div>
+                                        {tor.reviewStatus === "approved" && <p className="draftTOR-reviewLink"><a href="/project_own/my_TOR">ไปเผยแพร่ TOR</a></p>}
+                                        <TorReviewPanel tor={tor} role="owner" historyOnly onUpdated={() => {}} />
                                     </article>
                                 );
                             })}

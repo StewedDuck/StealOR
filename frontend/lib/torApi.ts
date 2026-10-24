@@ -765,3 +765,8 @@ export function getVerificationDocumentUrl(
 ) {
     return `${API_URL}${relativeUrl}`;
 }
+
+// ส่งตรวจผ่าน proxy เจ้าของ โดย backend จะตรวจสิทธิ์และเลขฉบับอีกครั้ง
+export function submitTorReview(id: string) {
+  return request<Tor>(`/api/tors/${encodeURIComponent(id)}/submit-review`, { method: "PATCH" });
+}

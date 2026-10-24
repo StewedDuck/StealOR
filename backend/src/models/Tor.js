@@ -27,6 +27,15 @@ const requirementSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// ประวัติการตัดสินของแอดมินแยกจากความคิดเห็นผู้รับจ้าง และระบุฉบับที่ตรวจ
+const reviewHistorySchema = new mongoose.Schema({
+  decision: { type: String, enum: ["approved", "changes_requested"], required: true },
+  comment: { type: String, trim: true, default: "", maxlength: 5000 },
+  reviewedBy: { type: String, required: true },
+  reviewedAt: { type: Date, default: Date.now },
+  version: { type: Number, required: true, min: 1 },
+}, { _id: false });
+
 const torSchema = new mongoose.Schema(
   {
     ownerId: {
@@ -86,6 +95,18 @@ const torSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // สถานะตรวจ TOR แยกจากสถานะเผยแพร่และการยืนยันตัวตนของบัญชี
+    // ขั้นแรกเพิ่มเฉพาะโครงสร้างข้อมูล ยังไม่เปลี่ยนเงื่อนไขการเผยแพร่
+    reviewStatus: {
+      type: String,
+      enum: ["not_submitted", "pending", "changes_requested", "approved"],
+      default: "not_submitted",
+    },
+    // ขั้นตอน API ถัดไปจะเพิ่ม version เมื่อแก้เนื้อหา และอนุมัติเฉพาะ version ที่ส่งตรวจ
+    contentVersion: { type: Number, default: 1, min: 1 },
+    submittedVersion: { type: Number, default: null, min: 1 },
+    submittedForReviewAt: { type: Date, default: null },
+    reviewHistory: { type: [reviewHistorySchema], default: [] },
     status: {
       type: String,
       enum: ["draft", "pending_verification", "published"],

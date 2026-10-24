@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { X, CheckCircle2 } from "lucide-react";
 import { REQUIREMENT_CATEGORIES, type Tor, type MarketTorDetail } from "@/types/tor";
 import { normalizeTorRequirements } from "@/lib/torRequirements";
@@ -11,6 +12,8 @@ type TorDetailModalProps = {
     onClose: () => void;
     // แสดงรหัสและวันที่เพิ่มเติมเฉพาะหน้าผู้ดูแล โดยไม่เพิ่มปุ่มแก้ไขหรืออนุมัติ
     showAdminMetadata?: boolean;
+    // หน้าadminส่งเครื่องมือตรวจเข้ามา โดยหน้า contractor ไม่ได้รับปุ่มเหล่านี้
+    reviewPanel?: ReactNode;
     progressStatus?: "draft" | "open" | "closed" | "unknown";
 };
 
@@ -43,6 +46,7 @@ export default function TorDetailModal({
     onClose,
     progressStatus = "unknown",
     showAdminMetadata = false,
+    reviewPanel,
 }: TorDetailModalProps) {
 
 
@@ -145,6 +149,7 @@ export default function TorDetailModal({
 
                 {/* Body */}
                 <div className="tor-modal-body">
+                    {reviewPanel}
 
                     {/* Progress Bar */}
                     {/* หน้าผู้ดูแลใช้สถานะจริงด้านบน ไม่แสดง progress ที่ยังไม่ได้คำนวณ */}

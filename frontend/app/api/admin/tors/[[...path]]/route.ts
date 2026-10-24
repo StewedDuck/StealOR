@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, isAdminGmail } from "@/lib/auth";
 
 async function handler(
-    req: NextRequest
+    req: NextRequest,
+    context: { params: Promise<{ path?: string[] }> }
 ) {
     const session = await auth();
     const email = session?.user?.email?.trim().toLowerCase();
@@ -35,8 +36,10 @@ async function handler(
         "http://localhost:5000";
 
     try {
+    // ส่งต่อเส้นทาง review หลังตรวจ session แอดมิน โดยไม่เปิดเผย secret ให้ browser
+    const { path = [] } = await context.params;
     const url = new URL(
-        "/api/admin/tors",
+        `/api/admin/tors/${path.map(encodeURIComponent).join("/")}`,
         base
     );
 
@@ -85,3 +88,4 @@ async function handler(
 }
 
 export const GET = handler;
+export const PATCH = handler;
