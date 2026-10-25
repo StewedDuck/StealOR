@@ -1,3 +1,4 @@
+const { matchingAccountFilter } = require('../matchingAccess');
 const Bookmark = require('../../models/Bookmark');
 const GovProject = require('../../models/GovProject');
 const Tor = require('../../models/Tor');
@@ -28,7 +29,7 @@ function createReminderService(deps = {}) {
                     : tor.applicationDeadline;
                 const days = getDaysUntil(deadline, now);
                 if (![5, 1].includes(days) || new Date(deadline) <= now) continue;
-                const user = await users.findOne({ email: bookmark.userId.trim().toLowerCase(), accountRole: 'contractor' }).lean();
+                const user = await users.findOne({ email: bookmark.userId.trim().toLowerCase(), ...matchingAccountFilter() }).lean();
                 if (!user) continue;
                 const type = days === 5 ? 'deadline_5_days' : 'deadline_1_day';
                 const title = `TOR ที่บันทึกไว้ปิดรับใน ${days} วัน: ${tor.project_name || tor.projectName}`;

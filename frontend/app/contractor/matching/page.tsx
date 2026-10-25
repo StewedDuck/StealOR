@@ -84,9 +84,8 @@ export default function TorMatchingPage() {
                 const response = await fetch(matchingUrl, { cache: 'no-store', signal: AbortSignal.timeout(20000) });
 
                 if (!response.ok) {
-                    throw new Error(
-                        `Matching API: HTTP ${response.status}`
-                    );
+                    const failure = await response.json().catch(() => null);
+                    throw new Error(failure?.error || `Matching API: HTTP ${response.status}`);
                 }
 
                 const payload = (await response.json()) as {

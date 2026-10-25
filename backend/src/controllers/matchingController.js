@@ -1,3 +1,4 @@
+const { matchingAccountFilter } = require('../services/matchingAccess');
 const mongoose = require("mongoose");
 const { loadVisibleCatalog, marketTor } = require('../services/torMatchingCatalog');
 const { hasAnalysisData, analysisReady, sourceFingerprint } = require('../services/automaticMatchingService');
@@ -34,13 +35,13 @@ async function getTorMatching(req, res) {
         // Identify the logged-in user through profileAuth.
         const contractor = await User.findOne({
             email: req.profileEmail,
-            accountRole: "contractor",
+            ...matchingAccountFilter(),
         });
 
         if (!contractor) {
             return res.status(403).json({
                 success: false,
-                error: "Contractor account not found",
+                error: "บัญชีนี้ไม่มีสิทธิ์ใช้โหมดผู้รับจ้าง หรือยังไม่พบโปรไฟล์ กรุณาตรวจสอบบัญชีที่เข้าสู่ระบบ",
             });
         }
 
@@ -130,13 +131,13 @@ async function getMatchedTors(req, res) {
     try {
         const contractor = await User.findOne({
             email: req.profileEmail,
-            accountRole: "contractor",
+            ...matchingAccountFilter(),
         });
 
         if (!contractor) {
             return res.status(403).json({
                 success: false,
-                error: "Contractor account not found",
+                error: "บัญชีนี้ไม่มีสิทธิ์ใช้โหมดผู้รับจ้าง หรือยังไม่พบโปรไฟล์ กรุณาตรวจสอบบัญชีที่เข้าสู่ระบบ",
             });
         }
 

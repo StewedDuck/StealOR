@@ -1,3 +1,4 @@
+const { matchingAccountFilter } = require('./matchingAccess');
 const { randomUUID } = require('node:crypto');
 const mongoose = require('mongoose');
 const Tor = require('../models/Tor');
@@ -124,9 +125,9 @@ async function scanAnalyses(state) {
 }
 async function scanContractors(state) {
     let profile;
-    if (state.activeProfile) profile = await User.findOne({ _id: state.activeProfile, accountRole: 'contractor' }, PROFILE_PROJECTION).lean();
+    if (state.activeProfile) profile = await User.findOne({ _id: state.activeProfile, ...matchingAccountFilter() }, PROFILE_PROJECTION).lean();
     if (!profile) {
-        const query = { accountRole: 'contractor' };
+        const query = matchingAccountFilter();
         if (state.profileCursor) query._id = { $gt: state.profileCursor };
         profile = await User.findOne(query, PROFILE_PROJECTION).sort({ _id: 1 }).lean();
         if (!profile) { state.profileCursor = null; state.activeProfile = null; state.matchAnalysisCursor = null; return; }

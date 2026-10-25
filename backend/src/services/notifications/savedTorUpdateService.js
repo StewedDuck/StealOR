@@ -1,3 +1,4 @@
+const { matchingAccountFilter } = require('../matchingAccess');
 const Bookmark = require('../../models/Bookmark');
 const GovProject = require('../../models/GovProject');
 const Tor = require('../../models/Tor');
@@ -37,7 +38,7 @@ function createSavedTorUpdateService(deps = {}) {
                 const fingerprint = savedTorFingerprint(tor, bookmark.source);
                 if (fingerprint === bookmark.observedTorFingerprint) continue;
                 if (bookmark.observedTorFingerprint) {
-                    const user = await users.findOne({ email: bookmark.userId.trim().toLowerCase(), accountRole: 'contractor' }).lean();
+                    const user = await users.findOne({ email: bookmark.userId.trim().toLowerCase(), ...matchingAccountFilter() }).lean();
                     if (!user) continue;
                     const projectName = bookmark.source === 'government' ? tor.project_name : tor.projectName;
                     await deliver({ key: eventKey([String(bookmark._id), 'saved_tor_updated', bookmark.observedTorFingerprint, fingerprint, tor.updatedAt || null]),

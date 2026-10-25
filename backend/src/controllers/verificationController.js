@@ -184,7 +184,7 @@ async function submitVerification(req, res) {
 
                     storedFileName: req.file.filename,
 
-                    filePath: req.file.path,
+                    filePath: path.posix.join("uploads", "verifications", req.file.filename),
 
                     mimeType: req.file.mimetype,
 
@@ -634,21 +634,14 @@ async function getVerificationDocument(req, res) {
             });
         }
 
-        const filePath =
-            path.resolve(
-                verification.document.filePath
-            );
-
-        try {
-            await fs.access(filePath);
-        } catch {
-            return res.status(404).json({
-                success: false,
-                error:
-                    "Verification document not found",
-            });
+        const filePath = await require('../services/verificationStorage').resolveVerificationDocument(verification.document);
+        if (!filePath) {
+            return res.status(404).json({ success: false, code: 'VERIFICATION_FILE_MISSING',
+                error: 'ไม่พบไฟล์เอกสารยืนยันตัวตนในพื้นที่จัดเก็บ กรุณาอัปโหลดเอกสารอีกครั้ง' });
         }
 
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
         res.setHeader(
             "Content-Type",
             verification.document.mimeType

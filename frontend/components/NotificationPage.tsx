@@ -89,8 +89,8 @@ function getNotificationTitle(
         return "TOR ที่บันทึกไว้จะปิดรับพรุ่งนี้";
     }
 
-    if (notification.(type === "draft_updated" || type === "saved_tor_updated")) {
-        return "TOR ร่างมีการอัปเดต";
+    if (notification.type === "draft_updated" || notification.type === "saved_tor_updated") {
+        return "TOR ที่บันทึกไว้มีการอัปเดต";
     }
 
     return "การแจ้งเตือน";

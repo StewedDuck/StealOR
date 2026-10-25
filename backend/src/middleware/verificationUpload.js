@@ -2,11 +2,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-const uploadDirectory = path.resolve(
-    process.cwd(),
-    "uploads",
-    "verifications"
-);
+const { verificationDirectory: uploadDirectory } = require('../services/verificationStorage');
 
 fs.mkdirSync(uploadDirectory, {
     recursive: true,

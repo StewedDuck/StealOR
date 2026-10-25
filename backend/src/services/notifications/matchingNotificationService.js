@@ -1,3 +1,4 @@
+const { MATCHING_ROLES } = require('../matchingAccess');
 const Tor = require('../../models/Tor');
 const GovProject = require('../../models/GovProject');
 const { notify, eventKey } = require('./deliveryService');
@@ -27,7 +28,7 @@ async function reconcileMatchingNotifications() {
     for (const row of rows) {
         try {
             const user = await User.findById(row.contractorId).lean();
-            if (user?.accountRole === 'contractor') await notifyNewMatching(user, { torId: row.torId, torSource: row.torSource }, row.result);
+            if (user && user.isActive !== false && MATCHING_ROLES.includes(user.accountRole)) await notifyNewMatching(user, { torId: row.torId, torSource: row.torSource }, row.result);
             await coll.updateOne({ _id: row._id, fingerprint: row.fingerprint }, { $set: { notificationPending: false } });
         } catch { console.warn('[NOTIFICATION] Matching event reconciliation deferred'); }
     }
