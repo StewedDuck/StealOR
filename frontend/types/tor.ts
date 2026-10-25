@@ -14,7 +14,6 @@ export type TorRequirement = {
 };
 
 export type TorFormData = {
-  referencePriceEstimate?: number | null;
   projectName: string;
   agencyName: string;
   description: string;

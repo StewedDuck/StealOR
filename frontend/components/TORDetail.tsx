@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { X, CheckCircle2 } from "lucide-react";
+import { X } from "lucide-react";
 import { REQUIREMENT_CATEGORIES, type Tor, type MarketTorDetail } from "@/types/tor";
 import { normalizeTorRequirements } from "@/lib/torRequirements";
 import "./TORDetail.css"

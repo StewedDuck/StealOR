@@ -65,7 +65,6 @@ const torSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    referencePriceEstimate: { type: Number, default: null, min: 0 },
     requirements: {
       type: [requirementSchema],
       default: [],

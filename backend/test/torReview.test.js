@@ -6,7 +6,7 @@ const path = require("node:path");
 
 // จำลองฐานข้อมูลเพื่อทดสอบสิทธิ์และเงื่อนไข atomic โดยไม่แก้ข้อมูลจริง
 function setup() {
-  const state = { current: { _id: "507f1f77bcf86cd799439011", status: "draft" }, updated: { _id: "tor" }, calls: [] };
+  const state = { current: { _id: "507f1f77bcf86cd799439011", status: "draft" }, updated: { _id: "tor" }, owner: { email: "owner@example.com" }, calls: [] };
   const model = {
     findOne(query) { state.read = query; return { lean: async () => state.current }; },
     async findOneAndUpdate(...args) { state.calls.push(args); return state.updated; },
@@ -18,6 +18,9 @@ function setup() {
       require(dep) {
         if (dep === "mongoose") return require("mongoose");
         if (dep === "../models/Tor") return model;
+        if (dep === "../models/User") return {
+          findOne(query) { state.ownerQuery = query; return { lean: async () => state.owner }; },
+        };
         if (dep === "./torReviewController") return review;
         if (dep === "../models/Bookmark") return { find: () => ({ lean: async () => [] }) };
         return {};
@@ -136,4 +139,17 @@ test("แก้ไขจริงหลังขอแก้ไขแล้ว�
   assert.equal(res.code, 200);
   assert.equal(state.calls[0][1].$set.contentVersion, 3);
   assert.equal(state.calls[0][1].$set.reviewStatus, "not_submitted");
+});
+
+
+test("บัญชีที่ยังไม่ยืนยันตัวตนเผยแพร่ TOR ไม่ได้", async () => {
+  const {state, owner, req, res} = setup();
+  state.owner = null;
+  req.body = {applicationDeadline: "2099-01-01T00:00:00Z"};
+  await owner.publishTor(req, res);
+  assert.equal(res.code, 403);
+  assert.equal(state.calls.length, 0);
+  assert.equal(state.ownerQuery.email, req.ownerId);
+  assert.equal(state.ownerQuery.accountRole, "project_owner");
+  assert.equal(state.ownerQuery.verificationStatus, "approved");
 });
