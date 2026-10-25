@@ -4,7 +4,7 @@ const Tor = require("../models/Tor");
 
 async function getNotifications(req, res) {
     try {
-        const { userId } = req.query;
+        const userId = req.profileEmail;
 
         if (!userId) {
             return res.status(400).json({
@@ -118,10 +118,11 @@ async function getNotifications(req, res) {
 async function markNotificationAsRead(req, res) {
     try {
         const { id } = req.params;
+        if (!require('mongoose').isValidObjectId(id)) return res.status(400).json({ success: false, message: 'Invalid notification ID' });
 
         const notification =
-            await NotificationLog.findByIdAndUpdate(
-                id,
+            await NotificationLog.findOneAndUpdate(
+                { _id: id, userId: req.profileEmail },
                 {
                     $set: { read: true, },
                 },

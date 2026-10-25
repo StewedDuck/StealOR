@@ -2,10 +2,7 @@ const mongoose = require("mongoose");
 const Tor = require("../models/Tor");
 const Bookmark = require("../models/Bookmark");
 const User = require("../models/User");
-const NotificationLog = require("../models/NotificationLog");
 
-const { draftUpdated } = require("../email/Contractor");
-const { sendEmail } = require("../email/Mailer");
 
 // const DEMO_OWNER_ID = "demo-project-owner";
 const EDITABLE_FIELDS = [
@@ -34,36 +31,35 @@ function prepareTorData(body) {
   if (Array.isArray(data.scopeOfWork)) {
     data.scopeOfWork = data.scopeOfWork.map((item) => String(item).trim()).filter(Boolean);
   }
-  // เก็บทุกหมวดใน requirements เท่านั้น โดยตรวจรายละเอียด weight และข้อบังคับก่อนบันทึก
-  const categories = ["generalLegal", "projectSpecific", "technicalRequirements", "deliverables"];
-  const invalidRequirement = () => {
-    const error = new Error("หมวดหมู่ รายละเอียด น้ำหนัก หรือข้อบังคับของรายการไม่ถูกต้อง");
-    error.status = 400;
-    throw error;
-  };
-  if (data.requirements !== undefined) {
-    if (!Array.isArray(data.requirements)) invalidRequirement();
-    data.requirements = data.requirements.map((item) => {
-      if (!item || typeof item.description !== "string" ||
-          !categories.includes(item.category ?? "projectSpecific") ||
-          (item.weight !== undefined && (typeof item.weight !== "number" || !Number.isFinite(item.weight) || item.weight < 0 || item.weight > 100)) ||
-          (item.mandatory !== undefined && typeof item.mandatory !== "boolean")) invalidRequirement();
-      return {
-        category: item.category ?? "projectSpecific",
-        description: item.description.trim(),
-        weight: item.weight ?? 0,
-        mandatory: item.mandatory ?? false,
-      };
-    }).filter((item) => item.description);
+  if (Array.isArray(data.requirements)) {
+    for (const item of data.requirements) {
+      if (!item || !String(item.description || '').trim()) continue;
+      if ((item.mandatory !== undefined && typeof item.mandatory !== 'boolean') ||
+          !Number.isFinite(Number(item.weight ?? 0)) || Number(item.weight ?? 0) < 0 || Number(item.weight ?? 0) > 100) {
+        const error = new Error('น้ำหนักต้องเป็นตัวเลข 0–100 และจำเป็นต้องผ่านต้องเป็นค่า boolean');
+        error.code = 'INVALID_OWNER_CRITERIA';
+        throw error;
+      }
+    }
+    data.requirements = data.requirements
+      .filter((item) => item && String(item.description || "").trim())
+      .map((item) => ({
+        description: String(item.description).trim(),
+        weight: Number(item.weight) || 0,
+        mandatory: item.mandatory === true,
+      }));
   }
   if (data.submissionDeadline === "") data.submissionDeadline = null;
   if (data.budget === "") data.budget = null;
+  if (data.referencePriceEstimate === "") data.referencePriceEstimate = null;
   return data;
 }
 
 // ส่งข้อผิดพลาดข้อมูลจากฟอร์มเป็น 400 แทนข้อผิดพลาดภายในระบบ
 function handleError(res, error) {
-  if (error.status === 400) return res.status(400).json({ success: false, error: error.message });
+  if (error.code === 'INVALID_OWNER_CRITERIA') {
+    return res.status(400).json({ success: false, error: error.message });
+  }
   if (error instanceof mongoose.Error.ValidationError) {
     return res.status(400).json({ success: false, error: error.message });
   }
@@ -109,75 +105,9 @@ async function getTorById(req, res) {
 }
 
 async function notifyDraftUpdated(tor) {
-  const bookmarks = await Bookmark.find({
-    source: "internal",
-    torId: tor._id.toString(),
-  }).lean();
-
-  console.log(
-    `Found ${bookmarks.length} bookmarks for updated TOR ${tor._id}`
-  );
-
-  for (const bookmark of bookmarks) {
-    try {
-      const user = await User.findOne({
-        email: bookmark.userId
-          .trim()
-          .toLowerCase(),
-      }).lean();
-
-      if (!user) {
-        console.log(
-          `User not found: ${bookmark.userId}`
-        );
-        continue;
-      }
-
-      await NotificationLog.findOneAndUpdate(
-          {
-              userId: bookmark.userId,
-              source: "internal",
-              projectId: null,
-              torId: tor._id.toString(),
-              type: "draft_updated",
-          },
-          {
-              $set: {
-                  title: `TOR ร่างมีการอัปเดต: ${tor.projectName}`,
-                  message:
-                      "TOR ร่างที่คุณบันทึกไว้มีการอัปเดตข้อมูล กรุณาตรวจสอบรายละเอียดล่าสุด",
-                  read: false,
-                  sentAt: new Date(),
-              },
-          },
-          {
-              upsert: true,
-              new: true,
-          }
-      );
-
-      const email = draftUpdated({
-        name: user.name,
-        torTitle: tor.projectName,
-        torUrl: `${process.env.APP_URL}/contractor/saved`,
-      });
-
-      await sendEmail({
-        to: user.email,
-        subject: email.subject,
-        text: email.text,
-        html: email.html,
-      });
-      console.log(
-        `Draft updated email sent to ${user.email}: ${tor.projectName}`
-      );
-    } catch (error) {
-      console.error(
-        `Draft updated email failed for ${bookmark.userId}:`,
-        error.message
-      );
-    }
-  }
+  // The same detector handles government imports and internal edits, with one deduplication policy.
+  try { await require('../services/notifications/savedTorUpdateService').checkSavedTorUpdates({ source: 'internal', torId: String(tor._id) }); }
+  catch { console.warn('[NOTIFICATION] Saved TOR update notification deferred'); }
 }
 
 async function updateTor(req, res) {
@@ -326,6 +256,7 @@ async function getMarketTors(req, res) {
       projectName: tor.projectName,
       agencyName: tor.agencyName,
       budget: tor.budget,
+      referencePriceEstimate: tor.referencePriceEstimate ?? null,
       deadline: tor.applicationDeadline,
       description: tor.description,
       status: "เปิดรับสมัคร",
@@ -371,6 +302,7 @@ async function getMarketTorDetail(req, res) {
             projectName: internalTor.projectName,
             agencyName: internalTor.agencyName,
             budget: internalTor.budget,
+            referencePriceEstimate: internalTor.referencePriceEstimate ?? null,
             submissionDeadline: internalTor.applicationDeadline,
             contactName: internalTor.contactName,
             contactEmail: internalTor.contactEmail,
@@ -570,6 +502,9 @@ async function publishTor(req, res) {
         error: "กรุณาระบุวันปิดรับสมัครในอนาคต",
       });
     }
+
+    const owner = await User.findOne({ email: req.ownerId, accountRole: 'project_owner', verificationStatus: 'approved' }).lean();
+    if (!owner) return res.status(403).json({ success: false, error: 'กรุณายืนยันตัวตนให้ผ่านก่อนเผยแพร่ TOR' });
 
     const tor = await Tor.findOneAndUpdate(
       {

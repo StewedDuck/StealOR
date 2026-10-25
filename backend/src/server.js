@@ -4,7 +4,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const cron = require("node-cron");
 
-const { checkDeadlineReminders, } = require("./services/notifications/deadlineReminderService");
+
 
 // Import Routes
 const torRoutes = require("./routes/torRoutes");
@@ -15,8 +15,10 @@ const commentRoutes = require("./routes/commentRoutes");
 const userRoutes = require("./routes/userRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const verificationRoutes = require("./routes/verificationRoutes");
-
 const adminUserRoutes = require("./routes/adminUserRoutes");
+const matchingRoutes = require("./routes/matchingRoutes");
+
+const { startAutomaticMatching } = require("./services/automaticMatchingService");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,9 +34,9 @@ app.use("/api/govspending", govSpendingRoutes);
 app.use("/api/gov-projects", govProjectRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/matching", matchingRoutes);
 app.use("/api/notifications", notificationRoutes );
 app.use("/api/verifications", verificationRoutes);
-
 app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/admin/tors", require("./routes/adminTorRoutes"));
 
@@ -78,17 +80,23 @@ mongoose
     .connect(process.env.MONGODB_URI)
     .then(() => {
         console.log("MongoDB Atlas connected");
+        startAutomaticMatching();
+        require('./services/notifications/verificationNotificationService').initializeNotifications()
+            .catch(() => console.warn('[NOTIFICATION] Activation initialization deferred'));
 
-        // Check TOR deadlines every day at 09:00
+        require('./services/notifications/savedTorUpdateService').checkSavedTorUpdates()
+            .catch(() => console.warn('[NOTIFICATION] Saved TOR watch initialization deferred'));
+
+        // Scan reminders and retry queued mail every five minutes (Bangkok time).
         cron.schedule(
-            "0 9 * * *",
+            "*/5 * * * *",
             async () => {
                 try {
                     console.log(
                         "Running scheduled deadline reminder check..."
                     );
 
-                    await checkDeadlineReminders();
+                    await require('./services/notifications/scheduler').runNotificationCycle();
 
                 } catch (error) {
                     console.error(

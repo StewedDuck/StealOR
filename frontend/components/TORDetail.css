@@ -175,7 +175,8 @@
     line-height: 1.7;
 }
     
-.tor-section ul {
+.tor-section ol {
+    list-style: decimal outside;
     margin: 0;
     padding-left: 20px;
 }
@@ -284,7 +285,8 @@
   color: #35424e;
 }
 
-.tor-analysis-group ul {
+.tor-analysis-group ol {
+  list-style: decimal outside;
   margin: 0;
   padding-left: 22px;
 }

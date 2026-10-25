@@ -1,242 +1,70 @@
-const Bookmark = require("../../models/Bookmark");
-const GovProject = require("../../models/GovProject");
-const Tor = require("../../models/Tor");
-const User = require("../../models/User");
-const NotificationLog = require("../../models/NotificationLog");
-
-const { deadlineReminder } = require("../../email/Contractor");
-const { sendEmail } = require("../../email/Mailer");
-
-function getDaysLeft(deadline) {
-    const now = new Date();
-    const closeDate = new Date(deadline);
-
-    now.setHours(0, 0, 0, 0);
-    closeDate.setHours(0, 0, 0, 0);
-
-    const difference = closeDate.getTime() - now.getTime();
-
-    return Math.ceil(difference / (1000 * 60 * 60 * 24));
+const { matchingAccountFilter } = require('../matchingAccess');
+const Bookmark = require('../../models/Bookmark');
+const GovProject = require('../../models/GovProject');
+const Tor = require('../../models/Tor');
+const User = require('../../models/User');
+const { notify, eventKey } = require('./deliveryService');
+const { formatDate } = require('../../email/Shared');
+const { appUrl } = require('../../email/Shared');
+const DAY = 86400000;
+function bangkokDay(value) {
+    const time = new Date(value).getTime();
+    return Number.isFinite(time) ? Math.floor((time + 7 * 3600000) / DAY) : NaN;
 }
-
-async function checkDeadlineReminders() {
-    console.log("Checking TOR deadline reminders...");
-
-    const bookmarks = await Bookmark.find({});
-    console.log(`Found ${bookmarks.length} bookmarks`);
-
-    for (const bookmark of bookmarks) {
-        try {
-                console.log("Checking bookmark:", {
-                    id: bookmark._id,
-                    userId: bookmark.userId,
-                    source: bookmark.source,
-                    projectId: bookmark.projectId,
-                    torId: bookmark.torId,
-                });
-                let torTitle = "";
-                let agencyName = "";
-                let scope = "";
-                let closeDate = null;
-                let torUrl = "";
-
-                // Government TOR
-                if(
-                    bookmark.source === "government" && bookmark.projectId
-                ) {
-                    const project = await GovProject.findOne({
-                        project_id: bookmark.projectId,
-                    }).lean();
-
-                    console.log("Government project found:", !!project);
-
-                    if (!project) {
-                        continue;
-                    }
-
-                    console.log(
-                        "Government project data:",
-                        JSON.stringify(project, null, 2)
-                    );
-
-                    const raw = project.raw_data || {};
-                    const analysis = project.procurementAnalysis || {};
-
-                    torTitle =
-                        project.project_name ||
-                        raw.project_name ||
-                        "ไม่ระบุชื่อ TOR";
-
-                    agencyName =
-                        project.dept_name ||
-                        raw.dept_name ||
-                        "ไม่ระบุหน่วยงาน";
-
-                    scope =
-                        analysis.projectDetails ||
-                        raw.project_description ||
-                        raw.description ||
-                        "ไม่ระบุขอบเขตงาน";
-
-                    closeDate =
-                        analysis.biddingClosingDate?.dateTime ||
-                        raw.submission_deadline ||
-                        raw.deadline ||
-                        null;
-
-                    torUrl = `${process.env.APP_URL}/contractor/saved`;
-                }
-
-                // Internal TOR
-                if(
-                    bookmark.source === "internal" && bookmark.torId
-                ) {
-                    const tor = await Tor.findById(bookmark.torId).lean();
-
-                    if (!tor) {
-                        continue;
-                    }
-
-                    torTitle = tor.projectName;
-
-                    agencyName =
-                        tor.agencyName ||
-                        "ไม่ระบุหน่วยงาน";
-
-                    scope =
-                        tor.scopeOfWork?.join(", ") ||
-                        tor.description ||
-                        "ไม่ระบุขอบเขตงาน";
-
-                    closeDate = tor.submissionDeadline;
-
-                    torUrl = `${process.env.APP_URL}/contractor/saved`;
-                }
-                if (!closeDate) {
-                    console.log("No closeDate found for:", torTitle);
-                    continue;
-                }
-                
-                const daysLeft = getDaysLeft(closeDate);
-                if (!Number.isFinite(daysLeft)) {
-                    console.log("Invalid deadline:", closeDate);
-                    continue;
-                }
-                
-                console.log({
-                    torTitle,
-                    closeDate,
-                    daysLeft,
-                    source: bookmark.source,
-                });
-
-                // ===== TEST ONLY =====
-                // const daysLeft = 1;
-
-                // closeDate = new Date();
-                // closeDate.setDate(closeDate.getDate() + daysLeft);
-
-                // console.log("TEST deadline:", {
-                //     torTitle,
-                //     closeDate,
-                //     daysLeft,
-                // });
-                // =====================
-
-                // const daysLeft = getDaysLeft(closeDate);
-                // console.log({
-                //     torTitle,
-                //     closeDate,
-                //     daysLeft,
-                //     source: bookmark.source,
-                // });
-
-                // sent onlt 5 day and 1 day before end
-                if (daysLeft !== 5 && daysLeft !== 1) {
-                    continue;
-                }
-
-                const notificationType = daysLeft === 5 ? "deadline_5_days" : "deadline_1_day";
-
-                const notificationQuery = {
-                    userId: bookmark.userId,
-                    source: bookmark.source,
-                    projectId: bookmark.source === "government" 
-                        ? bookmark.projectId 
-                        : null,
-                    torId: bookmark.source === "internal"
-                        ? bookmark.torId
-                        : null,
-                    type: notificationType,
-                };
-
-                const alreadySent = await NotificationLog.findOne(notificationQuery).lean();
-
-                if (alreadySent) {
-                    console.log(
-                        `Reminder already sent: ${bookmark.userId} - ${notificationType}`
-                    );
-                    continue;
-                }
-
-                const user = await User.findOne({
-                    email: bookmark.userId.trim().toLowerCase(),
-                }).lean();
-
-                if(!user) {
-                    console.log(`User not found: ${bookmark.userId}`);
-                    continue;
-                }
-
-                const matchPercent = bookmark.match?.percent ?? 0;
-                const email = deadlineReminder({
-                    name: user.name,
-                    torTitle,
-                    agencyName,
-                    scope,
-                    matchPercent,
-                    closeDate,
-                    torUrl,
-                    daysLeft,
-                });
-
-                await sendEmail({
-                    to: user.email,
-                    subject: email.subject,
-                    text: email.text,
-                    html: email.html,
-                });
-
-                const torIdentifier =
-                    bookmark.source === "government"
-                        ? bookmark.projectId
-                        : bookmark.torId;
-
-                const title =
-                    daysLeft === 5
-                        ? `TOR ใกล้ปิดรับใน 5 วัน: ${torTitle}`
-                        : `TOR ใกล้ปิดรับใน 1 วัน: ${torTitle}`;
-
-                const message =
-                    `รหัส TOR: ${torIdentifier}`;
-
-                await NotificationLog.create({
-                    ...notificationQuery,
-                    title,
-                    message,
-                    read: false,
-                    sentAt: new Date(),
-                });
-
-                console.log(
-                    `Deadline reminder sent to ${user.email}: ${torTitle} (${daysLeft} days)`
-                );
-            } catch (error) {
-                console.error(`Deadline reminder failed for bookmark ${bookmark._id}:`, error.message);
+function getDaysUntil(deadline, now = new Date()) {
+    return deadline ? bangkokDay(deadline) - bangkokDay(now) : null;
+}
+function createReminderService(deps = {}) {
+    const bookmarksModel = deps.Bookmark || Bookmark, gov = deps.GovProject || GovProject;
+    const torsModel = deps.Tor || Tor, users = deps.User || User, deliver = deps.notify || notify;
+    async function checkDeadlineReminders(now = new Date()) {
+        for (const bookmark of await bookmarksModel.find({}).lean()) {
+            try {
+                const tor = bookmark.source === 'government'
+                    ? await gov.findOne({ project_id: bookmark.projectId }).lean()
+                    : await torsModel.findById(bookmark.torId).lean();
+                if (!tor || (bookmark.source === 'internal' && tor.status !== 'published') || /ยกเลิก|สิ้นสุด/.test(tor.contract_status || '')) continue;
+                const deadline = bookmark.source === 'government'
+                    ? tor.procurementAnalysis?.biddingClosingDate?.dateTime || tor.raw_data?.submission_deadline || tor.raw_data?.deadline
+                    : tor.applicationDeadline;
+                const days = getDaysUntil(deadline, now);
+                if (![5, 1].includes(days) || new Date(deadline) <= now) continue;
+                const user = await users.findOne({ email: bookmark.userId.trim().toLowerCase(), ...matchingAccountFilter() }).lean();
+                if (!user) continue;
+                const type = days === 5 ? 'deadline_5_days' : 'deadline_1_day';
+                const title = `TOR ที่บันทึกไว้ปิดรับใน ${days} วัน: ${tor.project_name || tor.projectName}`;
+                await deliver({ key: eventKey([user.email, bookmark.source, String(tor._id), type, new Date(deadline).toISOString()]),
+                    user, source: bookmark.source, projectId: bookmark.source === 'government' ? bookmark.projectId : null,
+                    torId: bookmark.source === 'internal' ? bookmark.torId : null, type, title,
+                    message: `TOR ที่คุณบันทึกไว้จะปิดรับในอีก ${days} วัน กรุณาตรวจสอบรายละเอียดก่อนยื่นข้อเสนอ`, url: `${appUrl()}/contractor/saved`,
+                    details: { projectName: tor.project_name || tor.projectName, agencyName: tor.dept_name || tor.agencyName, label: 'TOR ใกล้ปิดรับ', buttonLabel: 'ดู TOR ที่บันทึกไว้', facts: [{ label: 'ปิดรับ', value: formatDate(deadline) }, { label: 'เหลืออีก', value: `${days} วัน` }] } });
+            } catch { console.warn('[NOTIFICATION] Saved TOR reminder deferred'); }
         }
     }
-
-    console.log("Finish checking TOR deadlines");
+    async function checkOwnerReminders(now = new Date()) {
+        for (const tor of await torsModel.find({ status: { $in: ['draft', 'published'] } }).lean()) {
+            try {
+                const owner = await users.findOne({ email: tor.ownerId, accountRole: 'project_owner', verificationStatus: 'approved' }).lean();
+                if (!owner) continue;
+                let type, title, deadline;
+                if (tor.status === 'draft') {
+                    deadline = tor.submissionDeadline;
+                    if (!deadline || !Number.isFinite(new Date(deadline).getTime()) || new Date(deadline) > now) continue;
+                    type = 'owner_draft_ready'; title = `TOR ฉบับร่างครบกำหนดแล้ว สามารถเผยแพร่ได้: ${tor.projectName}`;
+                } else {
+                    deadline = tor.applicationDeadline;
+                    const days = getDaysUntil(deadline, now);
+                    if (![3, 0].includes(days)) continue;
+                    type = days === 3 ? 'owner_deadline_3_days' : 'owner_deadline_today';
+                    title = `TOR ${days === 3 ? 'จะปิดรับในอีก 3 วัน' : 'ครบกำหนดปิดรับวันนี้'}: ${tor.projectName}`;
+                }
+                await deliver({ key: eventKey([owner.email, String(tor._id), type, new Date(deadline).toISOString()]), user: owner,
+                    source: 'internal', torId: String(tor._id), type, title, message: title,
+                    url: `${appUrl()}/project_own/${tor.status === 'draft' ? 'draft_TOR' : 'my_TOR'}`,
+                    details: { projectName: tor.projectName, agencyName: tor.agencyName, label: tor.status === 'draft' ? 'TOR พร้อมเผยแพร่' : 'กำหนดปิดรับ TOR', buttonLabel: 'จัดการ TOR ของฉัน', facts: [{ label: 'กำหนดเวลา', value: formatDate(deadline) }] } });
+            } catch { console.warn('[NOTIFICATION] Owner TOR reminder deferred'); }
+        }
+    }
+    return { checkDeadlineReminders, checkOwnerReminders };
 }
-
-module.exports = { checkDeadlineReminders, }
+module.exports = { ...createReminderService(), createReminderService, getDaysUntil };

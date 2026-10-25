@@ -1,3 +1,4 @@
+import { getDeadlineInfo } from "./torDeadline";
 import type { LocalProjectDocuments } from "@/lib/torApi";
 
 export type PublicationStatus = "open" | "draft" | "unknown";
@@ -25,9 +26,24 @@ export function getInternalPublicationStatus(
         return "draft";
     }
 
-    if (normalized === "published" || normalized === "open") {
+    if (normalized === "published" || normalized === "open" || normalized === "เปิดรับสมัคร") {
         return "open";
     }
 
     return "unknown";
+}
+export type TorProgressStatus = PublicationStatus | 'closed';
+
+export function getTorProgressStatus(
+    tor: { source: 'government' | 'internal'; status: string; deadline?: string | null },
+    governmentStatus?: PublicationStatus
+): TorProgressStatus {
+    if (getDeadlineInfo(tor.deadline).status === 'closed') return 'closed';
+    return tor.source === 'government'
+        ? governmentStatus || 'unknown'
+        : getInternalPublicationStatus(tor.status);
+}
+
+export function getTorProgressLabel(status: TorProgressStatus) {
+    return { open: 'Open', draft: 'Draft', closed: 'ปิดรับแล้ว', unknown: 'Unknown' }[status];
 }

@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const notificationLogSchema = new mongoose.Schema(
     {
+        eventKey: { type: String, default: null },
         userId: {
             type: String,
             required: true,
@@ -30,6 +31,11 @@ const notificationLogSchema = new mongoose.Schema(
                 "deadline_5_days",
                 "deadline_1_day",
                 "draft_updated",
+                "saved_tor_updated",
+                "new_matching",
+                "owner_draft_ready",
+                "owner_deadline_3_days",
+                "owner_deadline_today",
 
                 "identity_verification_requested",
                 "identity_verification_approved",

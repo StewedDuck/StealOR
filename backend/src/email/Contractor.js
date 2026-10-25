@@ -1,3 +1,4 @@
+const { notificationEmail } = require('./notificationEmail');
 const { formatDate, contractorFooter } = require("./Shared");
 const { closingSoonEmail, } = require("./closingSoonEmail");
 const { draftUpdatedEmail, } = require("./draftUpdatedEmail");
@@ -14,6 +15,7 @@ const torSummaryLines = (p) => [
 
 // p = {name, torTitle, scope, matchPercent, closeDate, torUrl}
 const newMatch = (p) => ({
+    html: notificationEmail({ title: 'พบ TOR ใหม่ที่ตรงกับคุณ', message: 'ตรวจสอบเงื่อนไขและรายละเอียดก่อนยื่นข้อเสนอ', url: p.torUrl, name: p.name, projectName: p.torTitle, agencyName: p.agencyName, label: 'NEW TOR MATCH', buttonLabel: 'ดู TOR ที่ตรงกับคุณ', facts: [{ label: 'Match', value: `${p.matchPercent}%` }] }).html,
     subject: `พบ TOR ใหม่ที่ตรงกับคุณ ${p.matchPercent}% - ${p.torTitle}`,
     text: [
         `สวัสดีคุณ ${p.name},`,
@@ -50,6 +52,7 @@ const deadlineReminder = (p) => ({
 
 // p = { name, torTitle, scope, torUrl }
 const draftPublished = (p) => ({
+    html: notificationEmail({ title: 'TOR ที่คุณบันทึกไว้เผยแพร่แล้ว', message: 'TOR ที่คุณติดตามเปลี่ยนจากฉบับร่างเป็นเผยแพร่แล้ว', url: p.torUrl, name: p.name, projectName: p.torTitle, label: 'TOR PUBLISHED', buttonLabel: 'ดูรายละเอียด TOR' }).html,
     subject: `TOR ที่คุณบันทึกไว้เผยแพร่แล้ว - ${p.torTitle}`,
     text: [
         `สวัสดีคุณ ${p.name},`,

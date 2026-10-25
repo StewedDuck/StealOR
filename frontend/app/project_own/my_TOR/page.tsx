@@ -532,6 +532,11 @@ export default function MyTORPage() {
                                 </div>
 
                                 <div>
+                                    <small>ราคากลาง</small>
+                                    <strong>{selectedTor.referencePriceEstimate == null ? '-' : formatBudget(selectedTor.referencePriceEstimate)}</strong>
+                                </div>
+
+                                <div>
                                     <small>
                                         {getStatus(selectedTor) === "draft"
                                             ? "วันปิดรับข้อเสนอ"
@@ -562,22 +567,22 @@ export default function MyTORPage() {
 
                             <h3>วัตถุประสงค์</h3>
                             {selectedTor.objectives.length ? (
-                                <ul>
+                                <ol>
                                     {selectedTor.objectives.map((item, i) => (
                                         <li key={i}>{item}</li>
                                     ))}
-                                </ul>
+                                </ol>
                             ) : (
                                 <p>ไม่ระบุ</p>
                             )}
 
                             <h3>ขอบเขตงาน</h3>
                             {selectedTor.scopeOfWork.length ? (
-                                <ul>
+                                <ol>
                                     {selectedTor.scopeOfWork.map((item, i) => (
                                         <li key={i}>{item}</li>
                                     ))}
-                                </ul>
+                                </ol>
                             ) : (
                                 <p>ไม่ระบุ</p>
                             )}
@@ -588,7 +593,7 @@ export default function MyTORPage() {
                                     {selectedTor.requirements.map(
                                         (req, i) => (
                                         <div key={i}>
-                                            <span>{req.description}</span>
+                                            <span>{i + 1}. {req.description}</span>
                                             <small>
                                                 {req.mandatory
                                                     ? "บังคับ"

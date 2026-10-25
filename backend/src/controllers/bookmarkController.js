@@ -34,11 +34,13 @@ async function createBookmark(req, res) {
               });
         }
 
+        let observedTor;
         if (source === "government") {
             const project = await GovProject.findOne({
                 project_id: projectId,
             });
 
+            observedTor = project;
             if (!project) {
                 return res.status(404).json({
                     success: false,
@@ -50,6 +52,7 @@ async function createBookmark(req, res) {
         if (source === "internal") {
             const tor = await Tor.findById(torId);
       
+            observedTor = tor;
             if (!tor) {
                 return res.status(404).json({
                     success: false,
@@ -72,7 +75,13 @@ async function createBookmark(req, res) {
         const existing = await Bookmark.findOne(existingQuery);
 
         if (existing) {
-            return res.json ({
+            if (savedFrom === "matching" && match) {
+                existing.savedFrom = "matching";
+                existing.match = match;
+                await existing.save();
+            }
+        
+            return res.json({
                 success: true,
                 data: existing,
                 message: "TOR already bookmarked",
@@ -80,6 +89,7 @@ async function createBookmark(req, res) {
         }
 
         const bookmark = await Bookmark.create({
+            observedTorFingerprint: observedTor ? require('../services/notifications/savedTorUpdateService').savedTorFingerprint(observedTor, source) : null,
             userId,
             source,
             projectId: source === "government" ? projectId : null,
@@ -220,6 +230,7 @@ async function getBookmarks(req, res) {
                 projectName: tor.projectName,
                 agencyName: tor.agencyName,
                 budget: tor.budget,
+                referencePriceEstimate: tor.referencePriceEstimate ?? null,
                 deadline: tor.submissionDeadline,
                 status: tor.status,
     

@@ -2,6 +2,9 @@ const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 30000,
 
     auth: {
         user: process.env.EMAIL_USER,
@@ -22,7 +25,8 @@ async function sendEmail({ to, subject, text, html }) {
         html,
     });
 
-    console.log("Email sent: ", info.messageId);
+    if (Array.isArray(info.accepted) && info.accepted.length === 0) throw new Error('Email recipient was not accepted');
+    console.log('[NOTIFICATION] Email accepted by mail server');
     return info;
 }
 

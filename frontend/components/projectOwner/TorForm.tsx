@@ -15,9 +15,8 @@ type TorFormProps = {
 
 export const emptyTorForm: TorFormData = {
   projectName: "", agencyName: "", description: "", objectives: [""],
-  scopeOfWork: [""], requirements: [], budget: null, submissionDeadline: "",
+  scopeOfWork: [""], requirements: [], budget: null, referencePriceEstimate: null, submissionDeadline: "",
   contactName: "", contactEmail: "",
-  referencePriceEstimate: null,
 };
 
 // โหลดข้อมูลฟอร์มจาก requirements พร้อมหมวดหมู่ และเติมค่าเริ่มต้นเมื่อกลับมาแก้ไข
