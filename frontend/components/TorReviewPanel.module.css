@@ -1,18 +1,437 @@
-/* ป้องกันรูปแบบหน้ารายการและ modal ทับการแสดงผลประวัติตรวจ */
-.panel { padding: 20px; margin: 18px 0; border: 1px solid #dce2e7; border-radius: 12px; background: #f7f9fb; color: #26313e; overflow-wrap: anywhere; }
-.panel h3 { margin: 0 0 12px; }
-.badge { display: inline-block; border-radius: 20px; background: #e5edf6; padding: 5px 12px; margin-bottom: 12px; font-size: 13px; }
-.panel button, .panel a { display: inline-block; padding: 9px 14px; border: 1px solid #b9c9d9; border-radius: 8px; background: white; color: #224976; font: inherit; cursor: pointer; margin: 4px; }
-.panel button:disabled { opacity: .5; cursor: default; }
-.panel label { display: block; margin: 12px 0; }
-.panel textarea { display: block; width: 100%; box-sizing: border-box; padding: 12px; margin-top: 8px; border: 1px solid #cbd5df; border-radius: 8px; font: inherit; background: white; color: #26313e; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.panel details { margin-top: 16px; }
-.panel summary { cursor: pointer; }
-.entry { padding: 12px 0; border-bottom: 1px solid #dce2e7; }
-.entry p { white-space: pre-wrap; }
-.error { color: #b42318; }
+.panel,.history {
+    font-size: 14px;
+    color:#34445e;
+    overflow-wrap:anywhere
+}
 
-/* ประวัติแบบย่อสำหรับการ์ดร่าง*/
-.history { margin-top: 16px; color: #26313e; overflow-wrap: anywhere; }
-.history summary { cursor: pointer; font-size: 14px; }
+.panel {
+    margin:18px 0;
+    padding:20px;
+    border:1px solid #e0e7f1;
+    border-radius:16px;
+    background:#f8fafc
+}
+
+.history {
+    margin-top:16px
+}
+
+
+.statusBar {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:16px;
+    padding:20px 22px;
+    border:1px solid #e0e7f1;
+    border-radius:16px;
+    background:#f8fafc
+}
+
+.panel .statusBar {
+    padding:0 0 16px;
+    border:0
+}
+
+.statusLabel {
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:16px;
+    font-weight:600
+}
+
+
+.badge {
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:5px 14px;
+    border:1px solid #d7e2f1;
+    border-radius:999px;
+    background:#edf3fc;
+    color:#42618d;
+    font-size: 13px
+}
+
+.badge[data-status="approved"] {
+    background:#ecfdf5;
+    border-color:#99f1cd;
+    color:#008563
+}
+
+.badge[data-status="changes_requested"] {
+    background:#fff7ed;
+    border-color:#fed7aa;
+    color:#b45309
+}
+
+
+.panel button,.panel a {
+    display:inline-flex;
+    align-items:center;
+    padding:9px 14px;
+    border:1px solid #cbd5e1;
+    border-radius:9px;
+    background:white;
+    color:#34445e;
+    font:inherit;
+    cursor:pointer
+}
+
+.panel button:disabled {
+    opacity:.5;
+    cursor:default
+}
+
+.panel label {
+    display:block;
+    margin:12px 0
+}
+
+.panel textarea {
+    display:block;
+    width:100%;
+    box-sizing:border-box;
+    padding:12px;
+    margin-top:8px;
+    border:1px solid #cbd5df;
+    border-radius:8px;
+    font:inherit;
+    background:white;
+    color:#26313e
+}
+
+.actions {
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:12px
+}
+
+.error {
+    color:#b42318
+}
+
+
+.historyButton,.panel .historyButton {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    padding:10px 18px;
+    border:1px solid #d8e1ee;
+    border-radius:12px;
+    background:white;
+    color:#34445e;
+    font:inherit;
+    font-size: 13px;
+    font-weight:700;
+    cursor:pointer;
+    box-shadow:0 2px 4px #152e4d06
+}
+
+.historyButton:hover {
+    background:#eff6ff;
+    border-color:#a7c4f6
+}
+
+.count {
+    display:inline-grid;
+    place-items:center;
+    min-width:28px;
+    height:28px;
+    padding:0 4px;
+    box-sizing:border-box;
+    border:1px solid #dce5f1;
+    border-radius:999px;
+    background:#f1f5f9
+}
+
+
+/* Native top-layer dialog avoids clipping by the surrounding TOR detail modal. */
+.dialog {
+    font-size: 14px;
+    /* Explicit auto margins keep the popup centered despite global reset styles. */
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    box-sizing: border-box;
+    width:min(900px,calc(100vw - 48px));
+    max-height:90dvh;
+    padding:0;
+    border:1px solid #e0e7f1;
+    border-radius:22px;
+    background:white;
+    color:#34445e;
+    box-shadow:0 24px 80px #0f172a33;
+    overflow:auto
+}
+
+.dialog::backdrop {
+    background:#0f172a80
+}
+
+.dialogContent {
+    min-width:0
+}
+
+.dialogHeader {
+    display:flex;
+    align-items:center;
+    gap:16px;
+    padding:28px 32px;
+    border-bottom:1px solid #edf1f7;
+    background:#f9fbff
+}
+
+.dialogHeader h2 {
+    margin:0;
+    color:#0f172a;
+    font-size: 22px;
+    font-weight:800;
+    line-height:1.4
+}
+
+.dialogHeader p {
+    margin:3px 0 0;
+    color:#657a9b;
+    font-size: 15px
+}
+
+.historyIcon {
+    display:grid;
+    place-items:center;
+    flex-shrink:0;
+    width:48px;
+    height:48px;
+    border:1px solid #d6e6ff;
+    border-radius:16px;
+    color:#2563eb;
+    background:#eff6ff
+}
+
+.closeButton {
+    display:grid;
+    place-items:center;
+    flex-shrink:0;
+    margin-left:auto;
+    width:40px;
+    height:40px;
+    border:0;
+    border-radius:10px;
+    color:#8fa0b9;
+    background:transparent;
+    cursor:pointer
+}
+
+.closeButton:hover {
+    color:#34445e;
+    background:#eaf0fa
+}
+
+.historyButton:focus-visible,.closeButton:focus-visible,.panel button:focus-visible {
+    outline:2px solid #669bff;
+    outline-offset:4px
+}
+
+
+.timeline {
+    padding:32px 28px 12px 90px
+}
+
+.entry {
+    position:relative;
+    margin-bottom:20px;
+    padding:22px;
+    border:1px solid #e0e7f1;
+    border-radius:17px;
+    background:#f8fafc;
+    overflow-wrap:anywhere
+}
+
+.entry::before {
+    content:'';
+    position:absolute;
+    top:-1px;
+    bottom:-22px;
+    left:-36px;
+    width:2px;
+    background:#e0e7f1
+}
+
+.entry:last-child::before {
+    bottom:0
+}
+
+.timelineIcon {
+    position:absolute;
+    top:9px;
+    left:-52px;
+    display:grid;
+    place-items:center;
+    width:32px;
+    height:32px;
+    border:4px solid white;
+    border-radius:50%;
+    background:#d1fae5;
+    color:#009b72;
+    box-sizing:content-box
+}
+
+.entry[data-status="changes_requested"] .timelineIcon {
+    background:#ffedd5;
+    color:#b45309
+}
+
+.entryHeading {
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px
+}
+
+.entryHeading strong {
+    color:#0f172a;
+    font-size: 16px
+}
+
+.decisionBadge {
+    border:1px solid #99f1cd;
+    border-radius:5px;
+    padding:3px 10px;
+    background:#ecfdf5;
+    color:#008563;
+    font-size: 12px;
+    font-weight:600
+}
+
+.entry[data-status="changes_requested"] .decisionBadge {
+    border-color:#fed7aa;
+    background:#fff7ed;
+    color:#b45309
+}
+
+.entryHeading time {
+    margin-left:auto;
+    color:#657a9b;
+    font-size: 13px;
+    font-variant-numeric:tabular-nums
+}
+
+.reviewer {
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+    margin:12px 0 16px;
+    font-size: 13px
+}
+
+.reviewer svg {
+    color:#8fa0b9
+}
+
+.reviewerName {
+    padding:3px 10px;
+    border:1px solid #dce5f1;
+    border-radius:5px;
+    background:white;
+    color:#16243c;
+    font-family:monospace;
+    overflow-wrap:anywhere;
+    max-width:100%;
+    box-sizing:border-box
+}
+
+.note {
+    padding:16px;
+    border:1px solid #dce5f1;
+    border-radius:11px;
+    background:white;
+    font-size: 13px;
+    white-space:pre-wrap
+}
+
+.note b {
+    margin-right:6px
+}
+
+.note em {
+    color:#8fa0b9
+}
+
+.empty {
+    margin:0 0 24px;
+    color:#657a9b
+}
+
+
+@media(max-width:600px) {
+    .statusBar {
+    padding:16px;
+    gap:12px
+}
+
+.dialogHeader {
+    padding:20px 16px;
+    gap:10px;
+    align-items:flex-start
+}
+
+.dialogHeader h2 {
+    font-size: 16px
+}
+
+.dialogHeader p {
+    font-size: 12px
+}
+
+.historyIcon {
+    width:36px;
+    height:36px;
+    border-radius:11px
+}
+
+.closeButton {
+    width:30px;
+    height:30px
+}
+
+.timeline {
+    padding:24px 14px 8px 54px
+}
+
+.entry {
+    padding:16px
+}
+
+.entry::before {
+    left:-26px
+}
+
+.timelineIcon {
+    left:-42px
+}
+
+.entryHeading strong {
+    font-size: 15px
+}
+
+.entryHeading time {
+    width:100%;
+    margin-left:0;
+    font-size: 12px
+}
+
+.reviewer {
+    gap:6px
+}
+
+.note {
+    padding:12px
+}
+
+
+}

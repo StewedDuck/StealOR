@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import TorReviewPanel, { reviewLabels } from "@/components/TorReviewPanel";
+import TorReviewPanel from "@/components/TorReviewPanel";
 import Sidebar from "@/components/sideBar";
 import { useToast } from "@/components/toast/ToastProvider";
 import {
@@ -294,10 +294,7 @@ export default function DraftTOR() {
                                                 }).format(new Date(tor.updatedAt))}
                                                 </b>
                                             </span>
-                                            {/* สถานะตรวจอยู่ถัดจากแก้ไขล่าสุด ลดพื้นที่ panel ในการ์ด */}
-                                            <span className="draftTOR-reviewStatus" data-status={tor.reviewStatus ?? "not_submitted"}>
-                                                {reviewLabels[tor.reviewStatus ?? "not_submitted"]}
-                                            </span>
+
                                         </div>
                                         {tor.reviewStatus === "approved" && <p className="draftTOR-reviewLink"><a href="/project_own/my_TOR">ไปเผยแพร่ TOR</a></p>}
                                         <TorReviewPanel tor={tor} role="owner" historyOnly onUpdated={() => {}} />
