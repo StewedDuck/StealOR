@@ -1,5 +1,7 @@
 "use client";
 
+import Link from 'next/link';
+
 import { shouldShowMatchingCard } from '@/lib/matchingStatus';
 
 import { useEffect, useMemo, useState } from "react";
@@ -804,11 +806,11 @@ export default function SavedPage() {
           </div>
 
           <div className="saved-header-actions">
-            <button type="button" className="saved-notification-button">
+            <Link href={'/contractor/notifications'} className="saved-notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
               <BellRing size={16} />
-            </button>
+            </Link>
 
-            <div className="saved-profile-circle">{initials}</div>
+            <Link href="/contractor/account" className="saved-profile-circle header-action-link" aria-label="บัญชีของฉัน">{initials}</Link>
           </div>
         </header>
 

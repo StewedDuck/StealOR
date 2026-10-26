@@ -112,7 +112,7 @@ async function evaluatePastProjectsTogether(
     if (projects.length === 0) {
         return {
             status: "unknown",
-            reason: "No past project information is available.",
+            reason: "ยังไม่มีข้อมูลผลงานที่ผ่านมาในโปรไฟล์",
         };
     }
 
@@ -190,8 +190,8 @@ async function evaluatePastProjectsTogether(
         return {
             status: "fail",
             reason:
-                `At most ${possible.length} reported projects could meet ` +
-                `all combined conditions; ${criteria.minimumCount} required.`,
+                `มีผลงานที่อาจเข้าเกณฑ์ได้มากที่สุด ${possible.length} โครงการ ` +
+                `จากเงื่อนไขทั้งหมด แต่กำหนดอย่างน้อย ${criteria.minimumCount} โครงการ`,
         };
     }
 
@@ -199,9 +199,9 @@ async function evaluatePastProjectsTogether(
         return {
             status: "unknown",
             reason:
-                `${confirmed.length} project(s) confirmed; ` +
-                `${criteria.minimumCount} required. ` +
-                "Some project information is missing.",
+                `ยืนยันผลงานได้ ${confirmed.length} โครงการ ` +
+                `กำหนดอย่างน้อย ${criteria.minimumCount} โครงการ ` +
+                "ข้อมูลผลงานบางส่วนยังไม่ครบ",
         };
     }
 
@@ -214,7 +214,7 @@ async function evaluatePastProjectsTogether(
         if (!typeRequirement) {
             return {
                 status: "unknown",
-                reason: "Project type requirement was not found.",
+                reason: "ยังไม่พบข้อกำหนดประเภทผลงานที่ชัดเจน",
             };
         }
 
@@ -230,8 +230,8 @@ async function evaluatePastProjectsTogether(
                 return {
                     status: "unknown",
                     reason:
-                        "Multiple same-type projects require individual " +
-                        "semantic verification.",
+                        "ต้องตรวจสอบความเกี่ยวข้องของผลงานแต่ละโครงการ " +
+                        "เพิ่มเติมก่อนยืนยันจำนวนผลงานที่ตรงตามเกณฑ์",
                 };
             }
 
@@ -239,15 +239,15 @@ async function evaluatePastProjectsTogether(
                 status: similarity.status,
                 reason:
                     `${similarity.reason} ` +
-                    `(Matched project: ${similarity.matchedProject || "N/A"}; ` +
-                    `confidence: ${similarity.confidence})`,
+                    `(ผลงานที่ตรงกัน: ${similarity.matchedProject || "ยังไม่พบ"}; ` +
+                    `ความมั่นใจ: ${similarity.confidence})`,
             };
         } catch (error) {
             console.error("Project similarity unavailable");
 
             return {
                 status: "unknown",
-                reason: "AI project type comparison is temporarily unavailable.",
+                reason: "ขณะนี้ AI ยังไม่สามารถตรวจสอบประเภทผลงานได้",
             };
         }
     }
@@ -255,115 +255,14 @@ async function evaluatePastProjectsTogether(
     return {
         status: "pass",
         reason:
-            `${confirmed.length} reported project(s) meet all ` +
-            "combined contract, value and date conditions.",
+            `มีผลงาน ${confirmed.length} โครงการที่ตรงตามเงื่อนไขทั้งหมด ` +
+            "ทั้งสัญญา มูลค่า และวันที่เสร็จงาน",
     };
 }
 
 function evaluateLegalEligibility(requirement, contractor) {
-    const legal = contractor.legalEligibility || {};
-    const text = String(requirement.text || "").trim();
-
-    function checkBoolean(field, expected) {
-        const actual = legal[field];
-
-        if (typeof actual !== "boolean") {
-            return {
-                status: "unknown",
-                reason: `${field} has not been provided.`,
-            };
-        }
-
-        return {
-            status: actual === expected ? "pass" : "fail",
-            reason: `ตรวจสอบคุณสมบัติ ${field} จากข้อมูลที่ผู้รับเหมาระบุในโปรไฟล์`,
-        };
-    }
-
-    function checkNoStatus(field) {
-        const actual = legal[field];
-
-        if (actual !== "yes" && actual !== "no") {
-            return {
-                status: "unknown",
-                reason: `${field} has not been provided.`,
-            };
-        }
-
-        return {
-            status: actual === "no" ? "pass" : "fail",
-            reason: `ตรวจสอบคุณสมบัติ ${field} จากข้อมูลที่ผู้รับเหมาระบุในโปรไฟล์`,
-        };
-    }
-
-    const rules = [
-        {
-            pattern: /^(?:must\s+)?not\s+be\s+(?:a\s+)?bankrupt\b|^(?:ต้อง)?ไม่เป็นบุคคลล้มละลาย/i,
-            evaluate: () => checkNoStatus("bankruptcyStatus"),
-        },
-        {
-            pattern: /^(?:must\s+)?not\s+be\s+(?:a\s+)?(?:debarred|defaulting)\s+contractor\b|^(?:ต้อง)?ไม่เป็นผู้ทิ้งงาน/i,
-            evaluate: () => checkNoStatus("debarmentStatus"),
-        },
-        {
-            pattern: /^(?:must\s+)?(?:have\s+legal\s+capacity|be\s+legally\s+capable)\b|^มีความสามารถตามกฎหมาย/i,
-            evaluate: () => checkBoolean("legalCapacity", true),
-        },
-        {
-            pattern: /^(?:must\s+)?not\s+be\s+(?:(?:under|undergoing)\s+)?(?:business\s+)?liquidation\b|^ไม่อยู่ระหว่างการชำระบัญชี/i,
-            evaluate: () => checkNoStatus("liquidationStatus"),
-        },
-        {
-            pattern: /^(?:must\s+)?not\s+be\s+suspended\b|^ไม่อยู่ระหว่างถูกระงับสิทธิ/i,
-            evaluate: () => checkNoStatus("suspensionStatus"),
-        },
-        {
-            pattern: /^(?:must\s+)?be\s+(?:a\s+)?(?:juristic|legal)\s+person\b|^ต้องเป็นนิติบุคคล/i,
-            evaluate: () => checkBoolean("isJuristicPerson", true),
-        },
-        {
-            pattern: /^(?:must\s+)?be\s+registered\s+(?:in|with)\s+(?:the\s+)?e-?gp\b|^ต้องลงทะเบียน.*(?:e-GP|อีจีพี)/i,
-            evaluate: () => checkBoolean("isEGPRegistered", true),
-        },
-        {
-            pattern: /^(?:must\s+)?(?:(?:have\s+)?no\s+conflicts?\s+of\s+interest|not\s+have\s+conflicts?\s+of\s+interest)\b|^ไม่มีผลประโยชน์ทับซ้อน/i,
-            evaluate: () => checkBoolean("hasConflictOfInterest", false),
-        },
-        {
-            pattern: /^(?:must\s+)?not\s+have\s+(?:court\s+)?immunity\b|^ไม่มีเอกสิทธิ์คุ้มกันจากศาล/i,
-            evaluate: () => checkBoolean("hasCourtImmunity", false),
-        },
-        {
-            pattern: /^(?:must\s+)?(?:have\s+)?waived\s+(?:court\s+)?immunity\b|^สละเอกสิทธิ์คุ้มกันจากศาล/i,
-            evaluate: () => checkBoolean("hasCourtImmunityWaiver", true),
-        },
-        {
-            pattern: /^(?:must\s+)?have\s+(?:(?:an?\s+)?anti-corruption\s+policy|a\s+policy\s+and\s+guidelines\s+for\s+preventing\s+corruption)\b|^มีนโยบายต่อต้านการทุจริต/i,
-            evaluate: () => checkBoolean("hasAntiCorruptionPolicy", true),
-        },
-        {
-            pattern: /^(?:must\s+)?(?:have\s+signed|sign)\s+(?:an?\s+)?integrity\s+agreement\b|^ลงนามในข้อตกลงคุณธรรม/i,
-            evaluate: () => checkBoolean("hasSignedIntegrityAgreement", true),
-        },
-        {
-            pattern: /^(?:must\s+)?meet\s+(?:the\s+)?procurement\s+committee\s+qualifications\b|^มีคุณสมบัติตามที่คณะกรรมการจัดซื้อจัดจ้างกำหนด/i,
-            evaluate: () =>
-                checkBoolean("meetsProcurementCommitteeQualifications", true),
-        },
-    ];
-
-    for (const rule of rules) {
-        if (rule.pattern.test(text)) {
-            return rule.evaluate();
-        }
-    }
-
-    return {
-        status: "unknown",
-        reason: "ข้อกำหนดด้านกฎหมายนี้ยังต้องได้รับการตรวจสอบเพิ่มเติม",
-    };
+    return require('./legalMatchingEvidence').evaluateLegalEvidence(requirement, contractor);
 }
-  
 
 // Only evaluate requirements with a clearly recognized numeric threshold and a matching Contractor profile field.
 function evaluateRequirement(requirement, contractor, options = {}) {
@@ -385,7 +284,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
         if (team.length === 0) {
             return {
                 status: "unknown",
-                reason: "No team qualification information is available.",
+                reason: "ยังไม่มีข้อมูลคุณสมบัติทีมงานในโปรไฟล์",
             };
         }
 
@@ -395,7 +294,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
         if (!isCoordinatorRequirement) {
             return {
                 status: "unknown",
-                reason: "This team role is not supported yet.",
+                reason: "ระบบยังตรวจสอบบทบาททีมงานนี้ไม่ได้ ต้องตรวจหลักฐานเพิ่มเติม",
             };
         }
 
@@ -429,16 +328,16 @@ function evaluateRequirement(requirement, contractor, options = {}) {
             return {
                 status: "pass",
                 reason:
-                "Contractor has a project coordinator with at least " +
-                "a bachelor's degree and 2 years of experience.",
+                "พบผู้ประสานงานโครงการที่มีคุณสมบัติอย่างน้อย " +
+                "ปริญญาตรีและประสบการณ์ 2 ปี",
             };
         }
 
         return {
             status: "unknown",
             reason:
-                "No matching coordinator was found in the profile. " +
-                "The team information may be incomplete.",
+                "ยังไม่พบข้อมูลผู้ประสานงานที่ครบตามเกณฑ์ในโปรไฟล์ " +
+                "ข้อมูลทีมงานอาจยังไม่ครบถ้วน",
         };
     }
 
@@ -449,7 +348,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
         if (projects.length === 0) {
             return {
                 status: "unknown",
-                reason: "No past project information is available.",
+                reason: "ยังไม่มีข้อมูลผลงานที่ผ่านมาในโปรไฟล์",
             };
         }
     
@@ -477,8 +376,8 @@ function evaluateRequirement(requirement, contractor, options = {}) {
             return {
                 status: matched ? "pass" : "unknown",
                 reason: matched
-                    ? `At least one reported project was completed within ${years} years.`
-                    : `No reported project was found within ${years} years.`,
+                    ? `พบอย่างน้อยหนึ่งโครงการที่เสร็จภายใน ${years} ปี`
+                    : `ยังไม่พบผลงานที่เสร็จภายใน ${years} ปี`,
             };
         }
     
@@ -491,7 +390,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
         
             return {
                 status: actual >= required ? "pass" : "fail",
-                reason: `Reported projects: ${actual}; required: ${required}.`,
+                reason: `ระบุผลงานไว้ ${actual} โครงการ เกณฑ์กำหนด ${required} โครงการ`,
             };
         }
     
@@ -508,8 +407,8 @@ function evaluateRequirement(requirement, contractor, options = {}) {
             return {
                 status: matched ? "pass" : "unknown",
                 reason: matched
-                    ? `At least one reported project meets the minimum value of ${required} THB.`
-                    : `No reported project meets the minimum value of ${required} THB.`,
+                    ? `พบอย่างน้อยหนึ่งโครงการที่มีมูลค่าไม่น้อยกว่า ${required} บาท`
+                    : `ยังไม่พบผลงานที่มีมูลค่าไม่น้อยกว่า ${required} บาท`,
             };
         }
     
@@ -517,18 +416,18 @@ function evaluateRequirement(requirement, contractor, options = {}) {
         if ( lowerText.includes("same type") || lowerText.includes("related to") ) {
             return {
                 status: "unknown",
-                reason: "Project type needs semantic matching with the TOR requirements.",
+                reason: "ต้องตรวจความเกี่ยวข้องของประเภทผลงานกับ TOR เพิ่มเติม",
             };
         }
         return {
             status: "unknown",
-            reason: "Past project requirement is not supported yet.",
+            reason: "ระบบยังตรวจเงื่อนไขผลงานข้อนี้ไม่ได้ ต้องตรวจหลักฐานเพิ่มเติม",
         };
     }
   
 
     
-    if (field === "legalEligibility") {
+    if (field === "legalEligibility" || field?.startsWith("legalEligibility.") || requirement.requirementType === "legal") {
         return evaluateLegalEligibility(requirement, contractor);
     }
 
@@ -545,7 +444,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
         if (!registrationDate || !bidSubmissionDate) {
             return {
                 status: "unknown",
-                reason: "Company registration date or bid submission date is missing.",
+                reason: "ยังขาดวันที่จดทะเบียนบริษัทหรือวันที่ยื่นข้อเสนอที่ยืนยันแล้ว",
             };
         }
 
@@ -558,7 +457,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
         ) {
             return {
                 status: "unknown",
-                reason: "Company registration date or bid submission date is invalid.",
+                reason: "วันที่จดทะเบียนบริษัทหรือวันที่ยื่นข้อเสนอไม่ถูกต้อง",
             };
         }
 
@@ -570,28 +469,28 @@ function evaluateRequirement(requirement, contractor, options = {}) {
         if (submittedAt <= oneYearAnniversary) {
             return {
                 status: "unknown",
-                reason: "The company is not registered for more than one year. Another eligibility rule may apply.",
+                reason: "บริษัทจดทะเบียนยังไม่เกินหนึ่งปี ต้องตรวจเงื่อนไขคุณสมบัติกรณีนี้เพิ่มเติม",
             };
         }
 
         if (netWorth === null || netWorth === undefined) {
             return {
                 status: "unknown",
-                reason: "Contractor net worth has not been provided.",
+                reason: "ยังไม่ได้ระบุมูลค่าสุทธิของกิจการในโปรไฟล์",
             };
         }
 
         if (!Number.isFinite(netWorth)) {
             return {
                 status: "unknown",
-                reason: "Contractor net worth is invalid.",
+                reason: "ข้อมูลมูลค่าสุทธิของกิจการไม่ถูกต้อง",
             };
         }
 
         if (!Number.isInteger(financialYear)) {
             return {
                 status: "unknown",
-                reason: "Financial statement year has not been provided.",
+                reason: "ยังไม่ได้ระบุปีงบการเงิน",
             };
         }
 
@@ -602,7 +501,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
         if (!Number.isInteger(requiredFinancialYear)) {
             return {
                 status: "unknown",
-                reason: "The required financial statement year is not confirmed.",
+                reason: "ยังไม่ยืนยันปีงบการเงินที่ TOR กำหนด",
             };
         }
 
@@ -610,8 +509,8 @@ function evaluateRequirement(requirement, contractor, options = {}) {
             return {
                 status: "unknown",
                 reason:
-                    `Contractor provided financial year ${financialYear}, ` +
-                    `but the TOR requires ${requiredFinancialYear}.`,
+                    `ระบุงบการเงินปี ${financialYear} ` +
+                    `แต่ TOR กำหนดปี ${requiredFinancialYear}`,
             };
         }
 
@@ -619,16 +518,16 @@ function evaluateRequirement(requirement, contractor, options = {}) {
             return {
                 status: "pass",
                 reason:
-                    `Contractor reported positive net worth of ${netWorth} THB ` +
-                    `for financial year ${financialYear}.`,
+                    `ระบุมูลค่าสุทธิของกิจการเป็นบวก ${netWorth} บาท ` +
+                    `สำหรับงบการเงินปี ${financialYear}`,
             };
         }
 
         return {
             status: "fail",
             reason:
-                `Contractor reported net worth of ${netWorth} THB ` +
-                `for financial year ${financialYear}, which is not positive.`,
+                `ระบุมูลค่าสุทธิของกิจการ ${netWorth} บาท ` +
+                `สำหรับงบการเงินปี ${financialYear} ซึ่งไม่เป็นบวกตามเกณฑ์`,
         };
     }
 
@@ -655,7 +554,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
     if (!rule) {
         return {
             status: "unknown",
-            reason: "This requirement needs further verification.",
+            reason: "ยังไม่มีหลักฐานเพียงพอสำหรับตรวจสอบเงื่อนไขข้อนี้ ต้องตรวจข้อมูลเพิ่มเติม",
         };
     }
 
@@ -672,7 +571,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
     if (!match) {
         return {
             status: "unknown",
-            reason: "A clear minimum threshold was not found.",
+            reason: "ยังไม่พบเกณฑ์ขั้นต่ำที่ชัดเจนในข้อกำหนด TOR",
         };
     }
 
@@ -682,7 +581,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
     if (!Number.isFinite(minimum) || minimum < 0) {
         return {
             status: "unknown",
-            reason: "The required threshold is invalid.",
+            reason: "เกณฑ์ขั้นต่ำของข้อกำหนดไม่ถูกต้อง",
         };
     }
 
@@ -690,7 +589,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
         !Number.isFinite(Number(actual))) {
         return {
             status: "unknown",
-            reason: "Contractor profile data is missing.",
+            reason: "ยังขาดข้อมูลโปรไฟล์ที่ใช้ตรวจสอบข้อนี้",
         };
     }
 
@@ -702,7 +601,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
     ) {
         return {
             status: "unknown",
-            reason: "The profile value may be an unconfirmed default.",
+            reason: "ค่าที่พบอาจเป็นค่าเริ่มต้นที่ผู้ใช้ยังไม่ได้ยืนยัน",
         };
     }
 
@@ -710,7 +609,7 @@ function evaluateRequirement(requirement, contractor, options = {}) {
 
     return {
         status: passed ? "pass" : "fail",
-        reason: `Profile value: ${actual}; required minimum: ${minimum}.`,
+        reason: `ข้อมูลในโปรไฟล์: ${actual} เกณฑ์ขั้นต่ำ: ${minimum}`,
     };
 }
 
@@ -721,7 +620,7 @@ function evaluatePastProjectContract(requirement, contractor) {
     if (projects.length === 0) {
         return {
             status: "unknown",
-            reason: "No past project information is available.",
+            reason: "ยังไม่มีข้อมูลผลงานที่ผ่านมาในโปรไฟล์",
         };
     }
 
@@ -732,7 +631,7 @@ function evaluatePastProjectContract(requirement, contractor) {
     if (!countMatch) {
         return {
             status: "unknown",
-            reason: "Contract requirement needs further analysis.",
+            reason: "ต้องตรวจรายละเอียดเงื่อนไขสัญญาเพิ่มเติม",
         };
     }
 
@@ -750,8 +649,8 @@ function evaluatePastProjectContract(requirement, contractor) {
         return {
             status: "pass",
             reason:
-                `${confirmedContracts.length} reported projects have contracts; ` +
-                `${requiredCount} required.`,
+                `มีผลงานที่ยืนยันสัญญาแล้ว ${confirmedContracts.length} โครงการ ` +
+                `กำหนดอย่างน้อย ${requiredCount} โครงการ`,
         };
     }
 
@@ -762,15 +661,15 @@ function evaluatePastProjectContract(requirement, contractor) {
         return {
             status: "fail",
             reason:
-                `Only ${confirmedContracts.length} reported contracts found; ` +
-                `${requiredCount} required.`,
+                `พบสัญญายืนยันเพียง ${confirmedContracts.length} โครงการ ` +
+                `กำหนดอย่างน้อย ${requiredCount} โครงการ`,
         };
     }
 
     return {
         status: "unknown",
         reason:
-            "Some past projects have no confirmed contract status.",
+            "ผลงานบางโครงการยังไม่ได้ระบุว่ามีสัญญายืนยันหรือไม่",
     };
 }
 
@@ -1078,6 +977,31 @@ function calculateRelevanceScore(relevanceResults) {
     };
 }
 
+function thaiMatchingReason(reason, status) {
+    if (!reason || /[ก-๙]/.test(reason)) return reason;
+    const numeric = String(reason).match(/^Profile value: (.*); required minimum: (.*)\.$/);
+    if (numeric) return `ข้อมูลในโปรไฟล์: ${numeric[1]} เกณฑ์ขั้นต่ำ: ${numeric[2]}`;
+    return status === 'pass' ? 'ข้อมูลที่ตรวจพบตรงกับเงื่อนไขที่ TOR กำหนด' : status === 'fail'
+        ? 'ข้อมูลที่ตรวจพบไม่ตรงกับเงื่อนไขที่ TOR กำหนด' : 'ยังไม่มีหลักฐานเพียงพอสำหรับตรวจสอบเงื่อนไขข้อนี้ ต้องตรวจข้อมูลเพิ่มเติม';
+}
+function refreshMatchingExplanations(result, contractor, analysis) {
+    if (!result) return result;
+    const requirements = (analysis?.requirements || []).filter(row => row.category === 'mandatory');
+    const mandatoryResults = (result.mandatoryResults || []).map((row, index) => {
+        const criterion = requirements.find(item => item._id && String(item._id) === row.requirementId) || requirements.find(item => item.text === row.text) || requirements[index];
+        const legal = criterion && (criterion.profileField === 'legalEligibility' || criterion.profileField?.startsWith('legalEligibility.') || criterion.requirementType === 'legal');
+        const updated = legal ? { ...row, ...evaluateLegalEligibility(criterion, contractor) } : row;
+        return { ...updated, reason: thaiMatchingReason(updated.reason, updated.status) };
+    });
+    const mandatorySummary = { total: mandatoryResults.length, passed: mandatoryResults.filter(row => row.status === 'pass').length,
+        failed: mandatoryResults.filter(row => row.status === 'fail').length, unknown: mandatoryResults.filter(row => row.status === 'unknown').length };
+    const eligibility = mandatorySummary.failed ? 'ineligible' : mandatorySummary.unknown ? 'unknown' : mandatorySummary.total ? 'eligible' : 'no_mandatory_requirements';
+    const translate = rows => rows?.map(row => ({ ...row, reason: thaiMatchingReason(row.reason, row.status),
+        ...(row.matchDetails ? { matchDetails: row.matchDetails.map(detail => ({ ...detail, reason: thaiMatchingReason(detail.reason, 'pass') })) } : {}) }));
+    return { ...result, mandatoryResults, mandatorySummary, eligibility,
+        scoredResults: translate(result.scoredResults), relevanceResults: translate(result.relevanceResults) };
+}
+
 async function calculateMatching(contractor, torAnalysis, options = {}) {
     if (!contractor || !torAnalysis) {
         throw new Error("Contractor and TOR analysis are required.");
@@ -1152,6 +1076,7 @@ async function calculateMatching(contractor, torAnalysis, options = {}) {
             sourceText: requirement.sourceText || "",
             status: evaluation.status,
             reason: evaluation.reason,
+            ...(evaluation.conditionDetails ? { conditionDetails: evaluation.conditionDetails } : {}),
         };
 
         if (requirement.category === "mandatory") {
@@ -1273,6 +1198,7 @@ async function calculateMatching(contractor, torAnalysis, options = {}) {
 }
 
 module.exports = {
+    refreshMatchingExplanations,
     evaluateRequirement,
     evaluateProjectRelevance,
     evaluateProjectRelevanceBatch,

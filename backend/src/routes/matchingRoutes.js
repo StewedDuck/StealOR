@@ -9,6 +9,8 @@ const {
 
 const router = express.Router();
 
+router.get('/dashboard', profileAuth, require('../controllers/contractorDashboardController').getContractorDashboard);
+
 // Private: list TORs that meet the relevance threshold.
 router.get(
     "/",

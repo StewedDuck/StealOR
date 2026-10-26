@@ -10,9 +10,9 @@ import Sidebar from "@/components/sideBar";
 import TorDetailModal from "@/components/TORDetail";
 import TORDocumentModal from "@/components/TORDocumentModal";
 import { useToast } from "@/components/toast/ToastProvider";
-import { getMarketTorById } from '@/lib/torApi';
+import { getMarketTorById, getUserProfile } from '@/lib/torApi';
 import type { MarketTor, MarketTorDetail } from '@/types/tor';
-import { ChevronDown, CheckCircle2, LoaderCircle, RefreshCw, Search, SlidersHorizontal } from 'lucide-react';
+import { BellRing, ChevronDown, CheckCircle2, LoaderCircle, RefreshCw, Search, SlidersHorizontal } from 'lucide-react';
 
 import "./matching.css";
 import { TorMatchingCard, MatchingModal } from '@/components/TorMatchingCard';
@@ -27,6 +27,20 @@ type StatusFilter = "all" | "open" | "draft" | "closed";
 
 export default function TorMatchingPage() {
     const { data: session, status: sessionStatus } = useSession();
+    const [displayName, setDisplayName] = useState('');
+    useEffect(() => {
+        setDisplayName('');
+        if (!session?.user?.email) return;
+        let cancelled = false;
+        getUserProfile(session.user.email)
+            .then(profile => { if (!cancelled) setDisplayName(profile.name); })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [session?.user?.email]);
+    const userName = [displayName, session?.user?.name, session?.user?.email]
+        .find(name => name?.trim() && name.trim() !== '-') || 'ผู้ใช้';
+    const initials = userName
+        .trim().split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase();
     const { showToast } = useToast();
 
     const [items, setItems] = useState<MatchedTor[]>([]);
@@ -81,7 +95,7 @@ export default function TorMatchingPage() {
 
                 const matchingUrl = retryRequested ? '/api/matching?retry=true' : '/api/matching';
                 retryRequested = false;
-                const response = await fetch(matchingUrl, { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+                const response = await fetch(matchingUrl, { cache: 'no-store', signal: AbortSignal.timeout(60000) });
 
                 if (!response.ok) {
                     const failure = await response.json().catch(() => null);
@@ -226,10 +240,20 @@ export default function TorMatchingPage() {
 
             <main className="tm-main">
                 <header className="tm-header">
+                    <div>
                     <h1>TOR ที่ตรงกับคุณ</h1>
                     <p>
                         ค้นหาและตรวจสอบ TOR ที่ตรงกับคุณสมบัติของคุณ
                     </p>
+                    </div>
+                    <div className="tm-header-actions">
+                        <Link href="/contractor/notifications" className="tm-notification-button header-action-link" aria-label="การแจ้งเตือน">
+                            <BellRing size={16} />
+                        </Link>
+                        <Link href="/contractor/account" className="tm-profile-circle header-action-link" aria-label="บัญชีของฉัน">
+                            {initials}
+                        </Link>
+                    </div>
                 </header>
 
                 <div className="tm-content">
@@ -275,7 +299,7 @@ export default function TorMatchingPage() {
                     <div className="tm-result-heading">
                         <span>
                             <SlidersHorizontal size={16} />
-                            พบ {filteredItems.length} โครงการ
+                            {loading ? 'กำลังโหลดรายการ…' : error && items.length === 0 ? 'ยังโหลดรายการไม่สำเร็จ' : `พบ ${filteredItems.length} โครงการ`}
                         </span>
 
                         <small>
@@ -289,7 +313,7 @@ export default function TorMatchingPage() {
 
                     {loading && (
                         <div className="tm-message">
-                            กำลังโหลดและประเมินผล TOR จาก Backend...
+                            กำลังโหลดผล Matching… การโหลดครั้งแรกอาจใช้เวลาสักครู่
                         </div>
                     )}
 

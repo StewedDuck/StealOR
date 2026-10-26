@@ -1,3 +1,4 @@
+const { invalidateMatchingData } = require('./matchingReadCache');
 const { matchingAccountFilter } = require('./matchingAccess');
 const { randomUUID } = require('node:crypto');
 const mongoose = require('mongoose');
@@ -90,7 +91,11 @@ async function ensureAnalysis(tor, source, options = {}) {
         }, $unset: { leaseToken: '', leaseUntil: '' } });
         console.warn(`[MATCHING PIPELINE] TOR analysis unavailable (${failure.code})`);
         return { state: retry ? 'retry_wait' : 'failed', attempted: true };
-    } finally { clearInterval(heartbeat); }
+    } finally {
+        clearInterval(heartbeat);
+        invalidateMatchingData('catalog');
+        invalidateMatchingData('analyses');
+    }
 }
 
 async function scanAnalyses(state) {

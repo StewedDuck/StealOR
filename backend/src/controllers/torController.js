@@ -197,11 +197,14 @@ async function deleteTor(req, res) {
 
 async function getMarketTors(req, res) {
   try {
-    const governmentTors = await GovProject.find({
-      contract_status: {
-        $not: /ยกเลิก|สิ้นสุด/,
-      },
-    }).sort({ updatedAt: -1});
+    const [governmentTors, internalTors] = await Promise.all([
+      GovProject.find({ contract_status: { $not: /ยกเลิก|สิ้นสุด/ } })
+        .select('project_id project_name dept_name budget_amount contract_status winner_name winner_tin createdAt updatedAt procurementAnalysis.allocatedBudget procurementAnalysis.referencePriceEstimate procurementAnalysis.projectDetails procurementAnalysis.biddingClosingDate raw_data.project_description raw_data.submission_deadline raw_data.deadline')
+        .sort({ updatedAt: -1 }).lean(),
+      Tor.find({ status: 'published', applicationDeadline: { $gt: new Date() } })
+        .select('projectName agencyName budget referencePriceEstimate applicationDeadline description createdAt updatedAt')
+        .sort({ publishedAt: -1 }).lean(),
+    ]);
 
     const data = governmentTors.map((project) => ({
       id: project._id.toString(),
@@ -244,11 +247,6 @@ async function getMarketTors(req, res) {
       updatedAt: project.updatedAt,
     }));
 
-    const internalTors = await Tor.find({
-      status: "published",
-      applicationDeadline: { $gt: new Date() },
-    }).sort({ publishedAt: -1 });
-
     const internalData = internalTors.map((tor) => ({
       id: tor._id.toString(),
       source: "internal",
@@ -265,12 +263,8 @@ async function getMarketTors(req, res) {
     }));
     
     data.push(...internalData);
-
-    return res.json({
-      success: true,
-      total: data.length,
-      data,
-    });
+    const summarized = await require('../services/marketDocumentSummary').addMarketDocumentSummaries(data);
+    return res.json({ success: true, total: summarized.length, data: summarized });
   } catch (error) {
     console.error("TOR Market API error:", error);
 

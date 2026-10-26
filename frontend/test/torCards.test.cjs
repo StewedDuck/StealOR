@@ -127,7 +127,8 @@ test('an unassessable criterion avoids a misleading zero-percent bar and keeps t
         item: { tor, matching: { ...matching, relevanceResults: [unassessable] } }, onClose() {},
     }));
     const relevance = markup.slice(markup.indexOf('<h3>คุณสมบัติที่ใช้คิด Match %</h3>'));
-    assert.match(relevance, /ยังประเมินไม่ได้/);
+    assert.match(relevance, /class="tm-result-badge tm-unknown">ข้อมูลไม่เพียงพอ/);
+    assert.doesNotMatch(relevance, /ยังประเมินไม่ได้/);
     assert.match(relevance, /การวิเคราะห์เพิ่มเติมด้วย AI ยังไม่พร้อม/);
     assert.doesNotMatch(relevance, /role="progressbar"|NaN|Infinity/);
 });
@@ -165,4 +166,29 @@ test('only scores above 39 with TOR data use matching cards across all pages', (
     for (const score of [39.01, 40, 100]) {
         assert.equal(shouldShowMatchingCard({ ...matching, matchingPercentage: score }), true);
     }
+});
+
+test('mandatory modal shows Thai insufficient-data labels and per-condition profile evidence', () => {
+    const item = { tor, matching: { ...matching, mandatorySummary: { total: 1, passed: 0, failed: 0, unknown: 1 }, mandatoryResults: [{ requirementId: 'legal', text: 'คุณสมบัติตามกฎหมาย', status: 'unknown', reason: 'ข้อมูลยังไม่ครบ', conditionDetails: [
+        { field: 'legalEligibility.bankruptcyStatus', label: 'สถานะล้มละลาย', status: 'pass', actual: 'ไม่มีสถานะนี้', expected: 'ไม่มีสถานะนี้', reason: 'ข้อมูลตรงกับเงื่อนไข' },
+        { field: 'legalEligibility.legalCapacity', label: 'มีความสามารถตามกฎหมาย', status: 'unknown', actual: 'ยังไม่ได้ระบุ', expected: 'ใช่', reason: 'ยังไม่ได้ระบุข้อมูลในโปรไฟล์' },
+    ] }] } };
+    const markup = renderToStaticMarkup(React.createElement(MatchingModal, { item, onClose() {} }));
+    assert.match(markup, /ข้อมูลไม่เพียงพอ/);
+    assert.doesNotMatch(markup, /ไม่ทราบ/);
+    assert.match(markup, /สถานะล้มละลาย/);
+    assert.match(markup, /ข้อมูลในโปรไฟล์/);
+    assert.match(markup, /ยังไม่ได้ระบุ/);
+});
+
+test('failed API message includes status and endpoint without logging duplicate console errors or personal query values', async t => {
+    const { getContractorNotifications } = load('lib/torApi');
+    t.mock.method(global, 'fetch', async () => new Response(JSON.stringify({ success: false, error: 'Cannot connect to backend' }), { status: 502, headers: { 'content-type': 'application/json' } }));
+    t.mock.method(console, 'error', () => { assert.fail('Handled API failures must not produce duplicate console errors'); });
+    await assert.rejects(getContractorNotifications('private@example.com'), error => {
+        assert.match(error.message, /HTTP 502, \/api\/notifications/);
+        assert.match(error.message, /เชื่อมต่อระบบ/);
+        assert.doesNotMatch(error.message, /private@example.com/);
+        return true;
+    });
 });

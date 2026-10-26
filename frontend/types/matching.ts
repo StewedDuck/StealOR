@@ -9,6 +9,14 @@ export type RequirementResult = {
     category?: string;
     status: ResultStatus;
     reason?: string;
+    conditionDetails?: {
+        field: string | null;
+        label: string;
+        status: ResultStatus;
+        actual: string;
+        expected: string;
+        reason: string;
+    }[];
     documentedWeight?: number | null;
     appliedWeight?: number | null;
 };

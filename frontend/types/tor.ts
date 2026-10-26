@@ -22,7 +22,6 @@ export type TorFormData = {
   scopeOfWork: string[];
   requirements: TorRequirement[];
   budget: number | null;
-  referencePriceEstimate?: number | null;
   submissionDeadline: string;
   contactName: string;
   contactEmail: string;
@@ -55,6 +54,8 @@ export type Tor = TorFormData & {
 };
 
 export type MarketTor = {
+  documentTypes?: ('priceEstimate' | 'draftEbidding' | 'invitation')[];
+  publicationStatus?: 'open' | 'draft' | 'unknown';
   id: string;
   source: "government" | "internal";
   projectId?: string;

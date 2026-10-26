@@ -40,6 +40,7 @@ async function forwardProfileRequest(
                 ? { body: await request.text() }
                 : {}),
                 cache: "no-store",
+                signal: AbortSignal.timeout(30000),
             }
         );
 
@@ -49,14 +50,15 @@ async function forwardProfileRequest(
             status: response.status,
         });
     } catch (error) {
-        console.error("Profile API error:", error);
+        const timeout = error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name);
+        console.warn(timeout ? 'Profile backend timed out' : 'Profile backend unavailable');
 
         return NextResponse.json(
             {
                 success: false,
-                error: "Cannot connect to backend",
+                error: timeout ? 'ระบบอ่านโปรไฟล์ใช้เวลานาน กรุณาลองอีกครั้ง' : 'เชื่อมต่อระบบโปรไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง',
             },
-            { status: 502 }
+            { status: timeout ? 504 : 502 }
         );
     }
 }

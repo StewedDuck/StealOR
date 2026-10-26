@@ -127,3 +127,27 @@ test('expired worker leases are eligible for recovery by another delivery worker
     await service.flush(new Date());
     assert.equal(sends, 1); assert.equal(delivery.rows.get('crash').state, 'sent');
 });
+
+test('notification list batches TOR lookups and excludes bulky raw imported data', async t => {
+    const NotificationLog = require('../src/models/NotificationLog');
+    const GovProject = require('../src/models/GovProject');
+    const Tor = require('../src/models/Tor');
+    const { getNotifications } = require('../src/controllers/notificationController');
+    t.mock.method(NotificationLog, 'find', () => ({ sort: () => query([
+        { source: 'government', projectId: '123', read: false },
+        { source: 'government', projectId: '123', read: true },
+        { source: 'internal', torId: 'tor', read: false },
+    ]) }));
+    let govCalls = 0, internalCalls = 0;
+    t.mock.method(GovProject, 'find', filter => {
+        govCalls++; assert.deepEqual(filter.project_id.$in, ['123']);
+        return { select: projection => { assert.equal(projection, 'project_name project_id raw_data.project_name'); return query([{ project_id: '123', project_name: 'Gov project' }]); } };
+    });
+    t.mock.method(Tor, 'find', () => { internalCalls++; return { select: () => query([{ _id: 'tor', projectName: 'Internal project' }]) }; });
+    const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; } };
+    await getNotifications({ profileEmail: 'mine@test.com' }, res);
+    assert.equal(res.code, 200); assert.equal(res.body.unread, 2);
+    assert.equal(govCalls, 1); assert.equal(internalCalls, 1);
+    assert.equal(res.body.data[0].torName, 'Gov project');
+    assert.equal(res.body.data[2].torName, 'Internal project');
+});

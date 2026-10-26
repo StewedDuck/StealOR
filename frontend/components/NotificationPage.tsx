@@ -1,5 +1,7 @@
 "use client";
 
+import Link from 'next/link';
+
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useSession } from "next-auth/react";
@@ -161,7 +163,7 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
                 if (!cancelled) setNotifications(data);
 
             } catch (error) {
-                console.error(
+                console.warn(
                     "Load notifications error:",
                     error
                 );
@@ -201,7 +203,7 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
                 );
             })
             .catch((error) => {
-                console.error(
+                console.warn(
                     "Failed to load notification profile:",
                     error
                 );
@@ -263,7 +265,7 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
             router.push("/contractor/saved");
     
         } catch (error) {
-            console.error(
+            console.warn(
                 "Open notification error:",
                 error
             );
@@ -322,18 +324,15 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
 
                         <div className="notification-header-icon">
 
-                            <button
-                                type="button"
-                                className="notification-button"
-                            >
+                            <Link href={audience === 'admin' ? '/admin/notifications' : audience === 'project_owner' ? '/project_own/notifications' : '/contractor/notifications'} className="notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
                                 <BellRing size={18} />
-                            </button>
+                            </Link>
                         </div>
 
 
-                        <div className="profile-circle">
+                        <Link href="/contractor/account" className="profile-circle header-action-link" aria-label="บัญชีของฉัน">
                             {initials}
-                        </div>
+                        </Link>
 
                     </div>
 

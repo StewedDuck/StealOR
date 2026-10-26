@@ -10,16 +10,9 @@ import {
     ResponsiveContainer,
 } from "recharts";
 
-const matchRateData = [
-    { month: "มี.ต.", rate: 68 },
-    { month: "เม.ย.", rate: 72 },
-    { month: "พ.ค.", rate: 76 },
-    { month: "มิ.ย.", rate: 79 },
-    { month: "ก.ค.", rate: 84 },
-    { month: "ส.ค.", rate: 88 },
-];
+import type { MatchRatePoint } from '@/types/dashboard';
 
-export default function MatchRateTrend() {
+export default function MatchRateTrend({ data = [], currentRate = null }: { data?: MatchRatePoint[]; currentRate?: number | null }) {
     return (
         <div className="dashboard-chart-card">
 
@@ -27,20 +20,21 @@ export default function MatchRateTrend() {
             <div className="chart-header">
                 <div>
                     <h2>แนวโน้มอัตราการจับคู่</h2>
-                    <p>อัตราการจับคู่เฉลี่ย: 6 เดือนที่ผ่านมา</p>
+                    <p>สัดส่วน TOR คะแนนมากกว่า 39% เทียบกับ TOR ที่มีคะแนน</p>
                 </div>
 
                 <div className="chart-current-value">
                     <span>ปัจจุบัน</span>
-                    <strong>88%</strong>
+                    <strong>{currentRate === null ? '—' : `${currentRate}%`}</strong>
                 </div>
             </div>
 
+            <p className="dashboard-chart-note">ค่าเฉลี่ยรายวันในแต่ละเดือน · เดือนที่ยังไม่มีประวัติจะเว้นว่าง</p>
             {/* Chart */}
             <div className="chart-container">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                        data={matchRateData}
+                        data={data}
                         margin={{
                         top: 10,
                         right: 10,
@@ -75,6 +69,7 @@ export default function MatchRateTrend() {
                         <Line
                             type="monotone"
                             dataKey="rate"
+                            connectNulls={false}
                             stroke="#4A6278"
                             strokeWidth={3}
                             dot={{
