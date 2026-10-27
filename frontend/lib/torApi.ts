@@ -61,7 +61,7 @@ async function request<T>(
   const endpoint = new URL(url, 'http://local').pathname;
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) {
-    throw new Error(`ระบบตอบกลับไม่ถูกต้อง (HTTP ${response.status}, ${endpoint}) กรุณาลองอีกครั้ง`);
+    throw Object.assign(new Error('ระบบตอบกลับไม่ถูกต้อง กรุณาลองอีกครั้ง'), { status: response.status, endpoint });
   }
   const result = (await response.json()) as ApiResponse<T>;
   if (!response.ok || result.success === false) {
@@ -69,7 +69,7 @@ async function request<T>(
     const message = detail === 'Cannot connect to backend'
       ? 'เชื่อมต่อระบบไม่สำเร็จ หรือระบบตอบกลับช้า กรุณาลองอีกครั้ง'
       : detail;
-    throw new Error(`${message} (HTTP ${response.status}, ${endpoint})`);
+    throw Object.assign(new Error(message), { status: response.status, endpoint });
   }
 
   return result.data;

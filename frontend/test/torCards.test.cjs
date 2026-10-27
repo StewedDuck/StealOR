@@ -181,12 +181,14 @@ test('mandatory modal shows Thai insufficient-data labels and per-condition prof
     assert.match(markup, /ยังไม่ได้ระบุ/);
 });
 
-test('failed API message includes status and endpoint without logging duplicate console errors or personal query values', async t => {
+test('failed API message stays readable and keeps diagnostic metadata separate', async t => {
     const { getContractorNotifications } = load('lib/torApi');
     t.mock.method(global, 'fetch', async () => new Response(JSON.stringify({ success: false, error: 'Cannot connect to backend' }), { status: 502, headers: { 'content-type': 'application/json' } }));
     t.mock.method(console, 'error', () => { assert.fail('Handled API failures must not produce duplicate console errors'); });
     await assert.rejects(getContractorNotifications('private@example.com'), error => {
-        assert.match(error.message, /HTTP 502, \/api\/notifications/);
+        assert.equal(error.status, 502);
+        assert.equal(error.endpoint, '/api/notifications');
+        assert.doesNotMatch(error.message, /HTTP|\/api\//);
         assert.match(error.message, /เชื่อมต่อระบบ/);
         assert.doesNotMatch(error.message, /private@example.com/);
         return true;
