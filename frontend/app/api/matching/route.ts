@@ -40,7 +40,7 @@ export async function GET(request: Request) {
                     "x-profile-proxy-secret": secret,
                 },
                 cache: "no-store",
-                signal: AbortSignal.timeout(15000),
+                signal: AbortSignal.timeout(55000),
             }
         );
 
@@ -50,14 +50,15 @@ export async function GET(request: Request) {
             status: response.status,
         });
     } catch (error) {
-        console.error("Matching List API error:", error);
+        const timeout = error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name);
+        console.warn(timeout ? 'Matching backend response timed out' : 'Matching backend connection unavailable');
 
         return NextResponse.json(
             {
                 success: false,
-                error: "Cannot connect to backend",
+                error: timeout ? 'ระบบอ่านผล Matching ใช้เวลานาน กรุณาลองอีกครั้ง' : 'เชื่อมต่อระบบ Matching ไม่สำเร็จ กรุณาลองอีกครั้ง',
             },
-            { status: 502 }
+            { status: timeout ? 504 : 502 }
         );
     }
 }

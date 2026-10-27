@@ -1,5 +1,7 @@
 "use client";
 
+import Link from 'next/link';
+
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/sideBar";
 import { useToast } from "@/components/toast/ToastProvider";
@@ -516,13 +518,13 @@ export default function ContractorDraftTOR() {
                     </div>
 
                     <div className="profile-header-actions">
-                        <button className="notification-button">
+                        <Link href={'/contractor/notifications'} className="notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
                         <BellRing size={16}/>
-                        </button>
+                        </Link>
 
-                        <div className="profile-circle">
+                        <Link href="/contractor/account" className="profile-circle header-action-link" aria-label="บัญชีของฉัน">
                             {initials}
-                        </div>
+                        </Link>
                     </div>
                 </header>
 

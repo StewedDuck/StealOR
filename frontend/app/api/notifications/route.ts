@@ -7,8 +7,11 @@ export async function GET() {
     if (!secret) return NextResponse.json({ success: false, error: 'Server configuration error' }, { status: 500 });
     try {
         const response = await fetch(`${process.env.INTERNAL_API_URL || 'http://localhost:5000'}/api/notifications`, {
-            headers: { 'x-profile-email': session.user.email, 'x-profile-proxy-secret': secret }, cache: 'no-store', signal: AbortSignal.timeout(15000),
+            headers: { 'x-profile-email': session.user.email, 'x-profile-proxy-secret': secret }, cache: 'no-store', signal: AbortSignal.timeout(30000),
         });
         return NextResponse.json(await response.json(), { status: response.status });
-    } catch { return NextResponse.json({ success: false, error: 'Cannot connect to backend' }, { status: 502 }); }
+    } catch (error) {
+        const timeout = error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name);
+        return NextResponse.json({ success: false, error: timeout ? 'ระบบอ่านแจ้งเตือนใช้เวลานาน กรุณาลองอีกครั้ง' : 'เชื่อมต่อระบบแจ้งเตือนไม่สำเร็จ กรุณาลองอีกครั้ง' }, { status: timeout ? 504 : 502 });
+    }
 }

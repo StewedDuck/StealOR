@@ -1,3 +1,4 @@
+const { readMatchingData, invalidateMatchingData } = require('./matchingReadCache');
 const { randomUUID } = require('node:crypto');
 const matchingService = require('./torMatchingService');
 const { SCORING_VERSION, ALGORITHM_VERSION, PROMPT_VERSION, TTL_MS, hash, collection } = require('./matchingCache');
@@ -91,8 +92,10 @@ async function compute(task) {
                 await coll.updateOne({ _id: task.id, fingerprint: task.fingerprint }, { $set: { notificationPending: false } });
             }
         } catch { console.warn('[NOTIFICATION] New matching notification deferred'); }
+        invalidateMatchingData('stored:');
         console.log(`[MATCHING] Background result completed in ${Date.now() - start}ms`);
     } catch {
+        invalidateMatchingData('stored:');
         console.warn('[MATCHING] Background calculation unavailable');
         await coll.updateOne({ _id: task.id, token }, {
             $set: {
@@ -118,11 +121,14 @@ function drain() {
 }
 async function getAvailableMatching(contractor, analyses, options = {}) {
     const descriptors = analyses.map(analysis => ({ ...descriptor(contractor, analysis), analysis, contractor }));
+    if (descriptors.length === 0) return [];
     const coll = collection('precomputed_matching');
     let stored = [];
     if (coll) {
         try {
-            stored = await coll.find({ _id: { $in: descriptors.map(d => d.id) } }).toArray();
+            const ids = descriptors.map(d => d.id).sort();
+            const rows = await readMatchingData(`stored:${ids.join(':')}`, () => coll.find({ _id: { $in: ids } }).toArray(), { force: !!options.force });
+            stored = rows.map(row => ({ ...row }));
         } catch {
             console.warn('[MATCHING] Stored results unavailable');
         }
@@ -160,7 +166,7 @@ async function getAvailableMatching(contractor, analyses, options = {}) {
         const refreshState = running ? 'running' : queued ? 'queued' : blocked ? 'failed' :
             pending && row?.retryAt ? 'retry_wait' : pending ? 'idle' : 'ready';
         return {
-            result: row?.result || null,
+            result: row?.result ? matchingService.refreshMatchingExplanations(row.result, contractor, task.analysis) : null,
             matchingStatus: refreshState === 'failed' ? 'unavailable' : pending || queued || running ? (row?.result ? 'stale' : 'pending') : 'ready',
             refreshState,
             failureCode: sameAttempt ? row?.failureCode || null : null,

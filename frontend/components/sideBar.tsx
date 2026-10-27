@@ -99,11 +99,6 @@ const projectOwnerMenuItems: MenuSection[] = [
                 icon: "LayoutDashboard",
             },
             {
-                name: "การแจ้งเตือน",
-                href: "/project_own/notifications",
-                icon: "BellRing",
-            },
-            {
                 name: "สร้าง TOR",
                 href: "/project_own/create_TOR",
                 icon: "Plus",
@@ -226,7 +221,7 @@ export default function Sidebar () {
             setDisplayName(profile.name);
           })
           .catch((error) => {
-            console.error("Failed to load sidebar profile:", error);
+            console.warn("Failed to load sidebar profile:", error);
       
             setDisplayName(session?.user?.name ?? "");
           });
@@ -252,7 +247,7 @@ export default function Sidebar () {
                 if (!cancelled) setNotificationCount(unreadCount);
             })
             .catch((error) => {
-                console.error(
+                console.warn(
                     "Failed to load sidebar notifications:",
                     error
                 );

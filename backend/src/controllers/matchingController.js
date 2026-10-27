@@ -1,3 +1,4 @@
+const { readMatchingData, invalidateMatchingData } = require('../services/matchingReadCache');
 const { matchingAccountFilter } = require('../services/matchingAccess');
 const mongoose = require("mongoose");
 const { loadVisibleCatalog, marketTor } = require('../services/torMatchingCatalog');
@@ -85,12 +86,13 @@ async function getTorMatching(req, res) {
             requiredFinancialYear: null,
         };
 
-        const result = await calculateMatching(
+        const calculated = await calculateMatching(
             contractor,
             torAnalysis,
             options
         );
 
+        const result = require('../services/torMatchingService').refreshMatchingExplanations(calculated, contractor, torAnalysis);
         return res.json({
             success: true,
             data: {
@@ -142,7 +144,8 @@ async function getMatchedTors(req, res) {
         }
 
         const [catalog, analyses] = await Promise.all([
-            loadVisibleCatalog(), TorAnalysis.find({}).lean(),
+            readMatchingData('catalog', loadVisibleCatalog, { ttlMs: 15000 }),
+            readMatchingData('analyses', () => TorAnalysis.find({}).lean(), { ttlMs: 15000 }),
         ]);
         const analysisMap = new Map(analyses.map(analysis => [`${analysis.torSource}:${analysis.torId}`, analysis]));
         const phases = catalog.map(({ tor, source }) => {
@@ -154,6 +157,7 @@ async function getMatchedTors(req, res) {
             return analysis?.pipelineState || (analysisReady(analysis) ? 'ready' : analysis?.status === 'failed' ? 'failed' : 'pending');
         });
         if (req.query?.retry === 'true' && catalog.length) {
+            invalidateMatchingData('analyses');
             await TorAnalysis.updateMany({
                 $or: catalog.map(({ tor, source }) => ({ torId: tor._id, torSource: source })), pipelineState: 'failed',
             }, { $set: { pipelineState: 'pending', attemptCount: 0, nextAttemptAt: null } });

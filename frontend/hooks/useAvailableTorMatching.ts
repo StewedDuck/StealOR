@@ -13,8 +13,9 @@ export function useAvailableTorMatching(email?: string | null) {
         if (!email) return;
         const start = Date.now();
         async function load() {
+            let nextPollMs = 30000;
             try {
-                const response = await fetch('/api/matching?refresh=false', { cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
+                const response = await fetch('/api/matching?refresh=false', { cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]) });
                 if (!response.ok) return;
                 const payload = await response.json();
                 if (cancelled || !payload.success || !Array.isArray(payload.data)) return;
@@ -24,8 +25,9 @@ export function useAvailableTorMatching(email?: string | null) {
                     if (match.projectId) next[`${match.torSource}:${match.projectId}`] = match;
                 }
                 setMatches(next);
-                timer = setTimeout(() => void load(), payload.pending && Date.now() - start < 120000 ? 4000 : 30000);
+                nextPollMs = payload.pending && Date.now() - start < 120000 ? 4000 : 30000;
             } catch { /* Keep ordinary TOR cards available when matching is unavailable. */ }
+            finally { if (!cancelled) timer = setTimeout(() => void load(), nextPollMs); }
         }
         void load();
         return () => { cancelled = true; controller.abort(); clearTimeout(timer); };

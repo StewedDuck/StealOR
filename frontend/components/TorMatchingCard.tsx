@@ -35,7 +35,7 @@ const statusLabel = (status: ResultStatus) =>
         ? "ผ่าน"
         : status === "fail"
         ? "ไม่ผ่าน"
-        : "ไม่ทราบ";
+        : "ข้อมูลไม่เพียงพอ";
 
 const statusIcon = (status: ResultStatus) =>
     status === "pass" ? (
@@ -53,24 +53,24 @@ const eligibilityLabel = (value: MatchingData["eligibility"]) =>
             ? "ไม่ผ่านคุณสมบัติบังคับ"
             : "ข้อมูลคุณสมบัติไม่เพียงพอ";
 
-function PercentageCircle({percentage,}: {
-    percentage: number | null;
-    }) {
-    const value =
-        percentage === null
-        ? 0
-        : Math.max(0, Math.min(100, percentage));
-
+function PercentageBar({ percentage }: { percentage: number | null }) {
+    const value = percentage !== null && Number.isFinite(percentage)
+        ? Math.max(0, Math.min(100, percentage)) : null;
     return (
-        <div
-            className="tm-percentage-circle"
-            style={
-                { "--tm-progress": `${value}%` } as React.CSSProperties
-            }
-        >
-            <div className="tm-percentage-inner">
-                {percentage === null ? "N/A" : `${percentage}%`}
+        <div className="tm-percentage-bar">
+            <div className="tm-percentage-value">
+                {value === null ? 'N/A' : <>{value}<span>%</span></>}
             </div>
+            <span className="tm-percentage-label">ความตรงกัน</span>
+            {value === null ? (
+                <div className="tm-percentage-track" aria-hidden="true" />
+            ) : (
+                <div className="tm-percentage-track" role="progressbar"
+                    aria-label="เปอร์เซ็นต์ความตรงกัน" aria-valuemin={0}
+                    aria-valuemax={100} aria-valuenow={value}>
+                    <span style={{ width: `${value}%` }} />
+                </div>
+            )}
         </div>
     );
 }
@@ -88,7 +88,9 @@ function CriterionProgress({ criterion, criteriaCount }: { criterion: RelevanceR
         <div className="tm-criterion-progress">
             <div className="tm-criterion-progress-heading">
                 <span>กลุ่มทักษะที่ยืนยันได้ {matched} / {total} กลุ่ม</span>
-                <b>{percentage === null ? 'ยังประเมินไม่ได้' : `${format(percentage)}%`}</b>
+                {percentage === null
+                    ? <span className="tm-result-badge tm-unknown">ข้อมูลไม่เพียงพอ</span>
+                    : <b>{`${format(percentage)}%`}</b>}
             </div>
             {percentage !== null && (
                 <div className="tm-criterion-progress-track" role="progressbar"
@@ -153,7 +155,7 @@ export function MatchingModal({item, onClose,}: {item: MatchedTor; onClose: () =
 
                 <div className="tm-modal-body">
                     <section className="tm-summary">
-                        <PercentageCircle
+                        <PercentageBar
                             percentage={matching.matchingPercentage}
                         />
                         <div>
@@ -232,7 +234,7 @@ export function MatchingModal({item, onClose,}: {item: MatchedTor; onClose: () =
                                 <strong>
                                     {matching.mandatorySummary.unknown}
                                 </strong>
-                                <span>ไม่ทราบ</span>
+                                <span>ข้อมูลไม่เพียงพอ</span>
                             </div>
                         </div>
 
@@ -278,6 +280,18 @@ export function MatchingModal({item, onClose,}: {item: MatchedTor; onClose: () =
                                             <p className="tm-translation">{r.text}</p>
                                         )}
 
+                                        {r.conditionDetails && r.conditionDetails.length > 0 && (
+                                            <div className="tm-condition-details">
+                                                {r.conditionDetails.map((condition, i) => (
+                                                    <div key={condition.field || i} className="tm-condition-detail">
+                                                        <strong>{condition.label}</strong>
+                                                        <span className={`tm-result-badge tm-${condition.status}`}>{statusLabel(condition.status)}</span>
+                                                        <p>ข้อมูลในโปรไฟล์: {condition.actual} · TOR กำหนด: {condition.expected}</p>
+                                                        <p>{condition.reason}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                         {r.reason && (
                                             <p>
                                                 <b>เหตุผล:</b> {r.reason}
@@ -549,7 +563,7 @@ export function TorMatchingCard({ tor, matching, saved, bookmarkLoading = false,
 
                                     <aside className="tm-card-aside">
                                         {getMatchingRefreshLabel(matching) && <small role="status">{getMatchingRefreshLabel(matching)}</small>}
-                                        <PercentageCircle
+                                        <PercentageBar
                                             percentage={
                                                 matching.matchingPercentage
                                             }

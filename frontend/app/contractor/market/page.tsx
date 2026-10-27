@@ -1,5 +1,7 @@
 "use client";
 
+import Link from 'next/link';
+
 import { shouldShowMatchingCard } from '@/lib/matchingStatus';
 
 import { useEffect, useMemo, useState } from "react";
@@ -8,7 +10,6 @@ import {
   getMarketTors,
   getMarketTorById,
   getEgpAnnouncementUrl,
-  getLocalProjectDocuments,
 } from "@/lib/torApi";
 
 import type {
@@ -46,7 +47,6 @@ import type { MatchedTor } from '@/types/matching';
 import { getUserProfile } from "@/lib/torApi";
 import TORDocumentModal from "@/components/TORDocumentModal";
 import {
-  getGovernmentPublicationStatus,
   getInternalPublicationStatus,
   type PublicationStatus,
 } from "@/lib/torPublicationStatus";
@@ -519,72 +519,15 @@ export default function TorMarketPage() {
 
           const marketTors = await getMarketTors();
 
-          const documentTypeEntries = await Promise.all(
-            marketTors.map(async (tor) => {
-              if (tor.source !== "government" || !tor.projectId) {
-                return null;
-              }
-          
-              try {
-                const localDocuments = await getLocalProjectDocuments(tor.projectId);
-                const documents = localDocuments.documents;
-          
-                const availableTypes: DocumentType[] = [];
-          
-                if (
-                  documents.priceEstimate.available &&
-                  documents.priceEstimate.files.length > 0
-                ) {
-                  availableTypes.push("priceEstimate");
-                }
-          
-                if (
-                  documents.draftEbidding.available &&
-                  documents.draftEbidding.files.length > 0
-                ) {
-                  availableTypes.push("draftEbidding");
-                }
-          
-                if (
-                  documents.invitation.available &&
-                  documents.invitation.files.length > 0
-                ) {
-                  availableTypes.push("invitation");
-                }
-          
-                return {
-                  projectId: tor.projectId,
-                  types: availableTypes,
-                  publicationStatus: getGovernmentPublicationStatus(localDocuments),
-                };
-              } catch (error) {
-                console.error("Failed to check documents:", tor.projectId, error);
-          
-                return {
-                  projectId: tor.projectId,
-                  types: [] as DocumentType[],
-                  publicationStatus: "unknown" as PublicationStatus,
-                };
-              }
-            })
-          );
-          
           const documentTypeMap: Record<string, DocumentType[]> = {};
           const publicationStatusMap: Record<string, PublicationStatus> = {};
-          
-          documentTypeEntries.forEach((entry) => {
-            if (!entry) return;
-          
-            documentTypeMap[entry.projectId] = entry.types;
-            publicationStatusMap[entry.projectId] = entry.publicationStatus;
-          });
-          
+          for (const tor of marketTors) {
+            if (tor.source !== 'government' || !tor.projectId) continue;
+            documentTypeMap[tor.projectId] = tor.documentTypes || [];
+            publicationStatusMap[tor.projectId] = tor.publicationStatus || 'unknown';
+          }
           setProjectDocumentTypes(documentTypeMap);
           setProjectPublicationStatuses(publicationStatusMap);
-          setTors(marketTors);
-
-          setProjectDocumentTypes(documentTypeMap);
-
           setTors(marketTors);
 
         } catch (err) {
@@ -597,13 +540,6 @@ export default function TorMarketPage() {
       }
       loadMarketTors();
     }, []);
-
-    console.log("MARKET TORS:", tors);
-
-    console.log(
-        "TORS WITHOUT PROJECT NAME:",
-        tors.filter((tor) => !tor.projectName)
-    );
 
     const getTorDisplayName = (tor: MarketTor) => {
       return tor.projectName?.trim() || tor.projectId || "ไม่ระบุชื่อโครงการ";
@@ -878,13 +814,13 @@ export default function TorMarketPage() {
           </div>
 
           <div className="market-header-actions">
-            <button className="notification-button">
+            <Link href={'/contractor/notifications'} className="notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
               <BellRing size={16}/>
-            </button>
+            </Link>
 
-            <div className="profile-circle">
+            <Link href="/contractor/account" className="profile-circle header-action-link" aria-label="บัญชีของฉัน">
                 {initials}
-            </div>
+            </Link>
           </div>
         </header>
 
@@ -970,7 +906,7 @@ export default function TorMarketPage() {
 
           {/* Result count */}
           <div className="market-result-count">
-            พบ {filteredTors.length} TOR
+            {loading ? 'กำลังโหลดรายการ…' : `พบ ${filteredTors.length} TOR`}
           </div>
 
           {/* Loading */}

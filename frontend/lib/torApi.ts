@@ -58,37 +58,18 @@ async function request<T>(
     },
   });
 
-  const contentType = response.headers.get("content-type") ?? "";
-
-  if (!contentType.includes("application/json")) {
-    const text = await response.text();
-
-    console.log("API URL:", url);
-    console.log("HTTP status:", response.status);
-    console.log("Final response URL:", response.url);
-    console.log("Content-Type:", contentType);
-    console.log("Response body:", text.slice(0, 500));
-
-    throw new Error(
-      `API returned HTML instead of JSON (${response.status}) at ${url}`
-    );
+  const endpoint = new URL(url, 'http://local').pathname;
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(`ระบบตอบกลับไม่ถูกต้อง (HTTP ${response.status}, ${endpoint}) กรุณาลองอีกครั้ง`);
   }
-
   const result = (await response.json()) as ApiResponse<T>;
-
   if (!response.ok || result.success === false) {
-    console.error("API Request Failed:", {
-      url,
-      method: init?.method ?? "GET",
-      status: response.status,
-      error: result.error ?? result.message,
-    });
-  
-    throw new Error(
-      result.error ??
-        result.message ??
-        "เกิดข้อผิดพลาดในการเชื่อมต่อ API"
-    );
+    const detail = result.error ?? result.message ?? 'เกิดข้อผิดพลาดในการเชื่อมต่อ API';
+    const message = detail === 'Cannot connect to backend'
+      ? 'เชื่อมต่อระบบไม่สำเร็จ หรือระบบตอบกลับช้า กรุณาลองอีกครั้ง'
+      : detail;
+    throw new Error(`${message} (HTTP ${response.status}, ${endpoint})`);
   }
 
   return result.data;

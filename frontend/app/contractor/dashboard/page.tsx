@@ -1,440 +1,126 @@
 "use client";
 
-import{
-    CircleCheckBig,
-    Clock,
-    ClockPlus,
-    Coins,
-    BellRing,
-} from 'lucide-react'
+import { CircleCheckBig, Clock, ClockPlus, Coins, BellRing } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import Sidebar from '@/components/sideBar';
-import "./dashboard.css";
-import SummaryCard from "@/components/SummaryCard";
-import MatchRateTrend from "@/components/MatchRateTrend";
-import QualificationGapChart from "@/components/QualificationGapChart";
-import { useEffect, useState } from "react";
-import TorDetailModal from "@/components/TorDetailModal";
-import { useSession } from "next-auth/react";
-import { getUserProfile } from "@/lib/torApi";
+import SummaryCard from '@/components/SummaryCard';
+import MatchRateTrend from '@/components/MatchRateTrend';
+import QualificationGapChart from '@/components/QualificationGapChart';
+import TorDetailModal from '@/components/TORDetail';
+import { getMarketTorById, getUserProfile } from '@/lib/torApi';
+import { getTorProgressStatus, type PublicationStatus } from '@/lib/torPublicationStatus';
+import type { ContractorDashboard } from '@/types/dashboard';
+import type { MarketTorDetail, MarketTor } from '@/types/tor';
+import './dashboard.css';
 
-type Tor = {
-    title: string;
-    organization: string;
-    budget: string;
-    location: string;
-    deadline: string;
-    matched: boolean;
-    match: number;
-    description: string;
-    requirements: {
-        name: string;
-        matched: boolean;
-    }[];
-};
-
+function money(value: number) {
+    return value >= 1000000 ? `฿${(value / 1000000).toLocaleString('th-TH', { maximumFractionDigits: 2 })}M` : `฿${value.toLocaleString('th-TH')}`;
+}
 export default function DashboardPage() {
-    const [selectedTor, setSelectedTor] = useState<Tor | null>(null);
-    const { data: session } = useSession();
-
-    const [displayName, setDisplayName] = useState("");
-
+    const { data: session, status } = useSession();
+    const [data, setData] = useState<ContractorDashboard | null>(null);
+    const [displayName, setDisplayName] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [reload, setReload] = useState(0);
+    const [selectedTor, setSelectedTor] = useState<MarketTorDetail | null>(null);
+    const [publicationStatus, setPublicationStatus] = useState<PublicationStatus>('unknown');
+    const [detailLoading, setDetailLoading] = useState<string | null>(null);
     useEffect(() => {
         const email = session?.user?.email;
-    
+        setDisplayName('');
         if (!email) return;
-    
-        getUserProfile(email)
-            .then((profile) => {
-                setDisplayName(profile.name);
-            })
-            .catch((error) => {
-                console.error(
-                    "Failed to load dashboard profile:",
-                    error
-                );
-    
-                setDisplayName(session?.user?.name ?? "");
-            });
-    }, [session?.user?.email, session?.user?.name]);
-
-    const userName =
-        displayName ||
-        session?.user?.name ||
-        "ผู้ใช้";
-
-    const initials = userName
-        .split(" ")
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    ;
-
-    return (
-        <>
-            <div className='dashboard-layout'>
-                <Sidebar />
-
-                <main className='dashboard-main-header'>
-                    {/* Header */}
-                    <header className='dashboard-header'>
-                        <div>
-                            <h1>
-                                แดชบอร์ด
-                            </h1>
-                            <p>
-                                ภาพรวมกิจกรรมของ TOR ที่ตรงกับคุณสมบัติของคุณ
-                            </p>
-                        </div>
-
-                        <div className='dashboard-header-actions'>
-                            <button className='notification-buttom'>
-                                <BellRing size={16} />
-                            </button>
-
-                            <div className='user-avater'>
-                                {initials}
-                            </div>
-                        </div>
-                    </header>
-
-                    <header className='dashboard-main'>
-
-                        <div className='dashboard-content'>
-
-                            {/* Summary */}
-                            <section className="summary-grid">
-                                <SummaryCard
-                                    icon={<CircleCheckBig size={20} />}
-                                    title="TORs ที่ตรงกัน"
-                                    value="24"
-                                    footer="+4 TORs"
-                                    footerType="success"
-                                />
-                                <SummaryCard
-                                    icon={<ClockPlus size={20} />}
-                                    title="TORs มาใหม่วันนี้"
-                                    value="12"
-                                    footer="TORs ใหม่วันนี้"
-                                    footerType="normal"
-                                />
-                                <SummaryCard
-                                    icon={<Clock size={20} />}
-                                    title="TORs ใกล้ปิดรับ"
-                                    value="5"
-                                    footer="TORs ที่จะปิดภายใน 5 วัน"
-                                    footerType="warning"
-                                />
-                                <SummaryCard
-                                    icon={<Coins size={20} />}
-                                    title="มูลค่า TORs ที่ตรงกัน"
-                                    value="฿18.5M"
-                                    footer="มูลค่ารวมของ TORs ที่ตรงกัน"
-                                    footerType="normal"
-                                />
-                            </section>
-
-                            {/* Charts */}
-                            <section className="dashboard-charts">
-
-                                {/* Match Rate Trend */}
-                                <MatchRateTrend />
-
-                                {/* Qualification Gap Analysis */}
-                                <QualificationGapChart />
-
-                            </section>
-
-                            {/* Bottom Row */}
-                            <div className="dashboard-bottom-grid">
-
-                                {/* Almost Closing */}
-                                <div className="dashboard-card closing-card">
-
-                                    <div className="card-heading">
-                                        <div>
-                                            <h2>ใกล้ปิดรับ</h2>
-                                            <p>TORs ที่ตรงกันและใกล้ปิดรับ</p>
-                                        </div>
-
-                                        <button className="view-all">
-                                            ดูทั้งหมด
-                                        </button>
-                                    </div>
-
-
-                                    <div className="closing-list">
-
-                                        <button
-                                            type="button"
-                                            className="closing-item"
-                                            onClick={() =>
-                                                setSelectedTor({
-                                                    title: "จ้างเหมาพัฒนาแอปพลิเคชันมือถือสำหรับให้บริการประชาชน",
-                                                    organization: "สำนักงานเขตรางรัก",
-                                                    budget: "25,000,000 บาท",
-                                                    location: "กรุงเทพมหานคร",
-                                                    deadline: "4 วัน",
-                                                    matched: true,
-                                                    match: 74,
-                                                    description:
-                                                        "โครงการจ้างเหมาพัฒนาแอปพลิเคชันมือถือสำหรับให้บริการประชาชน",
-                                                    requirements: [
-                                                        {
-                                                            name: "มีประสบการณ์พัฒนา Mobile Application",
-                                                            matched: true,
-                                                        },
-                                                        {
-                                                            name: "มีประสบการณ์พัฒนาระบบสำหรับหน่วยงานภาครัฐ",
-                                                            matched: true,
-                                                        },
-                                                        {
-                                                            name: "มีใบรับรอง ISO 27001",
-                                                            matched: false,
-                                                        },
-                                                    ],
-                                                })
-                                            }
-                                        >
-
-                                            <div className="closing-info">
-
-                                                <div className="closing-title">
-                                                    จ้างเหมาพัฒนาแอปพลิเคชันมือถือสำหรับให้บริการประชาชน
-                                                </div>
-
-                                                <div className="closing-organization">
-                                                    สำนักงานเขตรางรัก
-                                                </div>
-
-                                            </div>
-
-
-                                            <div className="closing-meta">
-
-                                                <span className="closing-match">
-                                                    74%
-                                                </span>
-
-                                                <span className="closing-days">
-                                                    4d left
-                                                </span>
-
-                                            </div>
-
-                                        </button>
-
-
-                                        <button
-                                            type="button"
-                                            className="closing-item"
-                                            onClick={() =>
-                                                setSelectedTor({
-                                                    title: "โครงการพัฒนาเว็บไซต์และระบบสมาชิกออนไลน์",
-                                                    organization: "ธนาคารออมสิน",
-                                                    budget: "50,000,000 บาท",
-                                                    location: "กรุงเทพมหานคร",
-                                                    deadline: "5 วัน",
-                                                    matched: true,
-                                                    match: 68,
-                                                    description: "โครงการพัฒนาเว็บไซต์และระบบสมาชิกออนไลน์",
-                                                    requirements: [
-                                                        {
-                                                            name: "มีประสบการณ์พัฒนาเว็บไซต์",
-                                                            matched: true,
-                                                        },
-                                                        {
-                                                            name: "มีประสบการณ์ระบบสมาชิกออนไลน์",
-                                                            matched: true,
-                                                        },
-                                                        {
-                                                            name: "มีใบรับรอง ISO 27001",
-                                                            matched: false,
-                                                        },
-                                                    ],
-                                                })
-                                            }
-                                        >
-
-                                            <div className="closing-info">
-
-                                                <div className="closing-title">
-                                                    โครงการพัฒนาเว็บไซต์และระบบสมาชิกออนไลน์
-                                                </div>
-
-                                                <div className="closing-organization">
-                                                ธนาคารออมสิน
-                                                </div>
-
-                                            </div>
-
-
-                                            <div className="closing-meta">
-
-                                                <span className="closing-match">
-                                                    68%
-                                                </span>
-
-                                                <span className="closing-days">
-                                                    5d left
-                                                </span>
-                                            </div>
-                                        </button>
-                                    </div> 
-                                </div>
-
-
-                                {/* Software Type */}
-                                <div className="dashboard-card software-card">
-
-                                    <div className="card-heading">
-
-                                        <div>
-                                            <h2>แยกตามประเภทซอฟต์แวร์</h2>
-
-                                            <p>
-                                                TOR ที่เปิดรับจากหน่วยงานในกรุงเทพฯ
-                                            </p>
-                                        </div>
-
-                                    </div>
-
-
-                                    <div className="software-chart">
-
-                                        <SoftwareBar
-                                            name="Web App"
-                                            value={7}
-                                            max={7}
-                                        />
-
-                                        <SoftwareBar
-                                            name="ERP"
-                                            value={4}
-                                            max={7}
-                                        />
-
-                                        <SoftwareBar
-                                            name="Mobile"
-                                            value={3}
-                                            max={7}
-                                        />
-
-                                        <SoftwareBar
-                                            name="Cloud"
-                                            value={3}
-                                            max={7}
-                                        />
-
-                                        <SoftwareBar
-                                        name="Data/AI"
-                                        value={3}
-                                        max={7}
-                                        />
-
-                                        <SoftwareBar
-                                            name="Cyber"
-                                            value={2}
-                                            max={7}
-                                        />
-
-                                        <SoftwareBar
-                                            name="Network"
-                                            value={2}
-                                            max={7}
-                                        />
-
-                                    </div>
-
-                                </div>
-
-                            </div>
-
-
-                            {/* TOR Detail Modal */}
-
-                            {selectedTor && (
-                                <TorDetailModal
-                                    tor={selectedTor}
-                                    onClose={() => setSelectedTor(null)}
-                                />
-                            )}
-                        </div>
-                    </header>
-                </main>
-            </div>
-        </>
-    );
-}
-
-function SoftwareBar({
-    name,
-    value,
-    max,
-}: {
-    name: string;
-    value: number;
-    max: number;
-}) {
-
-    const width = `${(value / max) * 100}%`;
-
-    return (
-        <div className="software-row">
-
-            <span className="software-name">
-                {name}
-            </span>
-
-            <div className="software-track">
-                <div
-                    className="software-fill"
-                    style={{ width }}
-                />
-            </div>
-
-            <span className="software-value">
-                {value}
-            </span>
-
-        </div>
-    );
-}
-
-function ClosingItem({
-    title,
-    organization,
-    match,
-    days,
-}: {
-    title: string;
-    organization: string;
-    match: string;
-    days: string;
-}) {
-    return (
-        <div className="closing-item">
-
-            <div className="closing-info">
-                <div className="closing-title">
-                    {title}
+        let cancelled = false;
+        getUserProfile(email).then(profile => { if (!cancelled) setDisplayName(profile.name); }).catch(() => {});
+        return () => { cancelled = true; };
+    }, [session?.user?.email]);
+    useEffect(() => {
+        if (status === 'loading') return;
+        setData(null); setSelectedTor(null); setLoading(true); setError('');
+        if (!session?.user?.email) { setLoading(false); setError('กรุณาเข้าสู่ระบบก่อนใช้งานแดชบอร์ด'); return; }
+        let cancelled = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const controller = new AbortController();
+        async function load() {
+            try {
+                const response = await fetch('/api/contractor-dashboard', {
+                    cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
+                });
+                const payload = await response.json();
+                if (!response.ok || !payload.success) throw Error(payload.error || 'โหลดแดชบอร์ดไม่สำเร็จ');
+                if (!cancelled) { setData(payload.data); setError(''); }
+            } catch (error) {
+                if (!cancelled) setError(error instanceof Error ? error.message : 'โหลดแดชบอร์ดไม่สำเร็จ');
+            } finally {
+                if (!cancelled) { setLoading(false); timer = setTimeout(() => void load(), 30000); }
+            }
+        }
+        void load();
+        return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
+    }, [session?.user?.email, status, reload]);
+
+    async function viewTor(tor: MarketTor) {
+        setDetailLoading(tor.id);
+        try {
+            const detail = await getMarketTorById(tor.projectId || tor.id);
+            setPublicationStatus(tor.publicationStatus || 'unknown'); setSelectedTor(detail);
+        } catch (error) { setError(error instanceof Error ? error.message : 'เปิดรายละเอียด TOR ไม่สำเร็จ'); }
+        finally { setDetailLoading(null); }
+    }
+    const name = displayName || session?.user?.name || 'ผู้ใช้';
+    const initials = name.split(' ').map(word => word[0]).join('').slice(0, 2).toUpperCase();
+    const summary = data?.summary;
+    const count = (value?: number) => value === undefined ? '—' : value.toLocaleString('th-TH');
+    return <div className="dashboard-layout">
+        <Sidebar />
+        <main className="dashboard-main-header">
+            <header className="dashboard-header">
+                <div><h1>แดชบอร์ด</h1><p>ภาพรวมกิจกรรมของ TOR ที่ตรงกับคุณสมบัติของคุณ</p></div>
+                <div className="dashboard-header-actions">
+                    <Link href="/contractor/notifications" className="notification-buttom header-action-link header-notification-link" aria-label="การแจ้งเตือน"><BellRing size={16} /></Link>
+                    <Link href="/contractor/account" className="user-avater header-action-link" aria-label="บัญชีของฉัน">{initials}</Link>
                 </div>
-
-                <div className="closing-organization">
-                    {organization}
+            </header>
+            <div className="dashboard-main"><div className="dashboard-content">
+                {loading && <p className="dashboard-status" role="status">กำลังโหลดข้อมูลจริง… การโหลดครั้งแรกอาจใช้เวลาสักครู่</p>}
+                {error && <div className="dashboard-status" role="alert">{error} <button type="button" onClick={() => setReload(value => value + 1)}>ลองอีกครั้ง</button></div>}
+                <section className="summary-grid">
+                    <SummaryCard icon={<CircleCheckBig size={20} />} title="TORs ที่ตรงกัน" value={count(summary?.matchedCount)} footer="คะแนนมากกว่า 39% ตามหน้า Matching" footerType="success" />
+                    <SummaryCard icon={<ClockPlus size={20} />} title="TORs มาใหม่วันนี้" value={count(summary?.newTodayCount)} footer="TOR เข้าระบบวันนี้ ตามเวลาไทย" />
+                    <SummaryCard icon={<Clock size={20} />} title="TORs ใกล้ปิดรับ" value={count(summary?.closingCount)} footer="TOR ที่ตรงกันและเปิดรับ ปิดภายใน 5 วัน" footerType="warning" />
+                    <SummaryCard icon={<Coins size={20} />} title="มูลค่า TORs ที่ตรงกัน" value={summary ? money(summary.matchedBudget) : '—'} footer={summary?.missingBudgetCount ? `ยังไม่ระบุงบประมาณ ${summary.missingBudgetCount} TOR` : 'งบประมาณรวมของ TOR ที่ตรงกัน'} />
+                </section>
+                <section className="dashboard-charts">
+                    <MatchRateTrend data={data?.trend} currentRate={summary?.matchRate ?? null} />
+                    <QualificationGapChart data={data?.qualificationGaps} />
+                </section>
+                {data && !data.historyAvailable && <p className="dashboard-status">ยังอ่านประวัติกราฟย้อนหลังไม่ได้ ข้อมูลสรุปปัจจุบันยังแสดงได้ตามปกติ</p>}
+                <div className="dashboard-bottom-grid">
+                    <div className="dashboard-card closing-card">
+                        <div className="card-heading"><div><h2>ใกล้ปิดรับ</h2><p>TOR ที่ตรงกัน เปิดรับ และจะปิดภายใน 5 วัน</p></div><Link className="view-all" href="/contractor/matching">ดูทั้งหมด</Link></div>
+                        <div className="closing-list">
+                            {data && data.closingTors.length === 0 && <p className="dashboard-empty">ไม่มี TOR ที่ตรงกันและใกล้ปิดรับในช่วงนี้</p>}
+                            {data?.closingTors.map(({ tor, matchingPercentage, daysLeft }) => <button key={`${tor.source}:${tor.id}`} type="button" className="closing-item" disabled={detailLoading !== null} onClick={() => void viewTor(tor)}>
+                                <div className="closing-info"><div className="closing-title">{tor.projectName}</div><div className="closing-organization">{tor.agencyName || 'ไม่ระบุหน่วยงาน'}</div></div>
+                                <div className="closing-meta"><span className="closing-match">{matchingPercentage}%</span><span className="closing-days">{detailLoading === tor.id ? 'กำลังเปิด…' : daysLeft === 0 ? 'ปิดรับวันนี้' : `อีก ${daysLeft} วัน`}</span></div>
+                            </button>)}
+                        </div>
+                    </div>
+                    <div className="dashboard-card software-card">
+                        <div className="card-heading"><div><h2>แยกตามประเภทซอฟต์แวร์</h2><p>TOR เปิดรับ จัดกลุ่มจากข้อความและทักษะ (หนึ่ง TOR มีได้หลายประเภท)</p></div></div>
+                        <div className="software-chart">
+                            {data && data.softwareTypes.length === 0 && <p className="dashboard-empty">ยังไม่มี TOR เปิดรับสำหรับสรุปประเภท</p>}
+                            {data?.softwareTypes.map(item => <SoftwareBar key={item.name} {...item} max={Math.max(1, ...data.softwareTypes.map(row => row.value))} />)}
+                        </div>
+                    </div>
                 </div>
-            </div>
-
-            <div className="closing-meta">
-                <span className="closing-match">
-                    {match}
-                </span>
-
-                <span className="closing-days">
-                    {days}
-                </span>
-            </div>
-
-        </div>
-    );
+            </div></div>
+        </main>
+        {selectedTor && <TorDetailModal tor={selectedTor} progressStatus={getTorProgressStatus({ ...selectedTor, deadline: selectedTor.submissionDeadline }, publicationStatus)} onClose={() => setSelectedTor(null)} />}
+    </div>;
+}
+function SoftwareBar({ name, value, max }: { name: string; value: number; max: number }) {
+    return <div className="software-row"><span className="software-name">{name}</span><div className="software-track"><div className="software-fill" style={{ width: `${max > 0 ? value / max * 100 : 0}%` }} /></div><span className="software-value">{value}</span></div>;
 }
