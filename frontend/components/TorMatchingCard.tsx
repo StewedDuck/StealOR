@@ -53,24 +53,24 @@ const eligibilityLabel = (value: MatchingData["eligibility"]) =>
             ? "ไม่ผ่านคุณสมบัติบังคับ"
             : "ข้อมูลคุณสมบัติไม่เพียงพอ";
 
-function PercentageCircle({percentage,}: {
-    percentage: number | null;
-    }) {
-    const value =
-        percentage === null
-        ? 0
-        : Math.max(0, Math.min(100, percentage));
-
+function PercentageBar({ percentage }: { percentage: number | null }) {
+    const value = percentage !== null && Number.isFinite(percentage)
+        ? Math.max(0, Math.min(100, percentage)) : null;
     return (
-        <div
-            className="tm-percentage-circle"
-            style={
-                { "--tm-progress": `${value}%` } as React.CSSProperties
-            }
-        >
-            <div className="tm-percentage-inner">
-                {percentage === null ? "N/A" : `${percentage}%`}
+        <div className="tm-percentage-bar">
+            <div className="tm-percentage-value">
+                {value === null ? 'N/A' : <>{value}<span>%</span></>}
             </div>
+            <span className="tm-percentage-label">ความตรงกัน</span>
+            {value === null ? (
+                <div className="tm-percentage-track" aria-hidden="true" />
+            ) : (
+                <div className="tm-percentage-track" role="progressbar"
+                    aria-label="เปอร์เซ็นต์ความตรงกัน" aria-valuemin={0}
+                    aria-valuemax={100} aria-valuenow={value}>
+                    <span style={{ width: `${value}%` }} />
+                </div>
+            )}
         </div>
     );
 }
@@ -155,7 +155,7 @@ export function MatchingModal({item, onClose,}: {item: MatchedTor; onClose: () =
 
                 <div className="tm-modal-body">
                     <section className="tm-summary">
-                        <PercentageCircle
+                        <PercentageBar
                             percentage={matching.matchingPercentage}
                         />
                         <div>
@@ -563,7 +563,7 @@ export function TorMatchingCard({ tor, matching, saved, bookmarkLoading = false,
 
                                     <aside className="tm-card-aside">
                                         {getMatchingRefreshLabel(matching) && <small role="status">{getMatchingRefreshLabel(matching)}</small>}
-                                        <PercentageCircle
+                                        <PercentageBar
                                             percentage={
                                                 matching.matchingPercentage
                                             }
