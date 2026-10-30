@@ -179,7 +179,7 @@ test('AI failure and malformed responses are never stored as successful matches'
     const jobs = [{ skillGroups: [['failure']], profileValues: ['react'] }];
     await assert.rejects(findSemanticMatchesBatch(jobs, options));
     await assert.rejects(findSemanticMatchesBatch(jobs, options));
-    assert.equal(calls, 2);
+    assert.equal(calls, 3, 'Malformed response retries once; transport failure does not');
     for (const doc of cache.docs.values()) assert.equal(doc.matches, undefined);
 });
 
@@ -305,9 +305,15 @@ test('React can resolve the library group while missing Laravel and CSS evidence
 test('omitted group evaluations never become a successful empty or partial cache entry', async () => {
     const cache = fakeCache();
     const jobs = [{ skillGroups: [['library'], ['css framework']], profileValues: ['react'] }];
-    const options = { config, collection: cache, client: { models: { generateContent: async () => ({
-        text: JSON.stringify({ matches: [{ jobIndex: 0, groupIndex: 0, evidenceIndex: 0, matched: true, reason: 'React เป็น JavaScript Library' }] }),
-    }) } } };
+    const options = { config, collection: cache, client: { models: { generateContent: async request => {
+        const input = JSON.parse(request.contents);
+        const matches = input.jobs.flatMap(job => job.skillGroups.map(group => ({
+            jobIndex: job.jobIndex, groupIndex: group.groupIndex, evidenceIndex: -1,
+            matched: false, reason: 'ยังไม่พบหลักฐานยืนยัน',
+        })));
+        matches.pop(); // Always omit a group, including on the smaller retry.
+        return { text: JSON.stringify({ matches }) };
+    } } } };
     await assert.rejects(findSemanticMatchesBatch(jobs, options), /Incomplete/);
     for (const doc of cache.docs.values()) assert.equal(doc.matches, undefined);
 });
@@ -349,4 +355,41 @@ test('18 equal criteria give a 75-percent-covered criterion 4.17 points without 
     assert.equal(result.relevanceResults[0].earnedWeight, 4.17);
     assert.equal(result.matchingPercentage, 4.17);
     assert.equal(result.meetsDisplayThreshold, false);
+});
+
+
+test('large requests are bounded and preserve original criterion/group evidence mappings', async () => {
+    let calls = 0;
+    const jobs = [0, 1].map(index => ({ skillGroups: Array.from({ length: 9 }, (_, g) => [`group-${index}-${g}`]),
+        profileValues: [`evidence-${index}`], evidenceFields: [index ? 'profileSummary' : 'skills'] }));
+    const result = await findSemanticMatchesBatch(jobs, { config, disableCache: true, client: { models: { generateContent: async request => {
+        calls++;
+        const input = JSON.parse(request.contents);
+        assert.ok(input.jobs.reduce((n, job) => n + job.skillGroups.length, 0) <= 12);
+        return { text: JSON.stringify({ matches: input.jobs.flatMap(job => job.skillGroups.map(group => ({
+            jobIndex: job.jobIndex, groupIndex: group.groupIndex, evidenceIndex: 0, matched: true, reason: 'พบหลักฐานตรงตามข้อกำหนด',
+        }))) }) };
+    } } } });
+    assert.equal(calls, 2);
+    assert.equal(result.length, 18);
+    for (const match of result) assert.equal(match.evidence, `evidence-${match.jobIndex}`);
+    assert.deepEqual(result.map(m => [m.jobIndex, m.groupIndex]), jobs.flatMap((j, i) => j.skillGroups.map((_, g) => [i, g])));
+});
+
+test('incomplete output recovers once in smaller batches and caches only the fully validated result', async () => {
+    let calls = 0;
+    const cache = fakeCache();
+    const jobs = [{ skillGroups: [['recovery-library'], ['recovery-database']], profileValues: ['React', 'PostgreSQL'] }];
+    const result = await findSemanticMatchesBatch(jobs, { config, collection: cache, client: { models: { generateContent: async request => {
+        calls++;
+        if (calls === 1) return { text: '{}', candidates: [{ finishReason: 'MAX_TOKENS' }] };
+        const input = JSON.parse(request.contents);
+        return { text: JSON.stringify({ matches: input.jobs.map(job => ({
+            jobIndex: job.jobIndex, groupIndex: 0, evidenceIndex: job.skillGroups[0].alternatives[0].includes('database') ? 1 : 0,
+            matched: true, reason: 'พบหลักฐานทักษะที่ตรงกับข้อกำหนด',
+        })) }) };
+    } } } });
+    assert.equal(calls, 3);
+    assert.deepEqual(result.map(m => [m.groupIndex, m.evidence]), [[0, 'React'], [1, 'PostgreSQL']]);
+    assert.ok([...cache.docs.values()].every(doc => doc.matches.length === 2));
 });

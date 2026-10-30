@@ -10,7 +10,9 @@ async function addMarketDocumentSummaries(tors, lookup = getLocalProjectDocument
             try {
                 const { documents } = await lookup(tor.projectId);
                 const documentTypes = ['priceEstimate', 'draftEbidding', 'invitation'].filter(type => documents[type]?.available && documents[type].files.length > 0);
-                results[index] = { ...tor, documentTypes, publicationStatus: documentTypes.includes('invitation') ? 'open' : 'draft' };
+                const publicationStatus = documentTypes.includes('invitation') ? 'open' : 'draft';
+                results[index] = { ...tor, documentTypes, publicationStatus,
+                    ...('commentDeadlineAt' in tor ? { deadline: publicationStatus === 'draft' ? tor.commentDeadlineAt : tor.biddingDeadline } : {}) };
             } catch {
                 results[index] = { ...tor, documentTypes: [], publicationStatus: 'unknown' };
             }

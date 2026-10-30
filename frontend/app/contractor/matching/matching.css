@@ -367,7 +367,7 @@
   margin-bottom: 14px;
 }
 
-.tm-evaluation-status > .tm-retry-button {
+.tm-evaluation-status .tm-retry-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -381,7 +381,7 @@
   color: #4b7db8;
 }
 
-.tm-evaluation-status > .tm-retry-button:disabled {
+.tm-evaluation-status .tm-retry-button:disabled {
   cursor: wait;
   opacity: 0.7;
 }
@@ -403,7 +403,38 @@
 }
 
 .tm-status-spinner {
+  flex-shrink: 0;
   animation: tm-status-spin 1s linear infinite;
+}
+
+.tm-working {
+  margin-bottom: 22px;
+}
+
+.tm-evaluation-count {
+  margin: 0 0 18px;
+  color: #526779;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-evaluation-count strong {
+  color: #4b7db8;
+}
+
+.tm-working-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #4b7db8;
+  font-size: 17px;
+}
+
+.tm-working-description {
+  margin: 10px 0 16px;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 @keyframes tm-status-spin {
@@ -966,3 +997,57 @@
   grid-column: 1 / -1;
   margin: 0;
 }
+
+
+.tm-result-heading { flex-wrap: wrap; gap: 10px 20px; }
+.tm-result-heading > span { flex-shrink: 0; }
+.tm-result-heading > small { margin-left: auto; }
+
+.tm-evaluation-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+}
+.tm-evaluation-status .tm-working-heading {
+  justify-content: flex-start;
+  gap: 6px;
+  font-size: 12px;
+}
+.tm-evaluation-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tm-evaluation-status .tm-retry-button {
+  min-height: 28px;
+  padding: 3px 8px;
+  gap: 5px;
+  border-color: #d6e1ed;
+  border-radius: 7px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.tm-evaluation-status .tm-retry-button:hover { background: #edf3fa; }
+@media (max-width: 700px) {
+  .tm-result-heading { align-items: flex-start; }
+  .tm-evaluation-status { flex-basis: 100%; }
+}
+
+.tm-refresh-warning { font-size: 12px; font-weight: 400; color: #64748b; }
+.tm-refresh-warning .tm-retry-button {
+  border: 1px solid #d6e1ed;
+  border-radius: 7px;
+  background: transparent;
+  color: #4b7db8;
+  padding: 3px 8px;
+  min-height: 28px;
+  font: inherit;
+  cursor: pointer;
+}
+.tm-refresh-warning .tm-retry-button:disabled { opacity: .6; cursor: wait; }

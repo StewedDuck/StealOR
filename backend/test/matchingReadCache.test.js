@@ -40,3 +40,32 @@ test('manual force retry bypasses cached data', async () => {
     const cache = createReadCache(); await cache.read('rows', async () => 'old');
     assert.equal(await cache.read('rows', async () => 'new', { force: true }), 'new');
 });
+
+test('background writes retain warm snapshots and coalesce refreshes without caching an invalidated read as fresh', async () => {
+    let now = 10; const cache = createReadCache({ now: () => now });
+    await cache.read('analyses', async () => 'old');
+    cache.invalidate('analyses', { retainValue: true });
+    const task = deferred(); let calls = 0;
+    const load = () => { calls++; return task.promise; };
+    assert.equal(await cache.read('analyses', load), 'old');
+    cache.invalidate('analyses', { retainValue: true });
+    assert.equal(await cache.read('analyses', load), 'old');
+    assert.equal(calls, 1, 'Writes during refresh must not multiply database reads');
+    task.resolve('intermediate'); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(await cache.read('analyses', async () => 'latest'), 'intermediate');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(await cache.read('analyses', async () => 'wrong'), 'latest');
+    cache.invalidate('analyses', { retainValue: true });
+    assert.equal(await cache.read('analyses', async () => 'forced', { force: true }), 'forced');
+});
+
+test('cold reads return within budget while the shared cache continues warming', async () => {
+    const { readWithinBudget } = require('../src/services/matchingReadCache');
+    const cache = createReadCache(); const task = deferred(); let calls = 0;
+    const read = cache.read('catalog', () => { calls++; return task.promise; });
+    assert.equal(await readWithinBudget(read, 5), null);
+    task.resolve(['TOR']); await read;
+    assert.deepEqual(await readWithinBudget(cache.read('catalog', async () => { calls++; return []; }), 5), { value: ['TOR'] });
+    assert.equal(calls, 1);
+    await assert.rejects(readWithinBudget(Promise.reject(Error('offline')), 5), /offline/);
+});

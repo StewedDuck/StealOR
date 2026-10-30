@@ -21,7 +21,7 @@ import TorDetailModal from "@/components/TORDetail";
 import FilterDropdown from "@/components/FilterDropdown";
 import MultiSelectFilterDropdown from "@/components/MultiSelectFilterDropdown";
 import TorDeadlineBadge from "@/components/TorDeadlineBadge";
-import { getDeadlineInfo } from "@/lib/torDeadline";
+import { getDeadlineInfo, getTorDisplayDeadline } from "@/lib/torDeadline";
 
 import {
   Tag,
@@ -42,7 +42,8 @@ import { TorMatchingCard, MatchingModal } from '@/components/TorMatchingCard';
 import { useAvailableTorMatching } from '@/hooks/useAvailableTorMatching';
 import { useTorBookmarks } from '@/hooks/useTorBookmarks';
 import { torBookmarkKey } from '@/lib/torIdentity';
-import { getTorProgressStatus } from '@/lib/torPublicationStatus';
+import { getTorProgressStatus, getTorProgressLabel, isTorCommentClosed, matchesTorStatusFilter } from '@/lib/torPublicationStatus';
+import TorCommentClosedBadge from '@/components/TorCommentClosedBadge';
 import type { MatchedTor } from '@/types/matching';
 import { getUserProfile } from "@/lib/torApi";
 import TORDocumentModal from "@/components/TORDocumentModal";
@@ -82,9 +83,11 @@ type StatusFilter =
   |"all" 
   | "open" 
   | "draft" 
-  | "closed";
+  | "closed"
+  | "comments_closed";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
   day: "2-digit",
   month: "short",
   year: "numeric",
@@ -387,8 +390,9 @@ const statusOptions: {
   },
   { 
     value: "closed", 
-    label: "ปิด" 
+    label: "ปิดรับสมัคร"
   },
+  { value: "comments_closed", label: "ปิดรับความคิดเห็น" },
 ];
 
 const documentTypeOptions: {
@@ -546,7 +550,10 @@ export default function TorMarketPage() {
     };
 
     const filteredTors = useMemo(() => {
-        let result = [...tors];
+        let result = tors.map(tor => {
+        const publicationStatus = projectPublicationStatuses[tor.projectId || ''] || tor.publicationStatus;
+        return { ...tor, publicationStatus, deadline: getTorDisplayDeadline(tor, publicationStatus) };
+      });
 
         // Search
         const keyword = query
@@ -608,29 +615,8 @@ export default function TorMarketPage() {
 
         // Status: Closed / Open / Draft
         if (statusFilter !== "all") {
-          result = result.filter((tor) => {
-            const isTorClosed =
-              getDeadlineInfo(tor.deadline).status === "closed";
-
-            const publicationStatus =
-              tor.source === "government"
-                ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
-                : getInternalPublicationStatus(tor.status);
-
-            if (statusFilter === "closed") {
-              return isTorClosed;
-            }
-
-            if (statusFilter === "open") {
-              return !isTorClosed && publicationStatus === "open";
-            }
-
-            if (statusFilter === "draft") {
-              return !isTorClosed && publicationStatus === "draft";
-            }
-
-            return true;
-          });
+          result = result.filter(tor => matchesTorStatusFilter(tor, statusFilter,
+            projectPublicationStatuses[tor.projectId || ''] || tor.publicationStatus));
         }
 
         // Time
@@ -935,21 +921,15 @@ export default function TorMarketPage() {
           {/* TOR List */}
           <section className="market-list">
             {filteredTors.map((tor) => {
-              const deadlineInfo = getDeadlineInfo(tor.deadline);
-              const closed = deadlineInfo.status === "closed";
+              const closed = getTorProgressStatus(tor, tor.publicationStatus) === "closed";
               
               const publicationStatus =
                 tor.source === "government"
-                  ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
+                  ? projectPublicationStatuses[tor.projectId ?? ""] || tor.publicationStatus || "unknown"
                   : getInternalPublicationStatus(tor.status);
               
-              const statusLabel = closed
-                ? "ปิดรับแล้ว"
-                : publicationStatus === "open"
-                  ? "Open"
-                  : publicationStatus === "draft"
-                    ? "Draft"
-                    : "Unknown";
+              const statusLabel = getTorProgressLabel(getTorProgressStatus(tor, publicationStatus));
+              const commentsClosed = isTorCommentClosed(tor, publicationStatus);
 
               const matching = matches[`${tor.source}:${tor.id}`] || matches[torBookmarkKey(tor)];
               if (shouldShowMatchingCard(matching)) return (
@@ -994,6 +974,7 @@ export default function TorMarketPage() {
                         >
                           {statusLabel}
                         </span>
+                        {commentsClosed && <TorCommentClosedBadge />}
 
                         {tor.projectId && (
                           <span className="market-tor-id">
@@ -1055,7 +1036,7 @@ export default function TorMarketPage() {
                             </span>
                           </div>
 
-                          <TorDeadlineBadge deadline={tor.deadline} />
+                          {!commentsClosed && <TorDeadlineBadge deadline={tor.deadline} />}
                         </div>
 
                         {tor.description && (
@@ -1213,6 +1194,7 @@ export default function TorMarketPage() {
       {activeTor && (
             <TorDetailModal
                 tor={activeTor}
+                publicationStatus={projectPublicationStatuses[activeTor.projectId || '']}
                 progressStatus={getTorProgressStatus({ ...activeTor, deadline: activeTor.submissionDeadline }, projectPublicationStatuses[activeTor.projectId || ''])}
                 onClose={() => setActiveTor(null)}
             />

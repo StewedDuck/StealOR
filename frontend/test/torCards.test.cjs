@@ -46,6 +46,161 @@ const matching = { torId: 'mongo-id', torSource: 'government', matchingPercentag
 ] };
 const callbacks = { onViewDetails() {}, onMatchingDetails() {}, onBookmark() {}, onDocuments() {} };
 
+test('Draft matching cards show the MongoDB comment deadline rather than the bidding deadline', () => {
+    const { getTorDisplayDeadline } = load('lib/torDeadline');
+    const draft = { ...tor, publicationStatus: 'draft', deadline: '2099-12-25T00:00:00Z',
+        biddingDeadline: '2099-12-25T00:00:00Z', commentDeadlineAt: '2099-11-18T00:00:00Z' };
+    assert.equal(getTorDisplayDeadline(draft), draft.commentDeadlineAt);
+    assert.equal(getTorDisplayDeadline(draft, 'open'), draft.biddingDeadline);
+    assert.equal(getTorDisplayDeadline({ ...draft, commentDeadlineAt: null }), null);
+    const markup = renderToStaticMarkup(React.createElement(TorMatchingCard, { ...callbacks, tor: draft, matching, saved: false, progressStatus: 'draft' }));
+    assert.match(markup, /18/);
+    assert.match(markup, /พ.ย./);
+    assert.doesNotMatch(markup, /25 ธ.ค./);
+    assert.equal(getTorProgressStatus({ ...draft, commentDeadlineAt: '2000-01-01' }, 'draft'), 'draft');
+});
+
+test('closed comment periods remain Draft and use a separate orange badge and filter', () => {
+    const { isTorCommentClosed, matchesTorStatusFilter } = load('lib/torPublicationStatus');
+    const draft = { ...tor, publicationStatus: 'draft', commentDeadlineAt: '2000-01-01T00:00:00Z',
+        deadline: '2000-01-01T00:00:00Z', biddingDeadline: '2099-01-01T00:00:00Z' };
+    assert.equal(getTorProgressStatus(draft), 'draft');
+    assert.equal(isTorCommentClosed(draft), true);
+    assert.equal(matchesTorStatusFilter(draft, 'draft'), true);
+    assert.equal(matchesTorStatusFilter(draft, 'comments_closed'), true);
+    assert.equal(matchesTorStatusFilter(draft, 'closed'), false);
+    assert.equal(matchesTorStatusFilter(draft, 'open'), false);
+    const markup = renderToStaticMarkup(React.createElement(TorMatchingCard, {
+        ...callbacks, tor: draft, matching, saved: true, progressStatus: getTorProgressStatus(draft),
+    }));
+    assert.match(markup, />Draft</);
+    assert.match(markup, /class="tor-status-badge tor-comment-closed">ปิดรับความคิดเห็น/);
+    assert.doesNotMatch(markup, /tm-publication-closed/);
+
+    const published = { ...draft, publicationStatus: 'open' };
+    assert.equal(getTorProgressStatus(published), 'open', 'Invitation starts the independent bidding period');
+    assert.equal(isTorCommentClosed(published), false);
+    assert.equal(matchesTorStatusFilter(published, 'comments_closed'), false);
+    assert.equal(matchesTorStatusFilter(published, 'published'), true);
+    const closedBid = { ...published, biddingDeadline: '2000-01-01T00:00:00Z' };
+    assert.equal(getTorProgressStatus(closedBid), 'closed');
+    assert.equal(matchesTorStatusFilter(closedBid, 'closed'), true);
+    assert.equal(matchesTorStatusFilter(closedBid, 'comments_closed'), false);
+    for (const commentDeadlineAt of [null, 'invalid', '2099-01-01T00:00:00Z']) {
+        assert.equal(isTorCommentClosed({ ...draft, commentDeadlineAt }), false);
+    }
+    assert.equal(getTorProgressStatus({ ...draft, publicationStatus: 'unknown' }), 'unknown',
+        'An expired date without an invitation cannot establish closed bidding');
+    const exactCutoff = { ...draft, commentDeadlineAt: '2026-10-28T17:00:00Z' };
+    assert.equal(isTorCommentClosed(exactCutoff, 'draft', new Date('2026-10-28T16:59:59Z')), false);
+    assert.equal(isTorCommentClosed(exactCutoff, 'draft', new Date('2026-10-28T17:00:00Z')), true);
+});
+
+test('saved cold-start previews wait for freshness validation and full modal details', () => {
+    const { getMatchingProgress, getMatchingActivity } = load('lib/matchingStatus');
+    const preview = { ...matching, isCachedSnapshot: true, matchingStatus: 'stale', computedAt: '2026-10-01T00:00:00Z' };
+    assert.deepEqual(getMatchingProgress([preview]), { completed: 0, total: 1 });
+    assert.equal(getMatchingActivity([preview]).queued, 0, 'Reading a saved result is not an AI queue');
+    const markup = renderToStaticMarkup(React.createElement(MatchingModal, { item: { tor, matching: preview }, onClose() {} }));
+    assert.match(markup, /กำลังโหลดรายละเอียดผลที่บันทึกไว้/);
+    assert.doesNotMatch(markup, /aria-valuenow/);
+});
+
+test('matching progress counts completed evaluations at every score and excludes stale or unfinished work', () => {
+    const { getMatchingProgress } = load('lib/matchingStatus');
+    const rows = [
+        { ...matching, matchingStatus: 'ready', matchingPercentage: 0 },
+        { ...matching, matchingStatus: 'ready', matchingPercentage: 20 },
+        { ...matching, matchingStatus: 'ready', matchingPercentage: 80 },
+        { ...matching, matchingStatus: 'stale', matchingPercentage: 90 },
+        { ...matching, matchingStatus: 'pending', matchingPercentage: null },
+        { ...matching, matchingStatus: 'unavailable', matchingPercentage: null },
+        { ...matching, analysisPipelineStatus: 'waiting_data', matchingStatus: 'pending', matchingPercentage: null },
+    ];
+    assert.deepEqual(getMatchingProgress(rows), { completed: 3, total: 7 });
+    assert.deepEqual(getMatchingProgress([]), { completed: 0, total: 0 });
+});
+
+test('waiting data and failed TORs do not imply ongoing matching work', () => {
+    const { getMatchingActivity } = load('lib/matchingStatus');
+    const completed = Array.from({ length: 38 }, () => ({ ...matching, matchingStatus: 'ready', refreshState: 'ready' }));
+    const waiting = Array.from({ length: 39 }, () => ({ ...matching, matchingStatus: 'pending', analysisPipelineStatus: 'waiting_data', refreshState: 'idle' }));
+    const failed = Array.from({ length: 24 }, () => ({ ...matching, matchingStatus: 'unavailable', refreshState: 'failed' }));
+    const queued = Array.from({ length: 6 }, () => ({ ...matching, matchingStatus: 'pending', refreshState: 'queued' }));
+    assert.deepEqual(getMatchingActivity([...completed, ...waiting, ...failed, ...queued]), {
+        processing: 0, queued: 6, retrying: 0, failed: 24, waitingForData: 39, withoutCriteria: 0,
+    });
+    const terminal = getMatchingActivity([...completed, ...waiting, ...failed]);
+    assert.equal(terminal.processing + terminal.queued, 0, 'No spinner for blocked or finished work');
+    assert.equal(getMatchingActivity([{ ...matching, matchingStatus: 'stale', refreshState: 'retry_wait' }]).retrying, 1);
+    assert.equal(getMatchingActivity([{ ...matching, matchingStatus: 'pending', analysisPipelineStatus: 'processing' }]).processing, 1);
+});
+
+test('older snapshots cannot roll 40 completed TORs back to 10 for identical inputs', () => {
+    const { mergeMatchingSnapshot } = load('lib/matchingSnapshot');
+    const { getMatchingProgress } = load('lib/matchingStatus');
+    const previous = { data: Array.from({ length: 40 }, (_, i) => ({ ...matching, torId: String(i),
+        matchingStatus: 'ready', analysisPipelineStatus: 'ready', inputFingerprint: `input-${i}`,
+        computedAt: '2026-10-28T10:01:00Z' })) };
+    const incoming = { data: previous.data.map((row, i) => i < 10 ? row : ({ ...row,
+        matchingStatus: 'pending', computedAt: null })) };
+    assert.equal(getMatchingProgress(mergeMatchingSnapshot(previous, incoming).data).completed, 40);
+    const changed = { data: incoming.data.map(row => ({ ...row, inputFingerprint: 'changed-profile' })) };
+    assert.equal(getMatchingProgress(mergeMatchingSnapshot(previous, changed).data).completed, 10,
+        'Real input changes must invalidate old results');
+    assert.equal(mergeMatchingSnapshot(previous, { data: [] }).data.length, 0, 'Removed TORs stay removed');
+    const newer = { ...incoming.data[20], computedAt: '2026-10-28T10:02:00Z', matchingStatus: 'unavailable' };
+    assert.equal(mergeMatchingSnapshot(previous, { data: [newer] }).data[0], newer, 'Newer computation wins');
+});
+
+test('navigation reuses matching evidence with MongoDB and public IDs while isolating accounts', () => {
+    const { readMatchingSnapshot, writeMatchingSnapshot, matchingByTor } = load('lib/matchingSnapshot');
+    const data = { ...matching, projectId: tor.projectId };
+    writeMatchingSnapshot('first@example.com', { data: [data], pending: 2 });
+    assert.equal(readMatchingSnapshot('second@example.com'), undefined);
+    assert.equal(readMatchingSnapshot(null), undefined);
+    const rows = matchingByTor(readMatchingSnapshot('first@example.com').data);
+    assert.equal(rows[torBookmarkKey(tor)], data);
+    assert.equal(rows['government:mongo-id'], data);
+    writeMatchingSnapshot('second@example.com', { data: [] });
+    assert.equal(readMatchingSnapshot('first@example.com'), undefined);
+});
+
+test('closed saved TORs retain the matching card and identify historical evidence', () => {
+    const { savedMatchingSnapshot, shouldShowMatchingCard } = load('lib/matchingStatus');
+    const saved = { ...tor, match: { percent: 83.33, matchedRequirements: ['React'], unmatchedRequirements: ['Docker'] } };
+    const result = savedMatchingSnapshot(saved);
+    assert.equal(shouldShowMatchingCard(result), true);
+    const markup = renderToStaticMarkup(React.createElement(TorMatchingCard, { ...callbacks, tor, matching: result, saved: true, progressStatus: 'closed' }));
+    assert.match(markup, /83.33%/);
+    assert.match(markup, /ผล Matching ณ วันที่บันทึก/);
+    assert.match(markup, /React/);
+    assert.match(markup, /Docker/);
+    assert.match(markup, /รายละเอียดการแมตช์/);
+    assert.equal(savedMatchingSnapshot({ ...saved, match: null }), undefined);
+});
+
+test('refresh restores only recent matching results for the same signed-in account', t => {
+    const previousWindow = global.window;
+    let saved;
+    global.window = { sessionStorage: {
+        setItem(key, value) { saved = value; },
+        getItem() { return saved; },
+    } };
+    t.after(() => { if (previousWindow === undefined) delete global.window; else global.window = previousWindow; });
+    const modulePath = path.resolve(root, 'lib/matchingSnapshot.ts');
+    load('lib/matchingSnapshot').writeMatchingSnapshot('returning@example.com', { data: [matching] });
+    cache.delete(modulePath);
+    const refreshed = load('lib/matchingSnapshot');
+    assert.equal(refreshed.readMatchingSnapshot('different@example.com'), undefined);
+    assert.equal(refreshed.readMatchingSnapshot('returning@example.com').data[0].matchingPercentage, 50);
+    const expired = JSON.parse(saved);
+    expired.savedAt = Date.now() - 2 * 60 * 60 * 1000;
+    saved = JSON.stringify(expired);
+    cache.delete(modulePath);
+    assert.equal(load('lib/matchingSnapshot').readMatchingSnapshot('returning@example.com'), undefined);
+});
+
 test('saved government bookmarks and matching TORs use the same key after reload', () => {
     assert.equal(torBookmarkKey(tor), torBookmarkKey({ source: 'government', projectId: tor.projectId, bookmarkId: 'bookmark' }));
     assert.equal(torBookmarkKey(tor), 'government:69109005145');
@@ -159,7 +314,7 @@ test('a TOR waiting for content displays an explicit waiting message and never a
 test('only scores above 39 with TOR data use matching cards across all pages', () => {
     const { shouldShowMatchingCard } = load('lib/matchingStatus');
     for (const value of [undefined, null, { ...matching, matchingPercentage: null },
-        ...[0, 39, NaN, Infinity].map(score => ({ ...matching, matchingPercentage: score })),
+        ...[0, 5.13, 39, NaN, Infinity].map(score => ({ ...matching, matchingPercentage: score })),
         { ...matching, matchingPercentage: 80, analysisPipelineStatus: 'waiting_data' }]) {
         assert.equal(shouldShowMatchingCard(value), false);
     }
@@ -193,4 +348,33 @@ test('failed API message stays readable and keeps diagnostic metadata separate',
         assert.doesNotMatch(error.message, /private@example.com/);
         return true;
     });
+});
+
+
+test('UTC comment deadlines display the Thai calendar date across midnight without double shifting', () => {
+    const draft = { ...tor, publicationStatus: 'draft', commentDeadlineAt: '2099-11-17T17:00:00.000Z' };
+    const render = value => renderToStaticMarkup(React.createElement(TorMatchingCard, {
+        ...callbacks, tor: { ...draft, commentDeadlineAt: value }, matching, saved: false, progressStatus: 'draft',
+    }));
+    assert.match(render(draft.commentDeadlineAt), /ปิดรับ 18 พ.ย. 2642/);
+    assert.match(render('2099-11-18T00:00:00+07:00'), /ปิดรับ 18 พ.ย. 2642/);
+    assert.match(render('2099-11-17T16:59:59Z'), /ปิดรับ 17 พ.ย. 2642/);
+});
+
+test('inline evaluation status hides diagnostics and missing TOR data, showing only work and retry', () => {
+    const Status = load('components/MatchingEvaluationStatus').default;
+    const idle = { processing: 0, queued: 0, retrying: 0, failed: 0, waitingForData: 0, withoutCriteria: 0 };
+    const render = (activity, extra = {}) => renderToStaticMarkup(React.createElement(Status, {
+        progress: { completed: 42, total: 82 }, activity, checking: false, sending: false, onRetry() {}, ...extra,
+    }));
+    const pending = render({ ...idle, retrying: 6, failed: 5, waitingForData: 29 });
+    assert.match(pending, /กำลังค้นหา TOR ที่ตรงกับคุณเพิ่มเติม/);
+    assert.match(pending, /บางรายการยังประเมินไม่ได้/);
+    assert.match(pending, /<button[^>]*>.*ลองใหม่<\/button>/);
+    assert.doesNotMatch(pending, /<details|ดูสถานะการประเมิน|ประเมินแล้ว|รอข้อมูล TOR|82/);
+    const complete = render(idle, { progress: { completed: 82, total: 82 } });
+    assert.doesNotMatch(complete, /role="status"|<button|บางรายการยังประเมินไม่ได้|tm-message/);
+    assert.equal(complete, '');
+    assert.equal(render({ ...idle, waitingForData: 29, withoutCriteria: 2 }), '');
+    assert.match(render({ ...idle, failed: 5 }, { sending: true }), /<button[^>]*disabled=""/);
 });

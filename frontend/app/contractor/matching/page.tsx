@@ -1,9 +1,11 @@
 "use client";
 
-import { shouldShowMatchingCard } from '@/lib/matchingStatus';
+import { getMatchingActivity, shouldShowMatchingCard } from '@/lib/matchingStatus';
+import { readMatchingSnapshot, writeMatchingSnapshot } from '@/lib/matchingSnapshot';
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from 'next/link';
+import MatchingEvaluationStatus from '@/components/MatchingEvaluationStatus';
 import FilterDropdown from '@/components/FilterDropdown';
 import { useSession } from "next-auth/react";
 import Sidebar from "@/components/sideBar";
@@ -12,18 +14,19 @@ import TORDocumentModal from "@/components/TORDocumentModal";
 import { useToast } from "@/components/toast/ToastProvider";
 import { getMarketTorById, getUserProfile } from '@/lib/torApi';
 import type { MarketTor, MarketTorDetail } from '@/types/tor';
-import { BellRing, ChevronDown, CheckCircle2, LoaderCircle, RefreshCw, Search, SlidersHorizontal } from 'lucide-react';
+import { BellRing, ChevronDown, LoaderCircle, Search, SlidersHorizontal } from 'lucide-react';
 
 import "./matching.css";
 import { TorMatchingCard, MatchingModal } from '@/components/TorMatchingCard';
 import type { MatchingData, MatchedTor } from '@/types/matching';
 import { torBookmarkKey } from '@/lib/torIdentity';
-import { getTorProgressStatus } from '@/lib/torPublicationStatus';
+import { getTorProgressStatus, matchesTorStatusFilter } from '@/lib/torPublicationStatus';
+import { getTorDisplayDeadline } from '@/lib/torDeadline';
 import { useTorBookmarks } from '@/hooks/useTorBookmarks';
 import { useGovernmentPublicationStatuses } from '@/hooks/useGovernmentPublicationStatuses';
 
 type SortOrder = "desc" | "asc";
-type StatusFilter = "all" | "open" | "draft" | "closed";
+type StatusFilter = "all" | "open" | "draft" | "closed" | "comments_closed";
 
 export default function TorMatchingPage() {
     const { data: session, status: sessionStatus } = useSession();
@@ -44,13 +47,11 @@ export default function TorMatchingPage() {
     const { showToast } = useToast();
 
     const [items, setItems] = useState<MatchedTor[]>([]);
+    const activity = useMemo(() => getMatchingActivity(items.map(item => item.matching)), [items]);
+    const checkingSavedResults = items.some(item => item.matching.isCachedSnapshot);
     const [pending, setPending] = useState(0);
-    const [failed, setFailed] = useState(0);
-    const [retrying, setRetrying] = useState(0);
-    const [pollingStopped, setPollingStopped] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
     const [retryState, setRetryState] = useState<'idle' | 'sending' | 'accepted' | 'error'>('idle');
-    const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null);
     const consumedRetryKey = useRef(0);
 
     function requestRetry() {
@@ -82,10 +83,25 @@ export default function TorMatchingPage() {
         }
 
         let cancelled = false;
+        const snapshot = readMatchingSnapshot(session?.user?.email);
+        setItems(snapshot?.data.flatMap(matching => matching.tor ? [{ tor: matching.tor, matching }] : []) || []);
+        setPending(snapshot?.pending || 0);
+        setLoading(!snapshot);
+        let receivedFullResults = false;
+        const previewController = new AbortController();
+        if (!snapshot) {
+            // Read small persisted card previews in parallel with input validation.
+            void fetch('/api/matching?snapshot=true', { cache: 'no-store',
+                signal: AbortSignal.any([previewController.signal, AbortSignal.timeout(10000)]) })
+                .then(response => response.ok ? response.json() : null)
+                .then(payload => {
+                    if (cancelled || receivedFullResults || !payload?.success || !Array.isArray(payload.data)) return;
+                    setItems((payload.data as MatchingData[]).flatMap(matching => matching.tor ? [{ tor: matching.tor, matching }] : []));
+                    setLoading(false);
+                }).catch(() => {});
+        }
         let timer: ReturnType<typeof setTimeout> | undefined;
-        const started = Date.now();
         let retryRequested = refreshKey > consumedRetryKey.current;
-        setPollingStopped(false);
 
         async function load() {
             const isRetryRequest = retryRequested;
@@ -117,19 +133,17 @@ export default function TorMatchingPage() {
                     throw new Error("Invalid Matching API response");
                 }
 
-                const found: MatchedTor[] = payload.data.flatMap(matching => matching.tor ? [{ tor: matching.tor, matching }] : []);
-
                 if (!cancelled) {
-                    setItems(found);
-                    setLastCheckedAt(new Date());
+                    receivedFullResults = true;
+                    previewController.abort();
+                    const resolved = session?.user?.email ? writeMatchingSnapshot(session.user.email, { ...payload, data: payload.data }) : { ...payload, data: payload.data };
+                    setItems(resolved.data.flatMap(matching => matching.tor ? [{ tor: matching.tor, matching }] : []));
                     if (isRetryRequest) setRetryState('accepted');
                     setPending(payload.pending || 0);
-                    setFailed(payload.failed || 0);
-                    setRetrying(payload.retrying || 0);
-                    if (payload.pending && Date.now() - started < 120000) {
+                    const work = getMatchingActivity(payload.data);
+                    if (payload.data.some(row => row.isCachedSnapshot) || work.processing + work.queued > 0) {
                         timer = setTimeout(() => void load(), 4000);
                     } else {
-                        if (payload.pending) setPollingStopped(true);
                         timer = setTimeout(() => void load(), 30000);
                     }
                 }
@@ -154,6 +168,7 @@ export default function TorMatchingPage() {
 
         return () => {
             cancelled = true;
+            previewController.abort();
             clearTimeout(timer);
         };
     }, [sessionStatus, session?.user?.email, refreshKey]);
@@ -162,6 +177,11 @@ export default function TorMatchingPage() {
         const search = query.trim().toLocaleLowerCase("th");
 
         return items
+        .map(item => {
+            const publicationStatus = publicationStatuses[item.tor.projectId || ''] || item.tor.publicationStatus;
+            return { ...item, tor: { ...item.tor, publicationStatus,
+                deadline: getTorDisplayDeadline(item.tor, publicationStatus) } };
+        })
         .filter(({ tor, matching }) => {
             if (!shouldShowMatchingCard(matching)) return false;
             if (
@@ -172,7 +192,7 @@ export default function TorMatchingPage() {
 
             if (
                 statusFilter !== "all" &&
-                getTorProgressStatus(tor, publicationStatuses[tor.projectId || '']) !== statusFilter
+                !matchesTorStatusFilter(tor, statusFilter, publicationStatuses[tor.projectId || ''])
             )
             return false;
 
@@ -291,7 +311,8 @@ export default function TorMatchingPage() {
                                 { value: 'all', label: 'ทุกสถานะ' },
                                 { value: 'open', label: 'เปิด' },
                                 { value: 'draft', label: 'แบบร่าง' },
-                                { value: 'closed', label: 'ปิด' },
+                                { value: 'closed', label: 'ปิดรับสมัคร' },
+                                { value: 'comments_closed', label: 'ปิดรับความคิดเห็น' },
                             ]}
                         />
                     </div>
@@ -301,6 +322,18 @@ export default function TorMatchingPage() {
                             <SlidersHorizontal size={16} />
                             {loading ? 'กำลังโหลดรายการ…' : error && items.length === 0 ? 'ยังโหลดรายการไม่สำเร็จ' : `พบ ${filteredItems.length} โครงการ`}
                         </span>
+
+                        {!loading && !error && <MatchingEvaluationStatus
+                            activity={activity} checking={checkingSavedResults}
+                            sending={retryState === 'sending'} onRetry={requestRetry}
+                        />}
+
+                        {!loading && error && items.length > 0 && <div className="tm-evaluation-notice tm-refresh-warning" role="status">
+                            <span>แสดงผลที่บันทึกไว้ · อัปเดตล่าสุดยังไม่สำเร็จ</span>
+                            <button type="button" className="tm-retry-button" disabled={retryState === 'sending'} onClick={requestRetry}>
+                                {retryState === 'sending' ? 'กำลังลองใหม่…' : 'ลองใหม่'}
+                            </button>
+                        </div>}
 
                         <small>
                             เรียงตาม Match Percentage:{" "}
@@ -312,34 +345,15 @@ export default function TorMatchingPage() {
                     </div>
 
                     {loading && (
-                        <div className="tm-message">
-                            กำลังโหลดผล Matching… การโหลดครั้งแรกอาจใช้เวลาสักครู่
+                        <div className="tm-message" role="status">
+                            <div className="tm-working-heading"><LoaderCircle className="tm-status-spinner" size={22} aria-hidden="true" /> กำลังโหลดผล Matching…</div>
+                            <p className="tm-working-description">กำลังดึงผลล่าสุดของคุณ การโหลดครั้งแรกอาจใช้เวลาสักครู่</p>
                         </div>
                     )}
 
-                    {!loading && (pending > 0 || failed > 0 || retryState !== 'idle') && (
-                        <div className="tm-message tm-evaluation-status" role="status" aria-live="polite">
-                            <div className="tm-evaluation-summary">
-                                {pending > retrying && <span>กำลังประเมินหรือรอคิว {pending - retrying} โครงการ</span>}
-                                {retrying > 0 && <span>AI ไม่พร้อม รอลองใหม่ {retrying} โครงการ</span>}
-                                {failed > 0 && <span>ประเมินไม่สำเร็จ {failed} โครงการ</span>}
-                            </div>
-                            <button className="tm-retry-button" type="button" disabled={retryState === 'sending'}
-                                aria-busy={retryState === 'sending'} onClick={requestRetry}>
-                                {retryState === 'sending' ? <LoaderCircle className="tm-status-spinner" size={18} aria-hidden="true" /> : <RefreshCw size={18} aria-hidden="true" />}
-                                {retryState === 'sending' ? 'กำลังส่งคำขอ…' : 'ลองประเมินใหม่'}
-                            </button>
-                            {retryState === 'accepted' && (
-                                <p className="tm-retry-feedback"><CheckCircle2 size={16} aria-hidden="true" />
-                                    ส่งคำขอแล้ว ระบบจะประเมินรายการที่สามารถลองใหม่ได้และอัปเดตผลอัตโนมัติ
-                                </p>
-                            )}
-                            {retryState === 'error' && <p className="tm-retry-feedback">ยังยืนยันการรับคำขอไม่ได้ กรุณาลองอีกครั้ง</p>}
-                            {lastCheckedAt && <small className="tm-status-updated">ตรวจสถานะล่าสุด {lastCheckedAt.toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' })} · ตรวจให้อัตโนมัติทุก {pollingStopped || !pending ? '30' : '4'} วินาที</small>}
-                        </div>
-                    )}
 
-                    {!loading && error && (
+
+                    {!loading && error && items.length === 0 && (
                         <div className="tm-message tm-error">
                             {error}
                             <button type="button" disabled={retryState === 'sending'} onClick={requestRetry}>{retryState === 'sending' ? 'กำลังส่งคำขอ…' : 'ลองอีกครั้ง'}</button>
@@ -401,6 +415,7 @@ export default function TorMatchingPage() {
             {activeTor && (
                 <TorDetailModal
                     tor={activeTor}
+                    publicationStatus={publicationStatuses[activeTor.projectId || '']}
                     progressStatus={getTorProgressStatus({ ...activeTor, deadline: activeTor.submissionDeadline }, publicationStatuses[activeTor.projectId || ''])}
                     onClose={() => setActiveTor(null)}
                 />

@@ -54,6 +54,172 @@ async function eventually(condition) {
     assert.fail('Background result was not persisted');
 }
 
+test('lean worker profiles and hydrated API profiles have identical matching fingerprints', () => {
+    const { descriptor, normalizeMatchingProfile } = require('../src/services/precomputedMatchingService');
+    const raw = { _id: new mongoose.Types.ObjectId(), skills: ['React'],
+        pastProjects: [{ projectName: 'Web app' }], legalEligibility: { legalCapacity: true } };
+    const hydrated = User.hydrate(raw).toObject();
+    const analysis = { torId: new mongoose.Types.ObjectId(), torSource: 'government', status: 'completed',
+        relevanceStatus: 'ready', requirements: [{ category: 'mandatory', profileField: 'pastProjects' }],
+        projectRelevance: [{ profileFields: ['skills', 'pastProjects.projectName'] }] };
+    assert.notDeepEqual(raw.pastProjects, hydrated.pastProjects, 'Reproduce nested defaults missing from lean reads');
+    assert.deepEqual(descriptor(raw, analysis), descriptor(hydrated, analysis));
+    assert.deepEqual(normalizeMatchingProfile(raw), normalizeMatchingProfile(hydrated));
+    assert.notEqual(descriptor({ ...raw, skills: ['Vue'] }, analysis).fingerprint, descriptor(raw, analysis).fingerprint);
+});
+
+test('a stale queued task or leftover lease cannot demote a completed current result', async t => {
+    const coll = memoryCollection();
+    const originalDb = mongoose.connection.db;
+    const readyState = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
+    Object.defineProperty(mongoose.connection, 'readyState', { value: 1, configurable: true });
+    mongoose.connection.db = { collection: () => coll };
+    t.after(() => {
+        mongoose.connection.db = originalDb;
+        if (readyState) Object.defineProperty(mongoose.connection, 'readyState', readyState);
+        else delete mongoose.connection.readyState;
+    });
+    const service = require('../src/services/precomputedMatchingService');
+    const profile = { _id: 'already-completed', skills: ['React'] };
+    const analysis = { torId: 'queued-tor', torSource: 'government', status: 'completed', relevanceStatus: 'ready', projectRelevance: [] };
+    const [queued] = await service.getAvailableMatching(profile, [analysis]);
+    assert.equal(queued.refreshState, 'queued');
+    const task = service.descriptor(profile, analysis);
+    coll.docs.set(task.id, {
+        _id: task.id, contractorId: profile._id, fingerprint: task.fingerprint,
+        scoringVersion: require('../src/services/matchingCache').SCORING_VERSION,
+        result: { matchingPercentage: 80, relevanceResults: [], mandatoryResults: [] },
+        computedAt: new Date(), leaseUntil: new Date(Date.now() + 60000),
+    });
+    const [completed] = await service.getAvailableMatching(profile, [analysis]);
+    assert.equal(completed.matchingStatus, 'ready');
+    assert.equal(completed.refreshState, 'ready');
+    assert.equal(completed.inputFingerprint, task.fingerprint);
+    let calculations = 0;
+    t.mock.method(require('../src/services/torMatchingService'), 'calculateMatching', async () => { calculations++; });
+    service.startRefresh();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calculations, 0, 'Obsolete queued work is cancelled');
+});
+
+test('a fresh service instance after restart reuses persisted results without calculating again', async t => {
+    const coll = memoryCollection();
+    const originalDb = mongoose.connection.db;
+    const readyState = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
+    Object.defineProperty(mongoose.connection, 'readyState', { value: 1, configurable: true });
+    mongoose.connection.db = { collection: () => coll };
+    const modulePath = require.resolve('../src/services/precomputedMatchingService');
+    const originalModule = require.cache[modulePath];
+    t.after(() => {
+        require.cache[modulePath] = originalModule;
+        mongoose.connection.db = originalDb;
+        if (readyState) Object.defineProperty(mongoose.connection, 'readyState', readyState);
+        else delete mongoose.connection.readyState;
+    });
+    const profile = { _id: 'restart-test', skills: ['React'] };
+    const analysis = { torId: 'persisted-tor', torSource: 'government', status: 'completed', relevanceStatus: 'ready', projectRelevance: [] };
+    const task = originalModule.exports.descriptor(profile, analysis);
+    const computedAt = new Date('2026-10-01T00:00:00Z');
+    coll.docs.set(task.id, { _id: task.id, contractorId: profile._id, fingerprint: task.fingerprint,
+        scoringVersion: require('../src/services/matchingCache').SCORING_VERSION, computedAt,
+        result: { matchingPercentage: 80, relevanceResults: [], mandatoryResults: [] } });
+    let calculations = 0;
+    t.mock.method(require('../src/services/torMatchingService'), 'calculateMatching', async () => { calculations++; });
+    for (let restart = 0; restart < 2; restart++) {
+        delete require.cache[modulePath];
+        const coldService = require(modulePath);
+        const [entry] = await coldService.getAvailableMatching(profile, [analysis]);
+        assert.equal(entry.matchingStatus, 'ready');
+        assert.equal(entry.computedAt, computedAt);
+        coldService.startRefresh();
+        await new Promise(resolve => setImmediate(resolve));
+    }
+    assert.equal(calculations, 0);
+    assert.equal(coll.docs.get(task.id).fingerprint, task.fingerprint);
+});
+
+test('cold-start preview reads saved cards without loading analysis criteria or running AI', async t => {
+    const coll = memoryCollection();
+    const originalDb = mongoose.connection.db;
+    const readyState = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
+    Object.defineProperty(mongoose.connection, 'readyState', { value: 1, configurable: true });
+    mongoose.connection.db = { collection: () => coll };
+    t.after(() => {
+        mongoose.connection.db = originalDb;
+        if (readyState) Object.defineProperty(mongoose.connection, 'readyState', readyState);
+        else delete mongoose.connection.readyState;
+    });
+    const computedAt = new Date('2026-10-01T00:00:00Z');
+    for (const contractorId of ['own', 'other']) coll.docs.set(contractorId, {
+        _id: contractorId, contractorId, torId: 'gov', torSource: 'government', computedAt,
+        result: { matchingPercentage: contractorId === 'own' ? 80 : 99, relevanceResults: [] },
+    });
+    t.mock.method(GovProject, 'find', (_, projection) => {
+        assert.doesNotMatch(projection, /scopeOfWork|technicalRequirements|documentExtraction/);
+        return { lean: async () => [{ _id: 'gov', project_id: '123', project_name: 'Project' }] };
+    });
+    t.mock.method(Tor, 'find', () => ({ lean: async () => [] }));
+    t.mock.method(TorAnalysis, 'find', () => assert.fail('Preview must not download analysis criteria'));
+    t.mock.method(require('../src/services/torMatchingService'), 'calculateMatching', () => assert.fail('Preview must not calculate'));
+    const result = await require('../src/services/matchingSnapshotService').loadMatchingSnapshot('own');
+    assert.equal(result.isCachedSnapshot, true);
+    assert.equal(result.data.length, 1);
+    assert.equal(result.data[0].matchingPercentage, 80);
+    assert.equal(result.data[0].computedAt, computedAt);
+    assert.equal(result.data[0].matchingStatus, 'stale', 'Saved preview must not claim freshness');
+});
+
+test('legacy results migrate without AI and older writers cannot overwrite the current input version', async t => {
+    const coll = memoryCollection();
+    const originalDb = mongoose.connection.db;
+    const readyState = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
+    Object.defineProperty(mongoose.connection, 'readyState', { value: 1, configurable: true });
+    mongoose.connection.db = { collection: () => coll };
+    t.after(() => {
+        mongoose.connection.db = originalDb;
+        if (readyState) Object.defineProperty(mongoose.connection, 'readyState', readyState);
+        else delete mongoose.connection.readyState;
+    });
+    const service = require('../src/services/precomputedMatchingService');
+    const profile = { _id: 'immutable-test', skills: ['React'] };
+    const analysis = { torId: 'same-tor', torSource: 'government', status: 'completed', relevanceStatus: 'ready',
+        projectRelevance: [{ profileFields: ['skills'] }] };
+    const task = service.descriptor(profile, analysis);
+    const computedAt = new Date('2026-10-01T00:00:00Z');
+    const legacy = { _id: task.legacyId, contractorId: profile._id, torId: analysis.torId, torSource: analysis.torSource,
+        fingerprint: task.fingerprint, computedAt, scoringVersion: require('../src/services/matchingCache').SCORING_VERSION,
+        result: { matchingPercentage: 80, relevanceResults: [], mandatoryResults: [] } };
+    coll.docs.set(legacy._id, legacy);
+    t.mock.method(require('../src/services/torMatchingService'), 'calculateMatching', () => assert.fail('Migration must reuse evaluated evidence'));
+    const [migrated] = await service.getAvailableMatching(profile, [analysis], { refresh: false });
+    assert.equal(migrated.matchingStatus, 'ready');
+    assert.equal(migrated.computedAt, computedAt);
+    assert.notEqual(task.id, task.legacyId);
+    assert.ok(coll.docs.has(task.id));
+    Object.assign(legacy, { fingerprint: 'older-worker-input', computedAt: new Date(), result: { matchingPercentage: 2, relevanceResults: [] } });
+    const [again] = await service.getAvailableMatching(profile, [analysis]);
+    assert.equal(again.matchingStatus, 'ready');
+    assert.equal(again.result.matchingPercentage, 80);
+    assert.equal(again.computedAt, computedAt);
+    assert.notEqual(service.descriptor({ ...profile, skills: ['Vue'] }, analysis).id, task.id);
+});
+
+test('a failed stored-result read rejects instead of replacing completed TORs with an empty list', async t => {
+    const originalDb = mongoose.connection.db;
+    const readyState = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
+    Object.defineProperty(mongoose.connection, 'readyState', { value: 1, configurable: true });
+    const coll = memoryCollection();
+    coll.find = () => ({ async toArray() { throw new Error('Transient database failure'); } });
+    mongoose.connection.db = { collection: () => coll };
+    t.after(() => {
+        mongoose.connection.db = originalDb;
+        if (readyState) Object.defineProperty(mongoose.connection, 'readyState', readyState);
+        else delete mongoose.connection.readyState;
+    });
+    const { loadStoredMatching } = require('../src/services/precomputedMatchingService');
+    await assert.rejects(loadStoredMatching('contractor'), /Stored matching results unavailable/);
+});
+
 test('list API returns pending immediately, persists background results, reuses them and marks profile changes stale', async t => {
     const coll = memoryCollection();
     const originalDb = mongoose.connection.db;
@@ -69,6 +235,7 @@ test('list API returns pending immediately, persists background results, reuses 
     const analysis = { torId: 'tor', torSource: 'internal', status: 'completed', relevanceStatus: 'ready', projectRelevance: [{ skillGroups: [['react']], profileFields: ['skills'] }] };
     t.mock.method(User, 'findOne', async () => ({ toObject: () => profile }));
     t.mock.method(TorAnalysis, 'find', () => ({ lean: async () => [analysis] }));
+    t.mock.method(TorAnalysis, 'updateMany', async () => ({ modifiedCount: 0 }));
     t.mock.method(Tor, 'find', () => ({ lean: async () => [{ _id: 'tor', projectName: 'Software', scopeOfWork: ['Build React'] }] }));
     t.mock.method(GovProject, 'find', () => ({ lean: async () => [] }));
     async function request(query = {}) {
@@ -97,6 +264,33 @@ test('list API returns pending immediately, persists background results, reuses 
     assert.equal(warm.data[0].matchingPercentage, 100);
     assert.equal(warm.data[0].relevanceResults[0].matchDetails[0].matchType, 'exact');
     assert.deepEqual(warm.data[0].scoredResults, []);
+    assert.equal(coll.completions, 1);
+    analysis.sourceFingerprint = require('../src/services/automaticMatchingService').sourceFingerprint({
+        projectName: 'Software', scopeOfWork: ['Build React'],
+    }, 'internal');
+    analysis.pipelineState = 'failed';
+    analysis.error = 'AI_CONFIGURATION';
+    const redundantFailure = await request();
+    assert.equal(redundantFailure.pending, 0, 'Failed refresh of unchanged source must retain the completed analysis');
+    assert.equal(redundantFailure.data[0].matchingStatus, 'ready');
+    assert.equal(redundantFailure.data[0].failureCode, null);
+    delete analysis.sourceFingerprint;
+    delete analysis.pipelineState;
+    delete analysis.error;
+    // Returning after the old seven-day TTL, or logging in with new session
+    // metadata, must not re-run matching for unchanged evidence.
+    const persisted = [...coll.docs.values()][0];
+    persisted.computedAt = new Date(Date.now() - 30 * 86400000);
+    persisted.expiresAt = new Date(0);
+    profile = { ...profile, lastLogin: new Date(), updatedAt: new Date() };
+    const returning = await request({ retry: 'true' });
+    assert.equal(returning.pending, 0);
+    assert.equal(returning.data[0].matchingStatus, 'ready');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(coll.completions, 1, 'Even manual retry must reuse successful unchanged results');
+    profile = require('../src/services/precomputedMatchingService').normalizeMatchingProfile(profile);
+    assert.equal((await request()).pending, 0, 'Schema defaults must not restart matching');
+    await new Promise(resolve => setImmediate(resolve));
     assert.equal(coll.completions, 1);
     profile = { ...profile, skills: ['React', 'Vue'] };
     const stale = await request();

@@ -1,7 +1,8 @@
 const Tor = require('../models/Tor');
 const GovProject = require('../models/GovProject');
+const { governmentTorDates } = require('./governmentTorDates');
 const CATALOG_PROJECTION = {
-    government: '_id project_id project_name dept_name budget_amount contract_status createdAt updatedAt procurementAnalysis.projectDetails procurementAnalysis.allocatedBudget procurementAnalysis.referencePriceEstimate procurementAnalysis.biddingClosingDate procurementAnalysis.contractorQualifications procurementAnalysis.evaluationCriteria procurementAnalysis.technicalRequirements procurementAnalysis.scopeOfWork procurementAnalysis.deliverables raw_data.project_description raw_data.submission_deadline raw_data.deadline',
+    government: '_id project_id project_name dept_name budget_amount contract_status createdAt updatedAt procurementAnalysis.projectDetails procurementAnalysis.allocatedBudget procurementAnalysis.referencePriceEstimate procurementAnalysis.biddingClosingDate procurementAnalysis.contractorQualifications procurementAnalysis.evaluationCriteria procurementAnalysis.technicalRequirements procurementAnalysis.scopeOfWork procurementAnalysis.deliverables raw_data.project_description raw_data.submission_deadline raw_data.deadline documents.invitation.status documents.draftEbidding.commentDeadlineAt',
     internal: '_id projectName agencyName budget referencePriceEstimate applicationDeadline status description scopeOfWork requirements objectives technicalRequirements createdAt updatedAt',
 };
 function visibleFilter(source, now = new Date()) {
@@ -17,7 +18,7 @@ function marketTor(tor, source) {
         agencyName: government ? tor.dept_name : tor.agencyName,
         budget: government ? (analysis.allocatedBudget?.amount > 0 ? analysis.allocatedBudget.amount : tor.budget_amount ?? null) : tor.budget,
         referencePriceEstimate: government ? analysis.referencePriceEstimate?.amount ?? null : tor.referencePriceEstimate ?? null,
-        deadline: government ? analysis.biddingClosingDate?.dateTime || tor.raw_data?.submission_deadline || tor.raw_data?.deadline || null : tor.applicationDeadline,
+        ...(government ? governmentTorDates(tor) : { deadline: tor.applicationDeadline }),
         status: government ? tor.contract_status || 'Active' : tor.status,
         description: government ? analysis.projectDetails || tor.raw_data?.project_description || '' : tor.description,
         createdAt: tor.createdAt, updatedAt: tor.updatedAt,

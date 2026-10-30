@@ -64,6 +64,8 @@ export type MarketTor = {
   allocatedBudget?: number | null;
   referencePriceEstimate?: number | null;
   deadline?: string | null;
+  commentDeadlineAt?: string | null;
+  biddingDeadline?: string | null;
   description?: string;
   status: string;
   winnerName?: string | null;
@@ -86,6 +88,9 @@ export type MarketTorDetail = {
   allocatedBudget?: number | null;
   referencePriceEstimate?: number | null;
   submissionDeadline: string | null;
+  commentDeadlineAt?: string | null;
+  biddingDeadline?: string | null;
+  publicationStatus?: 'open' | 'draft' | 'unknown';
 
   contactName: string;
   contactEmail: string;
@@ -122,6 +127,7 @@ export type MarketTorDetail = {
 };
 
 export type SavedTor = {
+  publicationStatus?: 'open' | 'draft' | 'unknown';
   bookmarkId: string;
   source: "government" | "internal";
   projectId?: string;
@@ -130,6 +136,8 @@ export type SavedTor = {
   agencyName: string;
   budget: number | null;
   deadline?: string | null;
+  commentDeadlineAt?: string | null;
+  biddingDeadline?: string | null;
   status: string;
   description?: string;
   objectives?: string[];

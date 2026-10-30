@@ -5,7 +5,9 @@ import type { MatchingData, MatchedTor, ResultStatus, RelevanceResult } from '@/
 import { getMatchingRefreshLabel } from "@/lib/matchingStatus";
 import { getEgpAnnouncementUrl } from '@/lib/torApi';
 import { Bookmark, ExternalLink, FileText, CalendarDays, Wallet, CheckCircle2, XCircle, CircleHelp, X, Building2 } from 'lucide-react';
-import { getTorProgressLabel, type TorProgressStatus } from '@/lib/torPublicationStatus';
+import { getTorProgressLabel, isTorCommentClosed, type TorProgressStatus } from '@/lib/torPublicationStatus';
+import TorCommentClosedBadge from '@/components/TorCommentClosedBadge';
+import { getTorDisplayDeadline } from '@/lib/torDeadline';
 import '@/app/contractor/matching/matching.css';
 
 const formatMoney = (value: number | null | undefined) =>
@@ -19,6 +21,7 @@ const formatDate = (value?: string | null) => {
     return Number.isNaN(date.getTime())
         ? "ไม่ระบุ"
         : new Intl.DateTimeFormat("th-TH", {
+            timeZone: "Asia/Bangkok",
             day: "numeric",
             month: "short",
             year: "numeric",
@@ -119,6 +122,18 @@ function CriterionProgress({ criterion, criteriaCount }: { criterion: RelevanceR
 export function MatchingModal({item, onClose,}: {item: MatchedTor; onClose: () => void;}) {
     const { tor, matching } = item;
     const [tab, setTab] = useState<"all" | ResultStatus>("all");
+
+    if (matching.isCachedSnapshot) return (
+        <div className="tm-modal-overlay" role="presentation" onClick={onClose}>
+            <div className="tm-modal" role="dialog" aria-modal="true" aria-label="รายละเอียดการแมตช์" onClick={event => event.stopPropagation()}>
+                <header className="tm-modal-header">
+                    <button className="tm-modal-x" type="button" onClick={onClose} aria-label="ปิด"><X size={20} /></button>
+                    <h2>{tor.projectName}</h2>
+                </header>
+                <div className="tm-modal-body" role="status">กำลังโหลดรายละเอียดผลที่บันทึกไว้ ระบบจะแสดงข้อมูลล่าสุดให้อัตโนมัติ</div>
+            </div>
+        </div>
+    );
 
     const mandatory = matching.mandatoryResults.filter(
         (r) => tab === "all" || r.status === tab
@@ -467,6 +482,7 @@ export function TorMatchingCard({ tor, matching, saved, bookmarkLoading = false,
                                             <span className={`tm-open tm-publication-${progressStatus}`}>
                                                 {progressLabel}
                                             </span>
+                                            {isTorCommentClosed(tor, progressStatus === 'draft' ? 'draft' : tor.publicationStatus) && <TorCommentClosedBadge />}
 
                                             <small>
                                                 {tor.projectId
@@ -492,11 +508,13 @@ export function TorMatchingCard({ tor, matching, saved, bookmarkLoading = false,
                                             <span>Software Project</span>
                                             <span>
                                                 <CalendarDays size={15} />
-                                                ปิดรับ {formatDate(tor.deadline)}
+                                                ปิดรับ {formatDate(getTorDisplayDeadline(tor, progressStatus === 'draft' ? 'draft' : tor.publicationStatus))}
                                             </span>
                                         </div>
 
-                                        {matching.matchingPercentage === null && matching.relevanceResults.length === 0 ? (
+                                        {matching.isCachedSnapshot ? (
+                                            <p className="tm-pipeline-message">แสดงคะแนนที่บันทึกไว้ กำลังโหลดรายละเอียดทักษะล่าสุด</p>
+                                        ) : matching.matchingPercentage === null && matching.relevanceResults.length === 0 ? (
                                             <p className="tm-pipeline-message">{getMatchingRefreshLabel(matching) || 'รอประเมินผล Matching'} — ยังไม่แสดงคะแนนจนกว่าจะมีข้อมูลเพียงพอ</p>
                                         ) : (<>
                                         <div className="tm-requirements-preview">

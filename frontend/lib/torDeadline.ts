@@ -1,5 +1,16 @@
 export type DeadlineStatus = "open" | "closed" | "unknown";
 
+export function getTorDisplayDeadline(tor: {
+    source: 'government' | 'internal'; deadline?: string | null;
+    commentDeadlineAt?: string | null; biddingDeadline?: string | null;
+    publicationStatus?: 'open' | 'draft' | 'unknown';
+}, publicationStatus = tor.publicationStatus) {
+    if (tor.source !== 'government') return tor.deadline;
+    if (publicationStatus === 'draft') return tor.commentDeadlineAt || null;
+    if (publicationStatus === 'open') return tor.biddingDeadline || tor.deadline;
+    return tor.deadline;
+}
+
 export type DeadlineInfo = {
     status: DeadlineStatus;
     daysLeft: number | null;

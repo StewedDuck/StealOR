@@ -4,8 +4,12 @@ const mongoose = require('mongoose');
 // This cache contains no AI computations and never shares contractor results under a common key.
 function createReadCache({ now = Date.now, maxEntries = 32 } = {}) {
     const entries = new Map();
-    function invalidate(prefix = '') {
-        for (const key of entries.keys()) if (key.startsWith(prefix)) entries.delete(key);
+    function invalidate(prefix = '', { retainValue = false } = {}) {
+        for (const [key, entry] of entries) {
+            if (!key.startsWith(prefix)) continue;
+            if (!retainValue) entries.delete(key);
+            else { entry.expiresAt = 0; entry.revision = (entry.revision || 0) + 1; }
+        }
     }
     function read(key, loader, { ttlMs = 5000, force = false } = {}) {
         if (force) entries.delete(key);
@@ -23,8 +27,9 @@ function createReadCache({ now = Date.now, maxEntries = 32 } = {}) {
             entries.set(key, entry);
         }
         const current = entry;
+        const revision = current.revision || 0;
         current.pending = Promise.resolve().then(loader).then(value => {
-            if (entries.get(key) === current) { current.value = value; current.expiresAt = now() + ttlMs; }
+            if (entries.get(key) === current) { current.value = value; current.expiresAt = (current.revision || 0) === revision ? now() + ttlMs : 0; }
             return value;
         }).catch(error => {
             if (current.value === undefined) { if (entries.get(key) === current) entries.delete(key); throw error; }
@@ -47,5 +52,15 @@ function currentCache() {
 function readMatchingData(key, loader, options) {
     return currentCache()?.read(key, loader, options) || Promise.resolve().then(loader);
 }
-function invalidateMatchingData(prefix) { currentCache()?.invalidate(prefix); }
-module.exports = { createReadCache, readMatchingData, invalidateMatchingData };
+function invalidateMatchingData(prefix, options) { currentCache()?.invalidate(prefix, options); }
+// A cold database read keeps warming the cache after the preview is returned.
+async function readWithinBudget(read, timeoutMs = 8000) {
+    let timer;
+    try {
+        return await Promise.race([
+            read.then(value => ({ value })),
+            new Promise(resolve => { timer = setTimeout(() => resolve(null), timeoutMs); }),
+        ]);
+    } finally { clearTimeout(timer); }
+}
+module.exports = { createReadCache, readMatchingData, invalidateMatchingData, readWithinBudget };

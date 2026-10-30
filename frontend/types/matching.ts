@@ -54,6 +54,7 @@ export type RelevanceResult = {
 };
 
 export type MatchingData = {
+    isCachedSnapshot?: boolean;
     tor?: MarketTor;
     analysisPipelineStatus?: 'waiting_data' | 'pending' | 'processing' | 'ready' | 'retry_wait' | 'failed' | 'not_available';
     torId: string;
@@ -64,6 +65,8 @@ export type MatchingData = {
     refreshState?: "ready" | "running" | "queued" | "retry_wait" | "failed" | "idle";
     failureCode?: string | null;
     retryAt?: string | null;
+    computedAt?: string | null;
+    inputFingerprint?: string | null;
     analysisStatus?: string;
     relevanceStatus?: string;
     isProvisional?: boolean;

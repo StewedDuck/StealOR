@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Tor = require("../models/Tor");
 const Bookmark = require("../models/Bookmark");
 const User = require("../models/User");
+const { governmentTorDates } = require('../services/governmentTorDates');
 
 
 // const DEMO_OWNER_ID = "demo-project-owner";
@@ -201,7 +202,7 @@ async function getMarketTors(req, res) {
   try {
     const [governmentTors, internalTors] = await Promise.all([
       GovProject.find({ contract_status: { $not: /ยกเลิก|สิ้นสุด/ } })
-        .select('project_id project_name dept_name budget_amount contract_status winner_name winner_tin createdAt updatedAt procurementAnalysis.allocatedBudget procurementAnalysis.referencePriceEstimate procurementAnalysis.projectDetails procurementAnalysis.biddingClosingDate raw_data.project_description raw_data.submission_deadline raw_data.deadline')
+        .select('project_id project_name dept_name budget_amount contract_status winner_name winner_tin createdAt updatedAt procurementAnalysis.allocatedBudget procurementAnalysis.referencePriceEstimate procurementAnalysis.projectDetails procurementAnalysis.biddingClosingDate raw_data.project_description raw_data.submission_deadline raw_data.deadline documents.invitation.status documents.draftEbidding.commentDeadlineAt')
         .sort({ updatedAt: -1 }).lean(),
       Tor.find({ status: 'published', applicationDeadline: { $gt: new Date() } })
         .select('projectName agencyName budget referencePriceEstimate applicationDeadline description createdAt updatedAt')
@@ -228,11 +229,7 @@ async function getMarketTors(req, res) {
         project.raw_data?.project_description ||
         "",
           
-      deadline:
-        project.procurementAnalysis?.biddingClosingDate?.dateTime ||
-        project.raw_data?.submission_deadline ||
-        project.raw_data?.deadline ||
-        null,
+      ...governmentTorDates(project),
 
       allocatedBudget:
         project.procurementAnalysis?.allocatedBudget?.amount ?? null,
@@ -362,11 +359,8 @@ async function getMarketTorDetail(req, res) {
       referencePriceEstimate:
         project.procurementAnalysis?.referencePriceEstimate?.amount ?? null,
 
-      submissionDeadline:
-        analysis.biddingClosingDate?.dateTime ||
-        raw.submission_deadline ||
-        raw.deadline ||
-        null,
+      ...governmentTorDates(project),
+      submissionDeadline: governmentTorDates(project).deadline,
       
       biddingClosingDate:
         analysis.biddingClosingDate || null,

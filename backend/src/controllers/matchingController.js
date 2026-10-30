@@ -1,9 +1,9 @@
-const { readMatchingData, invalidateMatchingData } = require('../services/matchingReadCache');
+const { readMatchingData, invalidateMatchingData, readWithinBudget } = require('../services/matchingReadCache');
 const { matchingAccountFilter } = require('../services/matchingAccess');
 const mongoose = require("mongoose");
 const { loadVisibleCatalog, marketTor } = require('../services/torMatchingCatalog');
 const { hasAnalysisData, analysisReady, sourceFingerprint } = require('../services/automaticMatchingService');
-const { getAvailableMatching, startRefresh } = require("../services/precomputedMatchingService");
+const { getAvailableMatching, loadStoredMatching, startRefresh } = require("../services/precomputedMatchingService");
 
 const User = require("../models/User");
 const Tor = require("../models/Tor");
@@ -86,7 +86,8 @@ async function getTorMatching(req, res) {
             requiredFinancialYear: null,
         };
 
-        const calculated = await calculateMatching(
+        const [cached] = await getAvailableMatching(contractor.toObject(), [torAnalysis.toObject()], { refresh: false });
+        const calculated = cached?.matchingStatus === 'ready' ? cached.result : await calculateMatching(
             contractor,
             torAnalysis,
             options
@@ -130,6 +131,8 @@ async function getTorMatching(req, res) {
 }
 
 async function getMatchedTors(req, res) {
+    const startedAt = Date.now();
+    const timings = {};
     try {
         const contractor = await User.findOne({
             email: req.profileEmail,
@@ -142,18 +145,36 @@ async function getMatchedTors(req, res) {
                 error: "บัญชีนี้ไม่มีสิทธิ์ใช้โหมดผู้รับจ้าง หรือยังไม่พบโปรไฟล์ กรุณาตรวจสอบบัญชีที่เข้าสู่ระบบ",
             });
         }
+        timings.profileMs = Date.now() - startedAt;
 
-        const [catalog, analyses] = await Promise.all([
+        if (req.query?.snapshot === 'true') {
+            return res.json(await require('../services/matchingSnapshotService').loadMatchingSnapshot(contractor.toObject()._id));
+        }
+
+        const reads = Promise.all([
             readMatchingData('catalog', loadVisibleCatalog, { ttlMs: 15000 }),
-            readMatchingData('analyses', () => TorAnalysis.find({}).lean(), { ttlMs: 15000 }),
+            readMatchingData('analyses', () => TorAnalysis.find({}, 'torId torSource status relevanceStatus requirements projectRelevance pipelineState sourceFingerprint attemptedFingerprint error nextAttemptAt').lean(), { ttlMs: 15000 }),
+            loadStoredMatching(contractor.toObject()._id, { force: req.query?.retry === 'true' }),
         ]);
+        // Normal list reads must not wait past the proxy timeout on a cold cache.
+        // Explicit retry requests retain their write/queue semantics below.
+        const loaded = req.query?.retry === 'true' ? { value: await reads } : await readWithinBudget(reads);
+        if (!loaded) {
+            return res.json(await require('../services/matchingSnapshotService').loadMatchingSnapshot(contractor.toObject()._id));
+        }
+        const [catalog, analyses, storedRows] = loaded.value;
         const analysisMap = new Map(analyses.map(analysis => [`${analysis.torSource}:${analysis.torId}`, analysis]));
+        timings.catalogMs = Date.now() - startedAt - timings.profileMs;
         const phases = catalog.map(({ tor, source }) => {
             const analysis = analysisMap.get(`${source}:${tor._id}`);
             if (!hasAnalysisData(tor, source)) return 'waiting_data';
-            if (analysis?.sourceFingerprint && analysis.sourceFingerprint !== sourceFingerprint(tor, source)) {
-                return analysis.attemptedFingerprint === sourceFingerprint(tor, source) && ['processing', 'retry_wait', 'failed'].includes(analysis.pipelineState) ? analysis.pipelineState : 'pending';
+            const fingerprint = analysis?.sourceFingerprint ? sourceFingerprint(tor, source) : null;
+            if (fingerprint && analysis.sourceFingerprint !== fingerprint) {
+                return analysis.attemptedFingerprint === fingerprint && ['processing', 'retry_wait', 'failed'].includes(analysis.pipelineState) ? analysis.pipelineState : 'pending';
             }
+            // A failed/redundant refresh does not invalidate a completed
+            // analysis when the source inputs are still exactly the same.
+            if (fingerprint && analysis.sourceFingerprint === fingerprint && analysisReady(analysis)) return 'ready';
             return analysis?.pipelineState || (analysisReady(analysis) ? 'ready' : analysis?.status === 'failed' ? 'failed' : 'pending');
         });
         if (req.query?.retry === 'true' && catalog.length) {
@@ -167,8 +188,8 @@ async function getMatchedTors(req, res) {
         const readyAnalyses = analyses.filter(analysis => readyKeys.has(`${analysis.torSource}:${analysis.torId}`) && analysisReady(analysis));
         const otherAnalyses = analyses.filter(analysis => visibleKeys.has(`${analysis.torSource}:${analysis.torId}`) && !readyKeys.has(`${analysis.torSource}:${analysis.torId}`) && analysisReady(analysis));
         const [readyResults, olderResults] = await Promise.all([
-            getAvailableMatching(contractor.toObject(), readyAnalyses, { refresh: req.query?.refresh !== 'false', force: req.query?.retry === 'true' }),
-            getAvailableMatching(contractor.toObject(), otherAnalyses, { refresh: false }),
+            getAvailableMatching(contractor.toObject(), readyAnalyses, { storedRows, refresh: req.query?.refresh !== 'false', force: req.query?.retry === 'true' }),
+            getAvailableMatching(contractor.toObject(), otherAnalyses, { storedRows, refresh: false }),
         ]);
         const available = new Map([...readyAnalyses.map((analysis, i) => [`${analysis.torSource}:${analysis.torId}`, readyResults[i]]),
             ...otherAnalyses.map((analysis, i) => [`${analysis.torSource}:${analysis.torId}`, olderResults[i]])]);
@@ -197,13 +218,18 @@ async function getMatchedTors(req, res) {
                 isProvisional: analysis?.relevanceStatus === 'needs_review', analysisPipelineStatus: phase,
                 matchingStatus: phase === 'ready' ? entry?.matchingStatus || 'pending' : phase === 'failed' ? 'unavailable' : result.matchingPercentage == null ? 'pending' : 'stale',
                 refreshState: phase === 'ready' ? entry?.refreshState || 'idle' : phase === 'processing' ? 'running' : phase === 'retry_wait' ? 'retry_wait' : phase === 'failed' ? 'failed' : 'idle',
-                failureCode: analysis?.error || entry?.failureCode || null,
-                retryAt: analysis?.nextAttemptAt || entry?.retryAt || null, computedAt: entry?.computedAt || null,
+                failureCode: (phase === 'ready' ? entry?.failureCode : analysis?.error || entry?.failureCode) || null,
+                retryAt: (phase === 'ready' ? entry?.retryAt : analysis?.nextAttemptAt || entry?.retryAt) || null, computedAt: entry?.computedAt || null,
+                inputFingerprint: entry?.inputFingerprint || null,
             });
         }
 
         if (req.query?.refresh !== 'false') startRefresh();
         const page = selectMatchingPage(matchedTors, req.query);
+        if (Date.now() - startedAt > 2000) console.log('[MATCHING] Slow stored-result read', {
+            ...timings, resultsMs: Date.now() - startedAt - timings.profileMs - timings.catalogMs,
+            totalMs: Date.now() - startedAt,
+        });
         return res.json({ success: true, pending, failed, retrying, waitingForData, withoutCriteria, ...page });
     } catch (error) {
         console.error("[MATCHING] List retrieval unavailable");

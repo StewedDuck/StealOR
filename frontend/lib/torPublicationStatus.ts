@@ -1,4 +1,4 @@
-import { getDeadlineInfo } from "./torDeadline";
+import { getDeadlineInfo, getTorDisplayDeadline } from "./torDeadline";
 import type { LocalProjectDocuments } from "@/lib/torApi";
 
 export type PublicationStatus = "open" | "draft" | "unknown";
@@ -33,17 +33,33 @@ export function getInternalPublicationStatus(
     return "unknown";
 }
 export type TorProgressStatus = PublicationStatus | 'closed';
+type TorPublicationInfo = { source: 'government' | 'internal'; status: string; deadline?: string | null; commentDeadlineAt?: string | null; biddingDeadline?: string | null; publicationStatus?: PublicationStatus };
+
+export function isTorCommentClosed(tor: TorPublicationInfo, governmentStatus?: PublicationStatus, now = new Date()) {
+    const deadline = Date.parse(tor.commentDeadlineAt || '');
+    return tor.source === 'government' && (governmentStatus || tor.publicationStatus) === 'draft' &&
+        Number.isFinite(deadline) && deadline <= now.getTime();
+}
+
+export function matchesTorStatusFilter(tor: TorPublicationInfo, filter: string, governmentStatus?: PublicationStatus) {
+    if (filter === 'all') return true;
+    if (filter === 'comments_closed') return isTorCommentClosed(tor, governmentStatus);
+    return getTorProgressStatus(tor, governmentStatus) === (filter === 'published' ? 'open' : filter);
+}
 
 export function getTorProgressStatus(
-    tor: { source: 'government' | 'internal'; status: string; deadline?: string | null },
+    tor: TorPublicationInfo,
     governmentStatus?: PublicationStatus
 ): TorProgressStatus {
-    if (getDeadlineInfo(tor.deadline).status === 'closed') return 'closed';
+    const publicationStatus = tor.source === 'government' ? governmentStatus || tor.publicationStatus : getInternalPublicationStatus(tor.status);
+    // Closing the comment period never publishes a draft or closes bidding.
+    if (publicationStatus === 'draft') return 'draft';
+    if (publicationStatus === 'open' && getDeadlineInfo(getTorDisplayDeadline(tor, publicationStatus)).status === 'closed') return 'closed';
     return tor.source === 'government'
-        ? governmentStatus || 'unknown'
+        ? publicationStatus || 'unknown'
         : getInternalPublicationStatus(tor.status);
 }
 
 export function getTorProgressLabel(status: TorProgressStatus) {
-    return { open: 'Open', draft: 'Draft', closed: 'ปิดรับแล้ว', unknown: 'Unknown' }[status];
+    return { open: 'Open', draft: 'Draft', closed: 'ปิดรับสมัคร', unknown: 'Unknown' }[status];
 }

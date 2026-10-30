@@ -1,6 +1,7 @@
 const Bookmark = require("../models/Bookmark");
 const GovProject = require("../models/GovProject");
 const Tor = require("../models/Tor");
+const { governmentTorDates } = require('../services/governmentTorDates');
 
 async function createBookmark(req, res) {
     try {
@@ -179,11 +180,7 @@ async function getBookmarks(req, res) {
                     allocatedBudget,
                     referencePriceEstimate,
         
-                    deadline:
-                        analysis.biddingClosingDate?.dateTime ||
-                        raw.submission_deadline ||
-                        raw.deadline ||
-                        null,
+                    ...governmentTorDates(project),
         
                     status:
                         project.contract_status ||

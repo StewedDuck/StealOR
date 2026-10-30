@@ -133,6 +133,10 @@ test('scheduled scans analyze new TORs and schedule contractor matches without a
     await Promise.all([service.runAutomaticMatching(), service.runAutomaticMatching()]);
     assert.equal(env.calls, 1);
     assert.equal(matched, 1);
+    assert.equal(GovProject.findOne.mock.callCount(), 1,
+        'Only the analysis publication guard reads a single TOR; contractor scans use the shared catalog');
+    assert.doesNotMatch(TorAnalysis.findOne.mock.calls[0].arguments[1], /requirements|projectRelevance/,
+        'Analysis readiness checks must not download full evaluated criteria');
     assert.ok(state.lastScanAt instanceof Date);
     // No page request: the next scan notices a source update on its own.
     env.current.procurementAnalysis.scopeOfWork = ['New software scope'];
@@ -168,4 +172,22 @@ test('matching API includes unanalyzed visible TORs with null scores and distinc
     assert.equal(payload.data.find(item => item.torSource === 'government').analysisPipelineStatus, 'waiting_data');
     assert.equal(payload.data.find(item => item.torSource === 'internal').analysisPipelineStatus, 'pending');
     assert.equal(payload.data.find(item => item.torSource === 'internal').tor.projectName, 'New TOR');
+});
+
+test('fixed Vertex configuration reopens an old configuration failure once, preserving retry limits', async t => {
+    const env = setup(t);
+    t.mock.method(require('../src/config/vertex'), 'getVertexConfig', () => ({ project: 'fixed-project', credentialsPath: __filename }));
+    const { configurationRecoveryKey } = require('../src/services/matchingFailure');
+    env.row = { pipelineState: 'failed', error: 'AI_CONFIGURATION', attemptCount: 3,
+        attemptedFingerprint: service.sourceFingerprint(env.current, 'government') };
+    assert.equal((await service.ensureAnalysis(env.current, 'government')).state, 'ready');
+    assert.equal(env.calls, 1);
+    assert.equal(env.row.attemptedConfigurationKey, configurationRecoveryKey());
+    await service.ensureAnalysis(env.current, 'government');
+    assert.equal(env.calls, 1, 'Successful analysis remains reusable');
+    env.row.pipelineState = 'failed';
+    env.row.error = 'AI_CONFIGURATION';
+    env.row.attemptCount = 3;
+    await service.ensureAnalysis(env.current, 'government');
+    assert.equal(env.calls, 1, 'Unchanged failing configuration cannot loop');
 });

@@ -24,10 +24,23 @@ function collection(name) {
     const names = indexes.get(db);
     if (!names.has(name)) {
         names.add(name);
-        coll.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch(() => {
+        // Final matching results are invalidated by their input fingerprint, not age.
+        // Remove the legacy TTL index so logging in after a week still reuses them.
+        const setup = name === 'precomputed_matching'
+            ? (coll.dropIndex ? coll.dropIndex('expiresAt_1').catch(error => {
+                if (error.code !== 27 && error.code !== 26) throw error;
+            }) : Promise.resolve())
+            : coll.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+        setup.catch(() => {
             names.delete(name);
-            console.warn('[MATCHING] TTL index unavailable');
+            console.warn('[MATCHING] Cache index setup unavailable');
         });
+        if (name === 'precomputed_matching') {
+            coll.createIndex({ contractorId: 1 }).catch(() => {
+                names.delete(name);
+                console.warn('[MATCHING] Contractor result index unavailable');
+            });
+        }
     }
     return coll;
 }

@@ -190,6 +190,39 @@ Never omit a job or a group. Give a short Thai reason even when matched=false.
     return [...unique.values()];
 }
 
+// Bound output size and index bookkeeping. Retry malformed responses once
+// in smaller batches; other failures use the durable backoff queue.
+const MAX_GROUPS_PER_REQUEST = 12;
+async function runBoundedGemini(jobs, config, options) {
+    const units = jobs.flatMap((job, jobIndex) => job.skillGroups.map((group, groupIndex) => ({
+        job: { ...job, skillGroups: [group] }, jobIndex, groupIndex,
+    })));
+    async function evaluate(batch, original = false, recover = true) {
+        try {
+            const matches = await runGemini(original ? jobs : batch.map(unit => unit.job), config, options);
+            return original ? matches : matches.map(match => ({ ...match,
+                jobIndex: batch[match.jobIndex].jobIndex, groupIndex: batch[match.jobIndex].groupIndex,
+            }));
+        } catch (error) {
+            const { code } = require('./matchingFailure').describeMatchingFailure(error);
+            if (!recover || !['AI_INCOMPLETE_RESPONSE', 'AI_INVALID_RESPONSE'].includes(code)) throw error;
+            console.warn(`[SEMANTIC] Retrying invalid response in smaller batches (${code})`);
+            const size = Math.max(1, Math.ceil(batch.length / 2));
+            const results = [];
+            for (let start = 0; start < batch.length; start += size) {
+                results.push(...await evaluate(batch.slice(start, start + size), false, false));
+            }
+            return results;
+        }
+    }
+    if (units.length <= MAX_GROUPS_PER_REQUEST) return evaluate(units, true);
+    const results = [];
+    for (let start = 0; start < units.length; start += MAX_GROUPS_PER_REQUEST) {
+        results.push(...await evaluate(units.slice(start, start + MAX_GROUPS_PER_REQUEST)));
+    }
+    return results;
+}
+
 // Batch Semantic Matching + Persistent Cache
 async function findSemanticMatchesBatch(
     jobs,
@@ -279,7 +312,7 @@ async function findSemanticMatchesBatch(
         heartbeat?.unref();
         try {
             console.log("[SEMANTIC] Batch AI request started");
-            const matches = await withAIConcurrency(() => runGemini(jobs, config, options));
+            const matches = await withAIConcurrency(() => runBoundedGemini(jobs, config, options));
 
             console.log("[SEMANTIC] Batch AI request completed");
 

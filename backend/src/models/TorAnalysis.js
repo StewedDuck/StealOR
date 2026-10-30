@@ -175,6 +175,7 @@ const torAnalysisSchema = new mongoose.Schema(
 
         pipelineState: { type: String, enum: ['waiting_data', 'pending', 'processing', 'ready', 'retry_wait', 'failed', 'not_available'], default: 'pending' },
         attemptedFingerprint: { type: String, default: '' },
+        attemptedConfigurationKey: { type: String, default: '' },
         leaseToken: { type: String, default: null },
         leaseUntil: { type: Date, default: null },
         attemptCount: { type: Number, default: 0 },

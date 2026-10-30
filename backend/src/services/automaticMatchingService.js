@@ -1,4 +1,4 @@
-const { invalidateMatchingData } = require('./matchingReadCache');
+const { readMatchingData, invalidateMatchingData } = require('./matchingReadCache');
 const { matchingAccountFilter } = require('./matchingAccess');
 const { randomUUID } = require('node:crypto');
 const mongoose = require('mongoose');
@@ -9,8 +9,8 @@ const TorAnalysis = require('../models/TorAnalysis');
 const analyzer = require('./torAnalyzer');
 const precomputed = require('./precomputedMatchingService');
 const { hash, collection, withAIConcurrency } = require('./matchingCache');
-const { visibleFilter, CATALOG_PROJECTION } = require('./torMatchingCatalog');
-const { describeMatchingFailure } = require('./matchingFailure');
+const { visibleFilter, CATALOG_PROJECTION, loadVisibleCatalog } = require('./torMatchingCatalog');
+const { describeMatchingFailure, configurationRecoveryKey, canRecoverConfiguration } = require('./matchingFailure');
 const { DEFAULT_MODEL } = require('../config/vertex');
 const ANALYSIS_VERSION = 'tor-analysis-auto-v1';
 const INTERVAL_MS = 60000;
@@ -41,7 +41,7 @@ function analysisReady(analysis) {
 async function ensureAnalysis(tor, source, options = {}) {
     const fingerprint = sourceFingerprint(tor, source);
     const identity = { torSource: source, torId: tor._id };
-    let row = await TorAnalysis.findOne(identity).lean();
+    let row = await TorAnalysis.findOne(identity, 'status pipelineState sourceFingerprint attemptedFingerprint leaseUntil attemptCount nextAttemptAt error attemptedConfigurationKey').lean();
     if (!hasAnalysisData(tor, source)) {
         if (row?.pipelineState !== 'waiting_data' || row.attemptedFingerprint !== fingerprint) {
             await TorAnalysis.updateOne(identity, { $set: { pipelineState: 'waiting_data', attemptedFingerprint: fingerprint }, $setOnInsert: { status: 'pending' } }, { upsert: true });
@@ -50,7 +50,9 @@ async function ensureAnalysis(tor, source, options = {}) {
     }
     if (row?.sourceFingerprint === fingerprint && ['ready', 'not_available'].includes(row.pipelineState)) return { state: row.pipelineState, attempted: false };
     if (row?.leaseUntil > new Date()) return { state: 'processing', attempted: false };
-    const sameAttempt = row?.attemptedFingerprint === fingerprint;
+    const configurationKey = configurationRecoveryKey();
+    const recovering = canRecoverConfiguration(row?.error, row?.attemptedConfigurationKey, configurationKey);
+    const sameAttempt = row?.attemptedFingerprint === fingerprint && !recovering;
     if (sameAttempt && (row.attemptCount >= 3 || row.pipelineState === 'failed' || row.nextAttemptAt > new Date())) return { state: row.pipelineState, attempted: false };
     if (options.inspectOnly) return { state: 'pending', attempted: false };
     const token = randomUUID();
@@ -59,7 +61,7 @@ async function ensureAnalysis(tor, source, options = {}) {
         row = await TorAnalysis.findOneAndUpdate({ ...identity,
             $or: [{ leaseUntil: null }, { leaseUntil: { $lte: new Date() } }, { leaseUntil: { $exists: false } }],
         }, { $set: { leaseToken: token, leaseUntil: new Date(Date.now() + LEASE_MS), pipelineState: 'processing',
-            attemptedFingerprint: fingerprint, attemptCount: sameAttempt ? (row?.attemptCount || 0) + 1 : 1, nextAttemptAt: null } }, { returnDocument: 'after' }).lean();
+            attemptedFingerprint: fingerprint, attemptedConfigurationKey: configurationKey || '', attemptCount: sameAttempt ? (row?.attemptCount || 0) + 1 : 1, nextAttemptAt: null } }, { returnDocument: 'after' }).lean();
         if (!row) return { state: 'processing', attempted: false };
     } catch (error) { if (error.code === 11000) return { state: 'processing', attempted: false }; throw error; }
     const heartbeat = setInterval(() => {
@@ -70,7 +72,7 @@ async function ensureAnalysis(tor, source, options = {}) {
         const result = await withAIConcurrency(() => analyzer.analyzeTor(tor, source));
         // Do not publish an analysis of a TOR that changed while Gemini was running.
         const model = source === 'government' ? GovProject : Tor;
-        const current = await model.findOne({ _id: tor._id, ...visibleFilter(source) }).lean();
+        const current = await model.findOne({ _id: tor._id, ...visibleFilter(source) }, CATALOG_PROJECTION[source]).lean();
         if (!current || sourceFingerprint(current, source) !== fingerprint) {
             await TorAnalysis.updateOne({ ...identity, leaseToken: token }, { $set: { pipelineState: 'pending' }, $unset: { leaseToken: '', leaseUntil: '' } });
             return { state: 'pending', attempted: true };
@@ -93,8 +95,9 @@ async function ensureAnalysis(tor, source, options = {}) {
         return { state: retry ? 'retry_wait' : 'failed', attempted: true };
     } finally {
         clearInterval(heartbeat);
-        invalidateMatchingData('catalog');
-        invalidateMatchingData('analyses');
+        // Analysis writes do not change the source catalog. Keep the previous
+        // analysis snapshot available while a single database refresh runs.
+        invalidateMatchingData('analyses', { retainValue: true });
     }
 }
 
@@ -142,10 +145,11 @@ async function scanContractors(state) {
     const query = { status: { $in: ['completed', 'needs_review'] }, relevanceStatus: { $in: ['ready', 'needs_review'] }, 'projectRelevance.0': { $exists: true } };
     if (state.matchAnalysisCursor) query._id = { $gt: state.matchAnalysisCursor };
     const analyses = await TorAnalysis.find(query).sort({ _id: 1 }).limit(SCAN_BATCH).lean();
+    const catalog = await readMatchingData('catalog', loadVisibleCatalog, { ttlMs: 15000 });
+    const visible = new Map(catalog.map(({ tor, source }) => [`${source}:${tor._id}`, tor]));
     const eligible = [];
     for (const analysis of analyses) {
-        const model = analysis.torSource === 'government' ? GovProject : Tor;
-        const tor = await model.findOne({ _id: analysis.torId, ...visibleFilter(analysis.torSource) }).lean();
+        const tor = visible.get(`${analysis.torSource}:${analysis.torId}`);
         if (tor && analysis.sourceFingerprint === sourceFingerprint(tor, analysis.torSource) && analysis.pipelineState === 'ready') eligible.push(analysis);
     }
     if (eligible.length) { await precomputed.getAvailableMatching(profile, eligible); precomputed.startRefresh(); }

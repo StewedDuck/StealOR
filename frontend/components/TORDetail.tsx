@@ -6,6 +6,9 @@ import { REQUIREMENT_CATEGORIES, type Tor, type MarketTorDetail } from "@/types/
 import { normalizeTorRequirements } from "@/lib/torRequirements";
 import "./TORDetail.css"
 import TorStatusProgress from "@/components/TorStatusProgress";
+import { getTorDisplayDeadline } from '@/lib/torDeadline';
+import { isTorCommentClosed } from '@/lib/torPublicationStatus';
+import TorCommentClosedBadge from '@/components/TorCommentClosedBadge';
 
 type TorDetailModalProps = {
     tor: Tor | MarketTorDetail;
@@ -15,9 +18,11 @@ type TorDetailModalProps = {
     // หน้าadminส่งเครื่องมือตรวจเข้ามา โดยหน้า contractor ไม่ได้รับปุ่มเหล่านี้
     reviewPanel?: ReactNode;
     progressStatus?: "draft" | "open" | "closed" | "unknown";
+    publicationStatus?: "draft" | "open" | "unknown";
 };
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
     dateStyle: "medium",
 });
 
@@ -45,6 +50,7 @@ export default function TorDetailModal({
     tor,
     onClose,
     progressStatus = "unknown",
+    publicationStatus,
     showAdminMetadata = false,
     reviewPanel,
 }: TorDetailModalProps) {
@@ -141,7 +147,9 @@ export default function TorDetailModal({
                     <div className="tor-info-card">
                         <span>กำหนดส่ง</span>
                         <strong>
-                            {formatDate(tor.submissionDeadline)}
+                            {formatDate('source' in tor && tor.source === 'government'
+                                ? getTorDisplayDeadline({ ...tor, deadline: tor.submissionDeadline }, publicationStatus || (progressStatus === 'draft' ? 'draft' : tor.publicationStatus)) ?? null
+                                : tor.submissionDeadline)}
                         </strong>
                     </div>
                 </div>
@@ -154,6 +162,8 @@ export default function TorDetailModal({
                     {/* Progress Bar */}
                     {/* หน้าผู้ดูแลใช้สถานะจริงด้านบน ไม่แสดง progress ที่ยังไม่ได้คำนวณ */}
                     {(!showAdminMetadata || progressStatus !== "unknown") && <TorStatusProgress status={progressStatus} />}
+                    {'source' in tor && tor.source === 'government' &&
+                        isTorCommentClosed({ ...tor, deadline: tor.submissionDeadline }, publicationStatus || tor.publicationStatus) && <TorCommentClosedBadge />}
 
                     {showAdminMetadata && "ownerId" in tor && (
                         <section className="tor-section">
