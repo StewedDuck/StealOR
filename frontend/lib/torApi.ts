@@ -1,3 +1,4 @@
+import { fetchList, readListSnapshot, invalidateList, updateLists } from './listCache';
 import type { MarketTor, MarketTorDetail, Tor, TorFormData } from "@/types/tor";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
@@ -46,7 +47,8 @@ async function request<T>(
     path === "/api/profile" || path.startsWith("/api/profile?") || path.startsWith('/api/notifications')
       ? path
       : path.startsWith("/api/tors") &&
-          !path.startsWith("/api/tors/market")
+          !path.startsWith("/api/tors/market") &&
+          !path.startsWith("/api/tors/drafts")
         ? path.replace(/^\/api\/tors/, "/api/owner-tors")
         : `${API_URL}${path}`;
 
@@ -72,6 +74,10 @@ async function request<T>(
     throw Object.assign(new Error(message), { status: response.status, endpoint });
   }
 
+  if (init?.method && init.method !== "GET") {
+    if (path.startsWith("/api/bookmarks")) invalidateList("bookmarks:");
+    if (path.startsWith("/api/tors")) { invalidateList("market"); invalidateList("shared-drafts"); }
+  }
   return result.data;
 }
 
@@ -81,6 +87,9 @@ export async function createTor(data: TorFormData): Promise<Tor> {
     body: JSON.stringify(data),
   });
 }
+
+export const getSharedDraftTors = () => fetchList("shared-drafts", () => request<Tor[]>("/api/tors/drafts", { cache: "no-store" }));
+export const readSharedDraftSnapshot = () => readListSnapshot<Tor[]>("shared-drafts");
 
 export const getDraftTors = () => request<Tor[]>("/api/tors?status=draft");
 export async function getMyTors(): Promise<Tor[]> {
@@ -117,7 +126,8 @@ export const deleteTor = (id: string) => request<{ id: string }>(
 );
 
 export async function getMarketTors(signal?: AbortSignal): Promise<MarketTor[]> {
-  return request<MarketTor[]>("/api/tors/market", { signal });
+  // A caller-owned abort signal must not cancel another page's shared read.
+  return signal ? request<MarketTor[]>("/api/tors/market", { signal }) : fetchList("market", () => request<MarketTor[]>("/api/tors/market"));
 }
 
 export async function getMarketTorById(
@@ -223,9 +233,9 @@ export async function createInternalBookmark(
 export async function getBookmarks(
   userId: string
 ): Promise<SavedTor[]> {
-  return request<SavedTor[]>(
+  return fetchList(`bookmarks:${userId}`, () => request<SavedTor[]>(
     `/api/bookmarks?userId=${encodeURIComponent(userId)}`
-  );
+  ));
 }
 
 export async function deleteBookmark(
@@ -411,7 +421,7 @@ export type UserProfile = {
 export async function getUserProfile(
   _email: string
 ): Promise<UserProfile> {
-  return request<UserProfile>("/api/profile");
+  return fetchList(`profile:${_email}`, () => request<UserProfile>("/api/profile"));
 }
 
 export type UpdateUserProfileData = {
@@ -453,10 +463,12 @@ export async function updateUserProfile(
   _email: string,
   data: UpdateUserProfileData
 ): Promise<UserProfile> {
-  return request<UserProfile>("/api/profile", {
+  const updated = await request<UserProfile>("/api/profile", {
     method: "PATCH",
     body: JSON.stringify(data),
   });
+  invalidateList(`profile:${_email}`);
+  return updated;
 }
 
 export type LocalDocumentFile = {
@@ -538,22 +550,27 @@ export type ContractorNotificationType =
 export async function getContractorNotifications(
   userId: string
 ): Promise<ContractorNotification[]> {
-  return request<ContractorNotification[]>(
+  return fetchList(`notifications:${userId}`, () => request<ContractorNotification[]>(
     `/api/notifications?userId=${encodeURIComponent(userId)}`
-  );
+  ));
 }
 
 export async function markContractorNotificationAsRead(
   notificationId: string
 ): Promise<ContractorNotification> {
-  return request<ContractorNotification>(
+  const updated = await request<ContractorNotification>(
     `/api/notifications/${encodeURIComponent(notificationId)}/read`,
     {
       method: "PATCH",
     }
   );
+  updateLists<ContractorNotification[]>("notifications:", rows => rows.map(row => row._id === notificationId ? { ...row, read: true } : row));
+  return updated;
 }
 
+export const readNotificationSnapshot = (email: string) => readListSnapshot<ContractorNotification[]>(`notifications:${email}`);
+export const readBookmarkSnapshot = (email: string) => readListSnapshot<SavedTor[]>(`bookmarks:${email}`);
+export const readMarketSnapshot = () => readListSnapshot<MarketTor[]>("market");
 
 export type VerificationStatus =
     | "not_required"

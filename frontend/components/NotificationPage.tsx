@@ -3,7 +3,6 @@
 import Link from 'next/link';
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/components/AuthProvider";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/sideBar";
@@ -12,6 +11,7 @@ import AdminSidebar from "@/components/sideBarAdmin";
 import {
     ContractorNotification,
     getContractorNotifications,
+    readNotificationSnapshot,
     markContractorNotificationAsRead,
     getUserProfile,
 } from "@/lib/torApi";
@@ -33,6 +33,7 @@ function formatNotificationDate(value: string) {
     }
 
     return new Intl.DateTimeFormat("th-TH", {
+        timeZone: "Asia/Bangkok",
         dateStyle: "medium",
         timeStyle: "short",
     }).format(date);
@@ -125,8 +126,7 @@ function getNotificationMessage(
 
 
 export default function NotificationPage({ audience = 'contractor' }: { audience?: 'contractor' | 'project_owner' | 'admin' }) {
-    const { user, ready } = useAuth();
-    const { data: session } = useSession();
+    const { data: session, status: sessionStatus } = useSession();
     const [notifications, setNotifications] = useState<ContractorNotification[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -136,17 +136,19 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
 
     /* Load notifications */
     useEffect(() => {
-        if (!ready) {
-            return;
-        }
+        if (sessionStatus === "loading") return;
 
-        if (!user?.email) {
+        if (!session?.user?.email) {
             setNotifications([]);
             setLoading(false);
             return;
         }
 
-        const userId = user.email;
+        const userId = session.user.email;
+        const cached = readNotificationSnapshot(userId);
+        setNotifications(cached || []);
+        setLoading(!cached);
+        setError("");
 
         let cancelled = false;
         async function loadNotifications() {
@@ -168,23 +170,17 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
                     error
                 );
 
-                setNotifications([]);
-
-                setError(
-                    error instanceof Error
-                        ? error.message
-                        : "โหลดการแจ้งเตือนไม่สำเร็จ"
-                );
+                if (!cancelled) setError(error instanceof Error ? error.message : "โหลดการแจ้งเตือนไม่สำเร็จ");
 
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         }
 
         void loadNotifications();
         const timer = setInterval(() => void loadNotifications(), 30000);
         return () => { cancelled = true; clearInterval(timer); };
-    }, [ready, user?.email]);
+    }, [sessionStatus, session?.user?.email]);
 
 
     /* Load user display name */
@@ -285,7 +281,7 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
     const userName =
         displayName ||
         session?.user?.name ||
-        user?.email ||
+        session?.user?.email ||
         "ผู้ใช้";
 
 
@@ -388,7 +384,6 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
                     {/* Notification list */}
 
                     {!loading &&
-                        !error &&
                         notifications.length > 0 && (
 
                             <div className="notification-list">

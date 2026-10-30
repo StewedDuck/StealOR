@@ -6,7 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/sideBar";
 import { useToast } from "@/components/toast/ToastProvider";
 import {
-    getDraftTors,
+    getSharedDraftTors,
+    readSharedDraftSnapshot,
     getComments,
     createComment,
     deleteComment,
@@ -257,7 +258,9 @@ export default function ContractorDraftTOR() {
     }, [session?.user?.email]);
 
     useEffect(() => {
-        getDraftTors()
+        const cached = readSharedDraftSnapshot();
+        if (cached) { setTors(cached); setLoading(false); }
+        getSharedDraftTors()
             .then(setTors)
             .catch((err) => setError(err instanceof Error ? err.message : "โหลดรายการไม่สำเร็จ"))
             .finally(() => setLoading(false));

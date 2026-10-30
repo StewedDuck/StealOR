@@ -167,6 +167,23 @@ test('cold-start preview reads saved cards without loading analysis criteria or 
     assert.equal(result.data[0].matchingPercentage, 80);
     assert.equal(result.data[0].computedAt, computedAt);
     assert.equal(result.data[0].matchingStatus, 'stale', 'Saved preview must not claim freshness');
+    coll.docs.get('own').result.relevanceResults = [{ missingGroups: [['AWS']] }];
+    coll.docs.get('own').result.mandatoryResults = [{ text: 'ISO 27001', status: 'unknown' }];
+    const originalFind = coll.find.bind(coll);
+    coll.aggregate = pipeline => {
+        assert.equal(pipeline[0].$match.contractorId, 'own');
+        assert.equal(pipeline[1].$sort.computedAt, -1);
+        assert.ok(pipeline[2].$group);
+        const projection = pipeline.at(-1).$project;
+        assert.equal(projection['result.relevanceResults.missingGroups'], 1);
+        assert.equal(projection['result.mandatoryResults.text'], 1);
+        return originalFind(pipeline[0].$match);
+    };
+    const detailed = await require('../src/services/matchingSnapshotService').loadMatchingSnapshot('own', { includeDetails: true });
+    assert.deepEqual(detailed.data[0].relevanceResults[0].missingGroups, [['AWS']]);
+    assert.equal(detailed.data[0].mandatoryResults[0].text, 'ISO 27001');
+    assert.equal(detailed.data[0].matchingPercentage, 80);
+
 });
 
 test('legacy results migrate without AI and older writers cannot overwrite the current input version', async t => {
@@ -362,4 +379,35 @@ test('AI failures show retry_wait, stop after three failures, and a manual retry
     assert.equal(recovered.matchingStatus, 'ready');
     assert.equal(recovered.refreshState, 'ready');
     assert.equal(recovered.failureCode, null);
+});
+
+test('matching reads only identity metadata for history and downloads evidence for the exact requested version', async t => {
+    const coll = memoryCollection();
+    const originalDb = mongoose.connection.db;
+    const readyState = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
+    Object.defineProperty(mongoose.connection, 'readyState', { value: 1, configurable: true });
+    mongoose.connection.db = { collection: () => coll };
+    t.after(() => {
+        mongoose.connection.db = originalDb;
+        if (readyState) Object.defineProperty(mongoose.connection, 'readyState', readyState);
+        else delete mongoose.connection.readyState;
+    });
+    const service = require('../src/services/precomputedMatchingService');
+    const profile = { _id: 'history-owner', skills: ['React'] };
+    const analysis = { torId: 'history-tor', torSource: 'internal', status: 'completed', relevanceStatus: 'ready', projectRelevance: [] };
+    const task = service.descriptor(profile, analysis);
+    const result = { torId: 'history-tor', torSource: 'internal', matchingPercentage: 80, relevanceResults: [] };
+    coll.docs.set(task.id, { _id: task.id, contractorId: profile._id, torId: analysis.torId, torSource: 'internal', fingerprint: task.fingerprint,
+        scoringVersion: require('../src/services/matchingCache').SCORING_VERSION, result, computedAt: new Date('2026-10-01') });
+    for (let i = 0; i < 20; i++) coll.docs.set(`history-${i}`, { _id: `history-${i}`, contractorId: profile._id, torId: analysis.torId,
+        torSource: 'internal', fingerprint: `old-${i}`, result: { ...result, matchingPercentage: 2 }, computedAt: new Date('2026-10-30') });
+    const reads = [];
+    const originalFind = coll.find.bind(coll);
+    coll.find = (query, options) => { reads.push({ query, options }); return originalFind(query); };
+    const [entry] = await service.getAvailableMatching(profile, [analysis], { refresh: false });
+    assert.equal(entry.result.matchingPercentage, 80);
+    assert.equal(entry.matchingStatus, 'ready');
+    assert.equal(reads[0].options.projection['result.relevanceResults'], undefined);
+    assert.deepEqual(reads[1].query._id.$in, [task.id]);
+    assert.equal(reads[1].query.contractorId, profile._id);
 });

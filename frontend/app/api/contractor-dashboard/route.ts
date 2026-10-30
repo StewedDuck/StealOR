@@ -1,12 +1,13 @@
 import { auth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
-export async function GET() {
+export async function GET(request: Request) {
     const session = await auth();
     if (!session?.user?.email) return NextResponse.json({ success: false, error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
     const secret = process.env.TOR_PROXY_SECRET;
     if (!secret) return NextResponse.json({ success: false, error: 'Server configuration error' }, { status: 500 });
+    const query = new URL(request.url).searchParams.get('snapshot') === 'true' ? '?snapshot=true' : '';
     try {
-        const response = await fetch(`${process.env.INTERNAL_API_URL || 'http://localhost:5000'}/api/matching/dashboard`, {
+        const response = await fetch(`${process.env.INTERNAL_API_URL || 'http://localhost:5000'}/api/matching/dashboard${query}`, {
             headers: { 'x-profile-email': session.user.email, 'x-profile-proxy-secret': secret },
             cache: 'no-store', signal: AbortSignal.timeout(55000),
         });

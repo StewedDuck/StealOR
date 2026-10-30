@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/sideBar";
 import {
   getMarketTors,
+  readMarketSnapshot,
   getMarketTorById,
   getEgpAnnouncementUrl,
 } from "@/lib/torApi";
@@ -516,9 +517,11 @@ export default function TorMarketPage() {
     ;
 
     useEffect(() => {
+      const cached = readMarketSnapshot();
+      if (cached) { setTors(cached); setLoading(false); }
       async function loadMarketTors() {
         try {
-          setLoading(true);
+          setLoading(!cached);
           setError("");
 
           const marketTors = await getMarketTors();

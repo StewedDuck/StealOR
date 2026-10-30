@@ -143,7 +143,10 @@ async function loadStoredMatching(contractorId, options = {}) {
     if (!coll) return [];
     const id = String(contractorId);
     try {
-        return await readMatchingData(`stored:${id}`, () => coll.find({ contractorId: id }).toArray(), { force: !!options.force });
+        return await readMatchingData(`stored:${id}`, () => coll.find({ contractorId: id }, { projection: {
+            contractorId: 1, torId: 1, torSource: 1, fingerprint: 1, attemptedFingerprint: 1,
+            computedAt: 1, 'result.torId': 1, 'result.torSource': 1, 'result.matchingPercentage': 1,
+        } }).toArray(), { force: !!options.force });
     } catch {
         console.warn('[MATCHING] Stored results unavailable');
         // A failed read must never masquerade as an empty successful result.
@@ -155,7 +158,27 @@ async function getAvailableMatching(contractor, analyses, options = {}) {
     const descriptors = analyses.map(analysis => ({ ...profileDescriptor(contractor, analysis), analysis, contractor }));
     if (descriptors.length === 0) return [];
     const coll = collection('precomputed_matching');
-    const candidates = options.storedRows || await loadStoredMatching(contractor._id, options);
+    const metadata = options.storedRows || await loadStoredMatching(contractor._id, options);
+    const metadataById = new Map(metadata.map(row => [row._id, row]));
+    // Read all version identities cheaply, then download evidence only for the
+    // requested current inputs (or the latest saved fallback). Never discard an
+    // exact current fingerprint just because another version was computed later.
+    const selectedIds = [...new Set(descriptors.flatMap(task => {
+        const exact = metadataById.get(task.id);
+        if (exact) return [exact._id];
+        const legacy = metadataById.get(task.legacyId);
+        if (legacy?.result && legacy.fingerprint === task.fingerprint) return [legacy._id];
+        const latest = metadata.filter(row => row.result &&
+            String(row.torId || row.result.torId) === String(task.analysis.torId) &&
+            (row.torSource || row.result.torSource) === task.analysis.torSource)
+            .sort((a, b) => new Date(b.computedAt || 0) - new Date(a.computedAt || 0))[0];
+        return latest ? [latest._id] : [];
+    }))];
+    const candidates = selectedIds.length ? await readMatchingData(
+        `stored:${contractor._id}:details:${hash([...selectedIds].sort())}`,
+        () => coll.find({ contractorId: String(contractor._id), _id: { $in: selectedIds } }).toArray(),
+        { force: !!options.force },
+    ) : [];
     const candidatesById = new Map(candidates.map(row => [row._id, row]));
     let migrated = false;
     const stored = await Promise.all(descriptors.map(async task => {

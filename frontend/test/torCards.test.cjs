@@ -378,3 +378,49 @@ test('inline evaluation status hides diagnostics and missing TOR data, showing o
     assert.equal(render({ ...idle, waitingForData: 29, withoutCriteria: 2 }), '');
     assert.match(render({ ...idle, failed: 5 }, { sending: true }), /<button[^>]*disabled=""/);
 });
+
+test('dashboard restores the same account snapshot, isolates accounts, and expires old data', t => {
+    const { readDashboardSnapshot, writeDashboardSnapshot } = load('lib/dashboardSnapshot');
+    let now = 100;
+    t.mock.method(Date, 'now', () => now);
+    const data = { summary: { matchedCount: 13 }, trend: [], qualificationGaps: [{ qualification: 'AWS', missed: 2 }] };
+    writeDashboardSnapshot('dashboard-a', data);
+    assert.equal(readDashboardSnapshot('dashboard-a').summary.matchedCount, 13);
+    assert.equal(readDashboardSnapshot('dashboard-a').qualificationGaps.length, 1);
+    assert.equal(readDashboardSnapshot('dashboard-a').isCachedSnapshot, true);
+    assert.equal(readDashboardSnapshot('dashboard-b'), undefined);
+    now += 60 * 60 * 1000 + 1;
+    assert.equal(readDashboardSnapshot('dashboard-a'), undefined);
+});
+
+test('navigation list cache coalesces concurrent page/sidebar reads and keeps account snapshots isolated', async t => {
+    const { fetchList, readListSnapshot, invalidateList } = load('lib/listCache');
+    let now = 1000; t.mock.method(Date, 'now', () => now);
+    let calls = 0, finish;
+    const task = new Promise(resolve => { finish = resolve; });
+    const loader = () => { calls++; return task; };
+    const first = fetchList('notifications:test-a', loader);
+    const second = fetchList('notifications:test-a', loader);
+    finish([{ _id: 'one', read: false }]);
+    assert.deepEqual(await first, await second);
+    assert.equal(calls, 1);
+    assert.equal(readListSnapshot('notifications:test-b'), undefined);
+    now += 6000;
+    await assert.rejects(fetchList('notifications:test-a', async () => { throw Error('offline'); }));
+    assert.equal(readListSnapshot('notifications:test-a').length, 1);
+    invalidateList('notifications:');
+    assert.equal(readListSnapshot('notifications:test-a'), undefined);
+});
+
+test('list mutation invalidates old in-flight responses without losing the updated snapshot', async () => {
+    const { fetchList, readListSnapshot, invalidateList, updateLists } = load('lib/listCache');
+    await fetchList('notifications:mutation', async () => [{ _id: 'one', read: false }]);
+    updateLists('notifications:mutation', rows => rows.map(row => ({ ...row, read: true })));
+    let finish;
+    const pending = fetchList('notifications:mutation', () => new Promise(resolve => { finish = resolve; }));
+    await Promise.resolve();
+    updateLists('notifications:mutation', rows => rows.map(row => ({ ...row, read: true })));
+    finish([{ _id: 'one', read: false }]); await pending;
+    assert.equal(readListSnapshot('notifications:mutation')[0].read, true);
+    invalidateList('notifications:');
+});

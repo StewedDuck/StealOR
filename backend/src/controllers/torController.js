@@ -83,6 +83,16 @@ async function createTor(req, res) {
   }
 }
 
+// Contractor preview/review list is shared; owner management remains scoped.
+async function getSharedDraftTors(req, res) {
+  try {
+    const tors = await Tor.find({ status: 'draft' })
+      .select('projectName agencyName description objectives scopeOfWork requirements budget referencePriceEstimate submissionDeadline applicationDeadline status createdAt updatedAt contactName contactEmail')
+      .sort({ updatedAt: -1 }).lean();
+    return res.json({ success: true, data: tors });
+  } catch (error) { return handleError(res, error); }
+}
+
 async function getTors(req, res) {
   try {
     const query = { ownerId: req.ownerId };
@@ -538,6 +548,7 @@ async function publishTor(req, res) {
 module.exports = {
   createTor,
   getTors,
+  getSharedDraftTors,
   getTorById,
   updateTor,
   deleteTor,

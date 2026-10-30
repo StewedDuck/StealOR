@@ -92,10 +92,10 @@ function buildTrend(snapshots, now = new Date()) {
             samples: points.length };
     });
 }
-async function loadTrend(email, summary, now = new Date()) {
+async function loadTrend(email, summary, now = new Date(), { record = true } = {}) {
     const userKey = hash(email.trim().toLowerCase());
     const day = bangkokDate(now);
-    if (summary.matchRate !== null) await Snapshot.updateOne({ _id: `${userKey}:${day}` }, {
+    if (record && summary.matchRate !== null) await Snapshot.updateOne({ _id: `${userKey}:${day}` }, {
         $set: { userKey, day, rate: summary.matchRate, matchedCount: summary.matchedCount, assessedCount: summary.assessedCount },
     }, { upsert: true });
     const first = buildTrend([], now)[0].key + '-01';

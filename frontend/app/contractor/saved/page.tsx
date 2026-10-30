@@ -13,6 +13,7 @@ import { useToast } from "@/components/toast/ToastProvider";
 
 import {
   getBookmarks,
+  readBookmarkSnapshot,
   deleteBookmark,
   deleteInternalBookmark,
   getMarketTorById,
@@ -212,7 +213,7 @@ function getSavedTorYear(tor: SavedTor): number | null {
 }
 
 export default function SavedPage() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const { showToast } = useToast();
   const userId = session?.user?.email ?? null;
   const matches = useAvailableTorMatching(userId);
@@ -395,16 +396,20 @@ export default function SavedPage() {
   }, [session?.user?.email, session?.user?.name]);
 
   useEffect(() => {
+    if (sessionStatus === "loading") return;
     if (!userId) {
       setSavedTors([]);
       setLoading(false);
       return;
     }
     let cancelled = false;
+    const cached = readBookmarkSnapshot(userId);
+    setSavedTors(cached || []);
+    setLoading(!cached);
   
     async function loadBookmarks() {
       try {
-        setLoading(true);
+        setLoading(!cached);
         setError("");
   
         const bookmarks = await getBookmarks(userId!);
@@ -459,7 +464,7 @@ export default function SavedPage() {
   
     loadBookmarks();
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, sessionStatus]);
 
   useEffect(() => {
     if (!reviewTor) return;

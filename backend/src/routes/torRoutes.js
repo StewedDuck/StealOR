@@ -3,6 +3,7 @@ const express = require("express");
 const {
   createTor,
   getTors,
+  getSharedDraftTors,
   getTorById,
   updateTor,
   deleteTor,
@@ -16,6 +17,7 @@ const torOwnerAuth = require("../middleware/torOwnerAuth");
 const router = express.Router();
 
 // Public: Contractor Market
+router.get("/drafts", getSharedDraftTors);
 router.get("/market", getMarketTors);
 router.get("/market/:projectId", getMarketTorDetail);
 

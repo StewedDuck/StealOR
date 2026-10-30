@@ -148,7 +148,7 @@ async function getMatchedTors(req, res) {
         timings.profileMs = Date.now() - startedAt;
 
         if (req.query?.snapshot === 'true') {
-            return res.json(await require('../services/matchingSnapshotService').loadMatchingSnapshot(contractor.toObject()._id));
+            return res.json(await require('../services/matchingSnapshotService').loadMatchingSnapshot(contractor.toObject()._id, { includeDetails: req.includeSnapshotDetails === true }));
         }
 
         const reads = Promise.all([
@@ -160,7 +160,7 @@ async function getMatchedTors(req, res) {
         // Explicit retry requests retain their write/queue semantics below.
         const loaded = req.query?.retry === 'true' ? { value: await reads } : await readWithinBudget(reads);
         if (!loaded) {
-            return res.json(await require('../services/matchingSnapshotService').loadMatchingSnapshot(contractor.toObject()._id));
+            return res.json(await require('../services/matchingSnapshotService').loadMatchingSnapshot(contractor.toObject()._id, { includeDetails: req.includeSnapshotDetails === true }));
         }
         const [catalog, analyses, storedRows] = loaded.value;
         const analysisMap = new Map(analyses.map(analysis => [`${analysis.torSource}:${analysis.torId}`, analysis]));

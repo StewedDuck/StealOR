@@ -61,3 +61,13 @@ test('six-month trend uses only real snapshots and preserves absent months as nu
     assert.equal(points[4].rate, 30);
     assert.equal(points[5].rate, 50);
 });
+
+test('cached previews read trend history without overwriting daily assessment history', async t => {
+    const Snapshot = require('../src/models/DashboardSnapshot');
+    t.mock.method(Snapshot, 'updateOne', async () => assert.fail('Preview must not overwrite history'));
+    t.mock.method(Snapshot, 'find', () => ({ select() { return this; }, lean: async () => [] }));
+    const { loadTrend } = require('../src/services/contractorDashboardService');
+    const trend = await loadTrend('account@example.com', { matchRate: 25 }, now, { record: false });
+    assert.equal(trend.length, 6);
+    assert.ok(trend.every(point => point.rate === null));
+});
