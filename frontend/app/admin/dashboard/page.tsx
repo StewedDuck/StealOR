@@ -13,32 +13,22 @@ import {
     TriangleAlert,
 } from "lucide-react";
 import "./admin_dashboard.css";
+import { useAdminDashboardSection } from "@/hooks/useAdminDashboardSection";
 import TorVolumeChart from "@/components/TorVolumeChart";
 import UserDistributionChart from "@/components/UserDistributionChart";
 
 export default function AdminDashboard() {
     const router = useRouter();
-    const { user } = useAuth();
-    const { ready } = useAuth();
-    const [summary, setSummary] = useState<{ users: number; tors: number; pendingVerifications: number; pendingTorReviews: number } | null>(null);
-    const [error, setError] = useState('');
+    const { user, ready } = useAuth();
     const [reload, setReload] = useState(0);
+    const email = ready && user?.accountRole === 'admin' ? user.email.trim().toLowerCase() : undefined;
+    const { data: summary, error, refreshing: summaryRefreshing } = useAdminDashboardSection(email, 'summary', reload);
+    const { data: charts, error: chartError, refreshing: chartsRefreshing } = useAdminDashboardSection(email, 'charts', reload);
     useEffect(() => {
         if (!ready) return;
-        if (!user) { router.replace('/'); return; }
-        if (user.accountRole !== 'admin') { router.replace('/contractor/dashboard'); return; }
-        const controller = new AbortController();
-        setError('');
-        setSummary(null);
-        void fetch('/api/admin/dashboard', { cache: 'no-store', signal: controller.signal })
-            .then(async response => {
-                const result = await response.json();
-                if (!response.ok || !result.success) throw new Error(result.error || 'โหลดข้อมูลไม่สำเร็จ');
-                if (!controller.signal.aborted) setSummary(result.data);
-            })
-            .catch(error => { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ'); });
-        return () => controller.abort();
-    }, [ready, user, router, reload]);
+        if (!user) router.replace('/');
+        else if (user.accountRole !== 'admin') router.replace('/contractor/dashboard');
+    }, [ready, user, router]);
     if (!ready || !user || user.accountRole !== 'admin') return null;
     const count = (value?: number) => value === undefined ? '—' : value.toLocaleString('th-TH');
 
@@ -68,20 +58,23 @@ export default function AdminDashboard() {
                 {/* CONTENT */}
                 <div className="admin-content">
 
-                    {error ? <div role="alert">{error} <button onClick={() => setReload(value => value + 1)}>ลองอีกครั้ง</button></div> : !summary && <p role="status">กำลังโหลดข้อมูลสรุป…</p>}
+                    {(summary || charts) && (summaryRefreshing || chartsRefreshing) && <p role="status">กำลังอัปเดตข้อมูลล่าสุด…</p>}
+                    {error ? <div role="alert">{error} {summary && 'แสดงข้อมูลที่โหลดไว้ก่อนหน้า'} <button onClick={() => setReload(value => value + 1)}>ลองอีกครั้ง</button></div> : !summary && <p role="status">กำลังโหลดข้อมูลสรุป…</p>}
                     <div className="admin-summary-grid">
                         <Link href="/admin/manageUser" style={{ color: 'inherit', textDecoration: 'none' }}><SummaryCard icon={<CircleCheckBig size={20} />} title="ผู้ใช้ทั้งหมด" value={count(summary?.users)} footer="บัญชีทั้งหมด รวมบัญชีที่ระงับ" /></Link>
                         <Link href="/admin/issue" style={{ color: 'inherit', textDecoration: 'none' }}><SummaryCard icon={<Clock size={20} />} title="TOR ของเจ้าของโครงการ" value={count(summary?.tors)} footer="ทุกสถานะ ไม่รวมข้อมูลนำเข้าจาก e-GP" /></Link>
                         <Link href="/admin/verification" style={{ color: 'inherit', textDecoration: 'none' }}><SummaryCard icon={<BellRing size={20} />} title="รอยืนยันตัวตน" value={count(summary?.pendingVerifications)} footer="คำขอที่รอผู้ดูแลตรวจสอบ" footerType="warning" /></Link>
                         <Link href="/admin/issue" style={{ color: 'inherit', textDecoration: 'none' }}><SummaryCard icon={<TriangleAlert size={20} />} title="TOR รออนุมัติ" value={count(summary?.pendingTorReviews)} footer="TOR ที่ส่งตรวจและยังรอผล" footerType="warning" /></Link>
                     </div>
-                    <p role="note">กราฟ กิจกรรม และรายการรอดำเนินการด้านล่างยังเป็นข้อมูลตัวอย่าง อยู่ระหว่างพัฒนา</p>
+
 
                     {/* chart */}
-                    <div className="admin-chart-grid">
-                        <TorVolumeChart />
-                        <UserDistributionChart />
-                    </div>
+                    {chartError && <div role="alert">{chartError} {charts && 'แสดงกราฟที่โหลดไว้ก่อนหน้า'} <button onClick={() => setReload(value => value + 1)}>ลองอีกครั้ง</button></div>}
+                    {!charts ? !chartError && <p role="status">กำลังโหลดกราฟ…</p> : <div className="admin-chart-grid">
+                        <TorVolumeChart data={charts.torMonths} />
+                        <UserDistributionChart data={charts.userDistribution} />
+                    </div>}
+                    <p role="note">กิจกรรมและรายการรอดำเนินการด้านล่างยังเป็นข้อมูลตัวอย่าง อยู่ระหว่างพัฒนา</p>
 
 
                     {/* ACTIVITY + PENDING */}

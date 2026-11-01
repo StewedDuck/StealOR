@@ -16,6 +16,23 @@ async function getSummary(req, res) {
         return res.status(500).json({ success: false, error: 'ไม่สามารถโหลดข้อมูลสรุปแดชบอร์ดได้' });
     }
 }
+router.get('/charts', adminAuth, async (req, res) => {
+    try {
+        const now = new Date();
+        const { buildTorMonths, buildUserDistribution } = require('../services/adminDashboardCharts');
+        const firstMonth = buildTorMonths([], now)[0].key;
+        const [tors, users] = await Promise.all([
+            Tor.aggregate([
+                { $match: { createdAt: { $gte: new Date(`${firstMonth}-01T00:00:00+07:00`), $lte: now } } },
+                { $group: { _id: { month: { $dateToString: { format: '%Y-%m', date: '$createdAt', timezone: 'Asia/Bangkok' } }, status: '$status' }, count: { $sum: 1 } } },
+            ]),
+            User.aggregate([{ $group: { _id: '$accountRole', count: { $sum: 1 } } }]),
+        ]);
+        return res.json({ success: true, data: { torMonths: buildTorMonths(tors, now), userDistribution: buildUserDistribution(users) } });
+    } catch {
+        return res.status(500).json({ success: false, error: 'ไม่สามารถโหลดข้อมูลกราฟได้' });
+    }
+});
 router.get('/', adminAuth, getSummary);
 module.exports = router;
 module.exports.getSummary = getSummary;
