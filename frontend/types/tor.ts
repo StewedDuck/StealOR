@@ -21,6 +21,7 @@ export type TorFormData = {
   scopeOfWork: string[];
   requirements: TorRequirement[];
   budget: number | null;
+  referencePriceEstimate?: number | null;
   submissionDeadline: string;
   contactName: string;
   contactEmail: string;

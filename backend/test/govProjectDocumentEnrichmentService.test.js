@@ -50,11 +50,18 @@ function rateLimited() {
   };
 }
 
-test("current local provider returns the actual 27 records without hard-coded count", async () => {
-  const projects = await getLocalFilteredProjects();
-  assert.equal(projects.length, 27);
-  assert.equal(new Set(projects.map(({ project_id }) => project_id)).size, 27);
+test("local provider normalizes fixture records and applies limits without relying on local imports", async () => {
+  const dataFile = require('node:path').join(__dirname, 'fixtures', 'local-projects.json');
+  const input = require('./fixtures/local-projects.json');
+  const projects = await getLocalFilteredProjects({ dataFile });
+  assert.equal(projects.length, input.matchedProjects.length);
+  assert.equal(new Set(projects.map(({ project_id }) => project_id)).size, projects.length);
   assert.ok(projects.every(({ project_id }) => /^\d{11}$/.test(project_id)));
+  assert.equal(projects[0].budget_amount, 1500000);
+  assert.equal(projects[0].contract_status, 'ร่างประกาศ');
+  assert.equal(projects[1].budget_amount, 2000000);
+  assert.equal(projects[1].contract_status, 'ประกาศเชิญชวน');
+  assert.deepEqual(await getLocalFilteredProjects({ dataFile, limit: 1 }), projects.slice(0, 1));
 });
 
 test("canonical locator identity is stable and category-specific", () => {

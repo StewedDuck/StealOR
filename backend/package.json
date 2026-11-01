@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
+    "test:matching:live": "node scripts/probeRealTorMatching.js",
     "migrate:documents:dry-run": "node scripts/migrateGovProjectDocuments.js",
     "enrich:documents": "node scripts/enrichGovProjectDocuments.js",
     "backfill:draft-deadlines": "node scripts/backfillDraftCommentDeadlines.js",
