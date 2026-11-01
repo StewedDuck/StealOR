@@ -1,16 +1,16 @@
 "use client";
 
+import Link from 'next/link';
+
+import { shouldShowMatchingCard } from '@/lib/matchingStatus';
+
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/sideBar";
-import { useToast } from "@/components/toast/ToastProvider";
 import {
   getMarketTors,
+  readMarketSnapshot,
   getMarketTorById,
-  getBookmarks,
-  createBookmark,
-  deleteBookmark,
   getEgpAnnouncementUrl,
-  getLocalProjectDocuments,
 } from "@/lib/torApi";
 
 import type {
@@ -22,7 +22,7 @@ import TorDetailModal from "@/components/TORDetail";
 import FilterDropdown from "@/components/FilterDropdown";
 import MultiSelectFilterDropdown from "@/components/MultiSelectFilterDropdown";
 import TorDeadlineBadge from "@/components/TorDeadlineBadge";
-import { getDeadlineInfo } from "@/lib/torDeadline";
+import { getDeadlineInfo, getTorDisplayDeadline } from "@/lib/torDeadline";
 
 import {
   Tag,
@@ -39,10 +39,16 @@ import {
   FileText,
 } from "lucide-react";
 import "./market.css";
+import { TorMatchingCard, MatchingModal } from '@/components/TorMatchingCard';
+import { useAvailableTorMatching } from '@/hooks/useAvailableTorMatching';
+import { useTorBookmarks } from '@/hooks/useTorBookmarks';
+import { torBookmarkKey } from '@/lib/torIdentity';
+import { getTorProgressStatus, getTorProgressLabel, isTorCommentClosed, matchesTorStatusFilter } from '@/lib/torPublicationStatus';
+import TorCommentClosedBadge from '@/components/TorCommentClosedBadge';
+import type { MatchedTor } from '@/types/matching';
 import { getUserProfile } from "@/lib/torApi";
 import TORDocumentModal from "@/components/TORDocumentModal";
 import {
-  getGovernmentPublicationStatus,
   getInternalPublicationStatus,
   type PublicationStatus,
 } from "@/lib/torPublicationStatus";
@@ -59,8 +65,7 @@ type TypeFilter =
 type TimeFilter =
   | "all"
   | "new"
-  | "closing"
-  | "closed";
+  | "closing";
 
 type YearFilter =
   | "all"
@@ -75,13 +80,15 @@ type DocumentType =
   | "draftEbidding"
   | "invitation";
 
-type SortOption =
-  | "name-asc"
-  | "name-desc"
-  | "newest"
-  | "oldest";
+type StatusFilter = 
+  |"all" 
+  | "open" 
+  | "draft" 
+  | "closed"
+  | "comments_closed";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
   day: "2-digit",
   month: "short",
   year: "numeric",
@@ -363,33 +370,30 @@ const timeOptions: {
     value: "closing",
     label: "ใกล้ปิดรับ",
   },
-  {
-    value: "closed",
-    label: "ปิดรับแล้ว",
-  },
 ];
 
 
-const sortOptions: {
-  value: SortOption;
+const statusOptions: {
+  value: StatusFilter;
   label: string;
 }[] = [
-  {
-    value: "name-asc",
-    label: "เรียงตาม: ชื่อโครงการ (ก → ฮ)",
+  { 
+    value: "all", 
+    label: "ทุกสถานะ" 
   },
-  {
-    value: "name-desc",
-    label: "เรียงตาม: ชื่อโครงการ (ฮ → ก)",
+  { 
+    value: "open", 
+    label: "เปิด" 
   },
-  {
-    value: "newest",
-    label: "เรียงตาม: ใหม่ล่าสุด",
+  { 
+    value: "draft", 
+    label: "แบบร่าง" 
   },
-  {
-    value: "oldest",
-    label: "เรียงตาม: เก่าสุด",
+  { 
+    value: "closed", 
+    label: "ปิดรับสมัคร"
   },
+  { value: "comments_closed", label: "ปิดรับความคิดเห็น" },
 ];
 
 const documentTypeOptions: {
@@ -419,7 +423,7 @@ export default function TorMarketPage() {
     const [projectDocumentTypes, setProjectDocumentTypes] = useState<Record<string, DocumentType[]>>({});
     const [projectPublicationStatuses, setProjectPublicationStatuses] = useState<Record<string, PublicationStatus>>({});
     const [documentTypeFilter, setDocumentTypeFilter] = useState<DocumentType[]>([]);
-    const [sortOption, setSortOption] = useState<SortOption>("name-asc");
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [budgetFilter, setBudgetFilter] = useState("all");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -430,11 +434,12 @@ export default function TorMarketPage() {
 
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState("");
-    const [savedProjectIds, setSavedProjectIds] = useState<string[]>([]);
-    const [bookmarkLoading, setBookmarkLoading] = useState<string | null>(null);
+
 
     const { data: session } = useSession();
-    const { showToast } = useToast();
+    const { savedIds, bookmarkLoading, toggleBookmark } = useTorBookmarks(session?.user?.email);
+    const matches = useAvailableTorMatching(session?.user?.email);
+    const [selectedMatching, setSelectedMatching] = useState<MatchedTor | null>(null);
     const [displayName, setDisplayName] = useState("");
 
     const currentShortYear = getCurrentBuddhistYearShort();
@@ -512,79 +517,24 @@ export default function TorMarketPage() {
     ;
 
     useEffect(() => {
+      const cached = readMarketSnapshot();
+      if (cached) { setTors(cached); setLoading(false); }
       async function loadMarketTors() {
         try {
-          setLoading(true);
+          setLoading(!cached);
           setError("");
 
           const marketTors = await getMarketTors();
 
-          const documentTypeEntries = await Promise.all(
-            marketTors.map(async (tor) => {
-              if (tor.source !== "government" || !tor.projectId) {
-                return null;
-              }
-          
-              try {
-                const localDocuments = await getLocalProjectDocuments(tor.projectId);
-                const documents = localDocuments.documents;
-          
-                const availableTypes: DocumentType[] = [];
-          
-                if (
-                  documents.priceEstimate.available &&
-                  documents.priceEstimate.files.length > 0
-                ) {
-                  availableTypes.push("priceEstimate");
-                }
-          
-                if (
-                  documents.draftEbidding.available &&
-                  documents.draftEbidding.files.length > 0
-                ) {
-                  availableTypes.push("draftEbidding");
-                }
-          
-                if (
-                  documents.invitation.available &&
-                  documents.invitation.files.length > 0
-                ) {
-                  availableTypes.push("invitation");
-                }
-          
-                return {
-                  projectId: tor.projectId,
-                  types: availableTypes,
-                  publicationStatus: getGovernmentPublicationStatus(localDocuments),
-                };
-              } catch (error) {
-                console.error("Failed to check documents:", tor.projectId, error);
-          
-                return {
-                  projectId: tor.projectId,
-                  types: [] as DocumentType[],
-                  publicationStatus: "unknown" as PublicationStatus,
-                };
-              }
-            })
-          );
-          
           const documentTypeMap: Record<string, DocumentType[]> = {};
           const publicationStatusMap: Record<string, PublicationStatus> = {};
-          
-          documentTypeEntries.forEach((entry) => {
-            if (!entry) return;
-          
-            documentTypeMap[entry.projectId] = entry.types;
-            publicationStatusMap[entry.projectId] = entry.publicationStatus;
-          });
-          
+          for (const tor of marketTors) {
+            if (tor.source !== 'government' || !tor.projectId) continue;
+            documentTypeMap[tor.projectId] = tor.documentTypes || [];
+            publicationStatusMap[tor.projectId] = tor.publicationStatus || 'unknown';
+          }
           setProjectDocumentTypes(documentTypeMap);
           setProjectPublicationStatuses(publicationStatusMap);
-          setTors(marketTors);
-
-          setProjectDocumentTypes(documentTypeMap);
-
           setTors(marketTors);
 
         } catch (err) {
@@ -598,41 +548,15 @@ export default function TorMarketPage() {
       loadMarketTors();
     }, []);
 
-    useEffect(() => {
-        const userId = session?.user?.email;
-    
-        if (!userId) return;
-    
-        getBookmarks(userId)
-            .then((bookmarks) => {
-                setSavedProjectIds(
-                    bookmarks
-                        .filter(
-                            (bookmark) =>
-                                bookmark.source === "government" &&
-                                bookmark.projectId
-                        )
-                        .map((bookmark) => bookmark.projectId!)
-                );
-            })
-            .catch((err) => {
-                console.error("Load bookmarks error:", err);
-            });
-    }, [session?.user?.email]);
-
-    console.log("MARKET TORS:", tors);
-
-    console.log(
-        "TORS WITHOUT PROJECT NAME:",
-        tors.filter((tor) => !tor.projectName)
-    );
-
     const getTorDisplayName = (tor: MarketTor) => {
       return tor.projectName?.trim() || tor.projectId || "ไม่ระบุชื่อโครงการ";
     };
 
     const filteredTors = useMemo(() => {
-        let result = [...tors];
+        let result = tors.map(tor => {
+        const publicationStatus = projectPublicationStatuses[tor.projectId || ''] || tor.publicationStatus;
+        return { ...tor, publicationStatus, deadline: getTorDisplayDeadline(tor, publicationStatus) };
+      });
 
         // Search
         const keyword = query
@@ -692,6 +616,12 @@ export default function TorMarketPage() {
           });
         }
 
+        // Status: Closed / Open / Draft
+        if (statusFilter !== "all") {
+          result = result.filter(tor => matchesTorStatusFilter(tor, statusFilter,
+            projectPublicationStatuses[tor.projectId || ''] || tor.publicationStatus));
+        }
+
         // Time
         if (timeFilter === "new") {
             result = result.filter((tor) =>
@@ -703,12 +633,6 @@ export default function TorMarketPage() {
             result = result.filter((tor) =>
                 isAlmostClosing(tor.deadline)
             );
-        }
-
-        if (timeFilter === "closed") {
-          result = result.filter((tor) =>
-            isClosed(tor.deadline)
-          );
         }
 
         // Year
@@ -799,42 +723,14 @@ export default function TorMarketPage() {
           });
         }
 
-        // Sort
-        result.sort((a, b) => {
-            const aName = a.projectName ?? "";
-            const bName = b.projectName ?? "";
-
-            switch (sortOption) {
-                case "name-asc":
-                return aName.localeCompare(
-                  bName,
-                    "th"
-                );
-
-                case "name-desc":
-                return bName.localeCompare(
-                  aName,
-                    "th"
-                );
-
-                case "newest":
-                return (
-                    new Date(b.createdAt).getTime() -
-                    new Date(a.createdAt).getTime()
-                );
-
-                case "oldest":
-                return (
-                    new Date(a.createdAt).getTime() -
-                    new Date(b.createdAt).getTime()
-                );
-
-                default:
-                return 0;
-              }
-            }
-          );
-        return result;
+        // Default sorting: project name A-Z (Thai)
+        result.sort((a, b) =>
+          (a.projectName ?? "").localeCompare(
+            b.projectName ?? "",
+            "th"
+          )
+        );
+      return result;
       }, [
         tors,
         query,
@@ -844,7 +740,8 @@ export default function TorMarketPage() {
         budgetFilter,
         documentTypeFilter,
         projectDocumentTypes,
-        sortOption,
+        statusFilter,
+        projectPublicationStatuses,
       ]);
 
     function resetFilters() {
@@ -854,17 +751,13 @@ export default function TorMarketPage() {
         setYearFilter("all");
         setBudgetFilter("all");
         setDocumentTypeFilter([]);
-        setSortOption("name-asc");
+        setStatusFilter("all");
     }
 
     async function handleViewDetails(tor: MarketTor) {
+
         console.log("CLICK:", tor);
 
-        if (!tor.projectId) {
-            console.log("NO PROJECT ID");
-            setDetailError("ไม่พบรหัสโครงการ");
-            return;
-        }
 
         try {
             setDetailLoading(true);
@@ -872,7 +765,7 @@ export default function TorMarketPage() {
 
             console.log("PROJECT ID:", tor.projectId);
 
-            const detail = await getMarketTorById(tor.projectId);
+            const detail = await getMarketTorById(tor.projectId || tor.id);
 
             console.log("DETAIL:", detail);
 
@@ -891,57 +784,7 @@ export default function TorMarketPage() {
     }
 
     async function handleBookmark(tor: MarketTor) {
-        if (!tor.projectId) {
-        return;
-        }
-  
-        const userId = session?.user?.email;
-  
-        if (!userId) {
-        showToast("กรุณาเข้าสู่ระบบก่อนบันทึก TOR", "error");
-        return;
-        }
-  
-        const isSaved = savedProjectIds.includes(
-        tor.projectId
-        );
-  
-        try {
-            setBookmarkLoading(tor.projectId);
-            setDetailError("");
-    
-            if (isSaved) {
-                await deleteBookmark(
-                    userId,
-                    tor.projectId
-                );
-        
-                setSavedProjectIds((prev) =>
-                    prev.filter(
-                        (id) => id !== tor.projectId
-                    )
-                );
-                showToast("ยกเลิกการบันทึก TOR แล้ว");
-            } else {
-                await createBookmark(
-                    userId,
-                    tor.projectId
-                );
-        
-                setSavedProjectIds((prev) => [
-                    ...prev,
-                    tor.projectId!,
-                ]);
-                showToast("บันทึก TOR แล้ว");
-            }
-        } catch (err) {
-            const message = err instanceof Error
-                ? err.message
-                : "บันทึก TOR ไม่สำเร็จ";
-            showToast(message, "error");
-        } finally {
-            setBookmarkLoading(null);
-        }
+        await toggleBookmark(tor, matches[`${tor.source}:${tor.id}`] || matches[torBookmarkKey(tor)]);
     }
 
   return (
@@ -960,13 +803,13 @@ export default function TorMarketPage() {
           </div>
 
           <div className="market-header-actions">
-            <button className="notification-button">
+            <Link href={'/contractor/notifications'} className="notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
               <BellRing size={16}/>
-            </button>
+            </Link>
 
-            <div className="profile-circle">
+            <Link href="/contractor/account" className="profile-circle header-action-link" aria-label="บัญชีของฉัน">
                 {initials}
-            </div>
+            </Link>
           </div>
         </header>
 
@@ -1030,11 +873,11 @@ export default function TorMarketPage() {
                 placeholder="ประเภทเอกสาร"
               />
               
-              {/* Sort */}
+              {/* TOR Status */}
               <FilterDropdown
-                value={sortOption}
-                options={sortOptions}
-                onChange={setSortOption}
+                value={statusFilter}
+                options={statusOptions}
+                onChange={setStatusFilter}
                 className="sort-filter-dropdown"
               />
 
@@ -1052,7 +895,7 @@ export default function TorMarketPage() {
 
           {/* Result count */}
           <div className="market-result-count">
-            พบ {filteredTors.length} TOR
+            {loading ? 'กำลังโหลดรายการ…' : `พบ ${filteredTors.length} TOR`}
           </div>
 
           {/* Loading */}
@@ -1081,22 +924,28 @@ export default function TorMarketPage() {
           {/* TOR List */}
           <section className="market-list">
             {filteredTors.map((tor) => {
-              const deadlineInfo = getDeadlineInfo(tor.deadline);
-              const closed = deadlineInfo.status === "closed";
+              const closed = getTorProgressStatus(tor, tor.publicationStatus) === "closed";
               
               const publicationStatus =
                 tor.source === "government"
-                  ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
+                  ? projectPublicationStatuses[tor.projectId ?? ""] || tor.publicationStatus || "unknown"
                   : getInternalPublicationStatus(tor.status);
               
-              const statusLabel = closed
-                ? "ปิดรับแล้ว"
-                : publicationStatus === "open"
-                  ? "Open"
-                  : publicationStatus === "draft"
-                    ? "Draft"
-                    : "Unknown";
+              const statusLabel = getTorProgressLabel(getTorProgressStatus(tor, publicationStatus));
+              const commentsClosed = isTorCommentClosed(tor, publicationStatus);
 
+              const matching = matches[`${tor.source}:${tor.id}`] || matches[torBookmarkKey(tor)];
+              if (shouldShowMatchingCard(matching)) return (
+                <TorMatchingCard key={torBookmarkKey(tor)} tor={tor} matching={matching}
+                    progressStatus={getTorProgressStatus(tor, publicationStatus)}
+                    saved={savedIds.includes(torBookmarkKey(tor))}
+                    bookmarkLoading={bookmarkLoading === torBookmarkKey(tor)} detailLoading={detailLoading}
+                    onViewDetails={() => void handleViewDetails(tor)}
+                    onMatchingDetails={() => setSelectedMatching({ tor, matching })}
+                    onBookmark={() => void handleBookmark(tor)}
+                    onDocuments={() => setDocumentTor({ projectId: tor.projectId!, projectName: tor.projectName })}
+                />
+              );
             return (
                 <article
                   key={tor.id}
@@ -1128,6 +977,7 @@ export default function TorMarketPage() {
                         >
                           {statusLabel}
                         </span>
+                        {commentsClosed && <TorCommentClosedBadge />}
 
                         {tor.projectId && (
                           <span className="market-tor-id">
@@ -1189,7 +1039,7 @@ export default function TorMarketPage() {
                             </span>
                           </div>
 
-                          <TorDeadlineBadge deadline={tor.deadline} />
+                          {!commentsClosed && <TorDeadlineBadge deadline={tor.deadline} />}
                         </div>
 
                         {tor.description && (
@@ -1245,29 +1095,25 @@ export default function TorMarketPage() {
                         <button
                             type="button"
                             className={`market-action-button ${
-                                savedProjectIds.includes(tor.projectId ?? "")
+                                savedIds.includes(torBookmarkKey(tor))
                                 ? "saved"
                                 : ""
                             }`}
                             onClick={() => handleBookmark(tor)}
-                            disabled={bookmarkLoading === tor.projectId}
+                            disabled={bookmarkLoading === torBookmarkKey(tor)}
                             >
                             <Bookmark
                                 size={15}
                                 fill={
-                                savedProjectIds.includes(
-                                    tor.projectId ?? ""
-                                )
+                                savedIds.includes(torBookmarkKey(tor))
                                     ? "currentColor"
                                     : "none"
                                 }
                             />
 
-                            {bookmarkLoading === tor.projectId
+                            {bookmarkLoading === torBookmarkKey(tor)
                                 ? "กำลังบันทึก..."
-                                : savedProjectIds.includes(
-                                    tor.projectId ?? ""
-                                )
+                                : savedIds.includes(torBookmarkKey(tor))
                                 ? "บันทึกแล้ว"
                                 : "บันทึก"}
                         </button>
@@ -1347,9 +1193,12 @@ export default function TorMarketPage() {
             </div>
         )}
 
-        {activeTor && (
+        {selectedMatching && <MatchingModal item={{ ...selectedMatching, matching: matches[`${selectedMatching.tor.source}:${selectedMatching.matching.torId}`] || matches[torBookmarkKey(selectedMatching.tor)] || selectedMatching.matching }} onClose={() => setSelectedMatching(null)} />}
+      {activeTor && (
             <TorDetailModal
                 tor={activeTor}
+                publicationStatus={projectPublicationStatuses[activeTor.projectId || '']}
+                progressStatus={getTorProgressStatus({ ...activeTor, deadline: activeTor.submissionDeadline }, projectPublicationStatuses[activeTor.projectId || ''])}
                 onClose={() => setActiveTor(null)}
             />
         )}

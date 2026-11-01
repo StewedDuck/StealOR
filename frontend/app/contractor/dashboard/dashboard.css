@@ -1210,3 +1210,16 @@
     }
 
 }
+.dashboard-status,
+.dashboard-chart-note,
+.dashboard-empty {
+    color: #718096;
+    font-size: 13px;
+    line-height: 1.7;
+}
+.dashboard-status { margin: 0 0 16px; }
+.dashboard-status button { font: inherit; color: #4b7db8; cursor: pointer; margin-left: 10px; }
+.dashboard-chart-note { margin: 0 0 12px; }
+.dashboard-empty { padding: 24px 12px; text-align: center; }
+.dashboard-header-actions .notification-buttom { display: inline-flex; align-items: center; justify-content: center; }
+a.view-all { text-decoration: none; }

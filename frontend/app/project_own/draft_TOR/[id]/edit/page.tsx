@@ -18,8 +18,12 @@ export default function EditDraftTOR() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    getTorById(id).then((tor) => setData(toTorFormData(tor))).catch((err) => setError(err instanceof Error ? err.message : "โหลด TOR ไม่สำเร็จ"));
+    // ป้องกันการเข้าหน้าแก้ไขผ่าน URL ขณะรอตรวจ; backend ตรวจซ้ำเมื่อบันทึก
+    getTorById(id).then((tor) => {
+      if (tor.reviewStatus === "pending") throw new Error("TOR อยู่ระหว่างตรวจสอบ ยังแก้ไขไม่ได้");
+      setData(toTorFormData(tor));
+    }).catch((err) => setError(err instanceof Error ? err.message : "โหลด TOR ไม่สำเร็จ"));
   }, [id]);
 
-  return <div className="createTOR-layout"><Sidebar /><main className="createTOR-main"><div className="createTOR-header"><div><p>TOR ร่างของฉัน</p><h1>แก้ไข TOR</h1><span>บันทึกการเปลี่ยนแปลงลงในฉบับร่าง</span></div></div>{error ? <div className="draftTOR-error">{error}</div> : data ? <TorForm initialData={data} submitLabel="บันทึกการแก้ไข" onSubmit={async (formData) => { await updateTor(id, formData); showToast("แก้ไข TOR สำเร็จ"); router.push("/project_own/draft_TOR"); }} /> : <div className="draftTOR-state">กำลังโหลดข้อมูล...</div>}</main></div>;
+  return <div className="createTOR-layout"><Sidebar /><main className="createTOR-main"><div className="createTOR-header"><div><p>TOR ร่างของฉัน</p><h1>แก้ไข TOR</h1><span>การแก้ไขจะยกเลิกผลอนุมัติเดิม และต้องส่งตรวจใหม่</span></div></div>{error ? <div className="draftTOR-error">{error}</div> : data ? <TorForm initialData={data} submitLabel="บันทึกการแก้ไข" onSubmit={async (formData) => { await updateTor(id, formData); showToast("แก้ไข TOR สำเร็จ"); router.push("/project_own/draft_TOR"); }} /> : <div className="draftTOR-state">กำลังโหลดข้อมูล...</div>}</main></div>;
 }

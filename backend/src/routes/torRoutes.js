@@ -3,6 +3,7 @@ const express = require("express");
 const {
   createTor,
   getTors,
+  getSharedDraftTors,
   getTorById,
   updateTor,
   deleteTor,
@@ -16,6 +17,7 @@ const torOwnerAuth = require("../middleware/torOwnerAuth");
 const router = express.Router();
 
 // Public: Contractor Market
+router.get("/drafts", getSharedDraftTors);
 router.get("/market", getMarketTors);
 router.get("/market/:projectId", getMarketTorDetail);
 
@@ -25,6 +27,9 @@ router.use(torOwnerAuth);
 router.post("/", createTor);
 router.get("/", getTors);
 router.get("/:id", getTorById);
+
+// ส่งตรวจใช้ตัวตนเจ้าของจาก middleware เช่นเดียวกับการแก้ไข/เผยแพร่
+router.patch("/:id/submit-review", require("../controllers/torReviewController").submitTorReview);
 router.patch("/:id/publish", publishTor);
 router.patch("/:id", updateTor);
 router.delete("/:id", deleteTor);

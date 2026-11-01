@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const requirementSchema = new mongoose.Schema(
   {
+    // แต่ละข้อเลือกหมวดได้ โดยใช้ช่องweightและข้อบังคับร่วมกัน
+    category: {
+      type: String,
+      enum: ["generalLegal", "projectSpecific", "technicalRequirements", "deliverables"],
+      default: "projectSpecific",
+    },
     description: {
       type: String,
       required: true,
@@ -20,6 +26,15 @@ const requirementSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
+// ประวัติการตัดสินของแอดมินแยกจากความคิดเห็นผู้รับจ้าง และระบุฉบับที่ตรวจ
+const reviewHistorySchema = new mongoose.Schema({
+  decision: { type: String, enum: ["approved", "changes_requested"], required: true },
+  comment: { type: String, trim: true, default: "", maxlength: 5000 },
+  reviewedBy: { type: String, required: true },
+  reviewedAt: { type: Date, default: Date.now },
+  version: { type: Number, required: true, min: 1 },
+}, { _id: false });
 
 const torSchema = new mongoose.Schema(
   {
@@ -59,6 +74,12 @@ const torSchema = new mongoose.Schema(
       default: null,
       min: 0,
     },
+    referencePriceEstimate: {
+      type: Number,
+      default: null,
+      min: 0,
+      validate: { validator: value => value == null || Number.isFinite(value), message: 'ราคากลางต้องเป็นตัวเลขที่ถูกต้อง' },
+    },
     submissionDeadline: {
       type: Date,
       default: null,
@@ -79,6 +100,18 @@ const torSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // สถานะตรวจ TOR แยกจากสถานะเผยแพร่และการยืนยันตัวตนของบัญชี
+    // ขั้นแรกเพิ่มเฉพาะโครงสร้างข้อมูล ยังไม่เปลี่ยนเงื่อนไขการเผยแพร่
+    reviewStatus: {
+      type: String,
+      enum: ["not_submitted", "pending", "changes_requested", "approved"],
+      default: "not_submitted",
+    },
+    // ขั้นตอน API ถัดไปจะเพิ่ม version เมื่อแก้เนื้อหา และอนุมัติเฉพาะ version ที่ส่งตรวจ
+    contentVersion: { type: Number, default: 1, min: 1 },
+    submittedVersion: { type: Number, default: null, min: 1 },
+    submittedForReviewAt: { type: Date, default: null },
+    reviewHistory: { type: [reviewHistorySchema], default: [] },
     status: {
       type: String,
       enum: ["draft", "pending_verification", "published"],

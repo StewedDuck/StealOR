@@ -4,7 +4,7 @@ const Tor = require("../models/Tor");
 
 async function getNotifications(req, res) {
     try {
-        const { userId } = req.query;
+        const userId = req.profileEmail;
 
         if (!userId) {
             return res.status(400).json({
@@ -21,71 +21,20 @@ async function getNotifications(req, res) {
                 .lean();
 
 
-        const data = await Promise.all(
-            notifications.map(async (notification) => {
-
-                let torName = "";
-                let torIdentifier = "";
-
-                // Government TOR
-                if (
-                    notification.source === "government" &&
-                    notification.projectId
-                ) {
-                    const project =
-                        await GovProject.findOne({
-                            project_id:
-                                notification.projectId,
-                        })
-                            .select(
-                                "project_name project_id raw_data"
-                            )
-                            .lean();
-
-                    if (project) {
-                        torName =
-                            project.project_name ||
-                            project.raw_data?.project_name ||
-                            "ไม่ระบุชื่อ TOR";
-
-                        torIdentifier =
-                            project.project_id;
-                    }
-                }
-
-
-                // Internal TOR
-                if (
-                    notification.source === "internal" &&
-                    notification.torId
-                ) {
-                    const tor =
-                        await Tor.findById(
-                            notification.torId
-                        )
-                            .select(
-                                "projectName"
-                            )
-                            .lean();
-
-                    if (tor) {
-                        torName =
-                            tor.projectName ||
-                            "ไม่ระบุชื่อ TOR";
-
-                        torIdentifier =
-                            notification.torId;
-                    }
-                }
-
-
-                return {
-                    ...notification,
-                    torName,
-                    torIdentifier,
-                };
-            })
-        );
+        // Resolve each TOR once and only load its display name, not large imported raw data.
+        const projectIds = [...new Set(notifications.filter(row => row.source === 'government' && row.projectId).map(row => row.projectId))];
+        const torIds = [...new Set(notifications.filter(row => row.source === 'internal' && row.torId).map(row => row.torId))];
+        const [projects, tors] = await Promise.all([
+            projectIds.length ? GovProject.find({ project_id: { $in: projectIds } }).select('project_name project_id raw_data.project_name').lean() : [],
+            torIds.length ? Tor.find({ _id: { $in: torIds } }).select('projectName').lean() : [],
+        ]);
+        const projectNames = new Map(projects.map(project => [project.project_id, project.project_name || project.raw_data?.project_name || 'ไม่ระบุชื่อ TOR']));
+        const torNames = new Map(tors.map(tor => [String(tor._id), tor.projectName || 'ไม่ระบุชื่อ TOR']));
+        const data = notifications.map(notification => ({
+            ...notification,
+            torName: notification.source === 'government' ? projectNames.get(notification.projectId) || '' : torNames.get(notification.torId) || '',
+            torIdentifier: notification.source === 'government' ? notification.projectId || '' : notification.torId || '',
+        }));
 
 
         const unread =
@@ -118,10 +67,11 @@ async function getNotifications(req, res) {
 async function markNotificationAsRead(req, res) {
     try {
         const { id } = req.params;
+        if (!require('mongoose').isValidObjectId(id)) return res.status(400).json({ success: false, message: 'Invalid notification ID' });
 
         const notification =
-            await NotificationLog.findByIdAndUpdate(
-                id,
+            await NotificationLog.findOneAndUpdate(
+                { _id: id, userId: req.profileEmail },
                 {
                     $set: { read: true, },
                 },

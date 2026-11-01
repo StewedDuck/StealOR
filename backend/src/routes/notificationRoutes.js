@@ -6,6 +6,7 @@ const {
 } = require("../controllers/notificationController");
 
 const router = express.Router();
+router.use(require("../middleware/profileAuth"));
 
 router.get("/", getNotifications);
 

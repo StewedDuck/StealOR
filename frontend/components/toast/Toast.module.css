@@ -29,6 +29,11 @@
   animation: toastEnter 180ms ease-out;
 }
 
+.toast > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .success {
   border-color: #a7d8bd;
 }

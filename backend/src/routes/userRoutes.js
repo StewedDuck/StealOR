@@ -1,10 +1,18 @@
-const express = require('express');
-const { syncUser, getProfile, updateProfile } = require('../controllers/userController');
+const express = require("express");
+const {
+    syncUser,
+    getProfile,
+    updateProfile,
+} = require("../controllers/userController");
+
+const profileAuth = require("../middleware/profileAuth");
 
 const router = express.Router();
 
-router.post('/sync', syncUser);
-router.get( "/profile/:email",  getProfile );
+router.post("/sync", profileAuth, syncUser);
 
-router.patch( "/profile/:email", updateProfile );
+router.get("/profile/:email", profileAuth, getProfile);
+
+router.patch("/profile/:email", profileAuth, updateProfile);
+
 module.exports = router;

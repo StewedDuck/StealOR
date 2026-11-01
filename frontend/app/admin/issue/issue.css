@@ -1,0 +1,5 @@
+/* จำกัดรูปแบบปุ่มไว้ที่รายการ เพื่อไม่ทับปุ่มของหน้ารายละเอียด TOR ที่ใช้ร่วมกัน */
+.admin-tors-page > .admin-users-filters button,
+.admin-tors-page .admin-users-table button { padding: 9px 14px; border: 1px solid #dce2e7; border-radius: 8px; background: #fff; color: #26313e; cursor: pointer; font: inherit; }
+.admin-tors-page button:disabled { opacity: .6; cursor: wait; }
+@media (max-width: 700px) { .admin-tors-page .admin-users-filters { flex-direction: column; } }

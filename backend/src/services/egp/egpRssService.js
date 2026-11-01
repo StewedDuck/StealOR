@@ -8,10 +8,16 @@ const RSS_BASE_URL =
  * Extracts a projectId from an e-GP attachment or project link.
  * Example link: http://.../FPROP9955AttachServ?projectId=61057000335&filename=...
  */
-function extractProjectIdFromLink(link = "") {
-  if (!link) return null;
+function extractProjectIdFromLink(link = "", description = "") {
+  // 1. Try URL parameters
   const match = link.match(/[?&]projectId=([0-9a-zA-Z_-]+)/i);
-  return match ? match[1] : null;
+  if (match) return match[1];
+
+  // 2. Fall back to description field (manual shows description starts with 11-digit project ID)
+  const descMatch = String(description).match(/\b(\d{11})\b/);
+  if (descMatch) return descMatch[1];
+
+  return null;
 }
 
 /**

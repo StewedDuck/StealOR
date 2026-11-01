@@ -1,3 +1,4 @@
+import { fetchList, readListSnapshot, invalidateList, updateLists } from './listCache';
 import type { MarketTor, MarketTorDetail, Tor, TorFormData } from "@/types/tor";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
@@ -43,10 +44,13 @@ async function request<T>(
   init?: RequestInit
 ): Promise<T> {
   const url =
-  path.startsWith("/api/tors") &&
-  !path.startsWith("/api/tors/market")
-    ? path.replace(/^\/api\/tors/, "/api/owner-tors")
-    : `${API_URL}${path}`;
+    path === "/api/profile" || path.startsWith("/api/profile?") || path.startsWith('/api/notifications')
+      ? path
+      : path.startsWith("/api/tors") &&
+          !path.startsWith("/api/tors/market") &&
+          !path.startsWith("/api/tors/drafts")
+        ? path.replace(/^\/api\/tors/, "/api/owner-tors")
+        : `${API_URL}${path}`;
 
   const response = await fetch(url, {
     ...init,
@@ -56,32 +60,24 @@ async function request<T>(
     },
   });
 
-  const contentType = response.headers.get("content-type") ?? "";
-
-  if (!contentType.includes("application/json")) {
-    const text = await response.text();
-
-    console.log("API URL:", url);
-    console.log("HTTP status:", response.status);
-    console.log("Final response URL:", response.url);
-    console.log("Content-Type:", contentType);
-    console.log("Response body:", text.slice(0, 500));
-
-    throw new Error(
-      `API returned HTML instead of JSON (${response.status}) at ${url}`
-    );
+  const endpoint = new URL(url, 'http://local').pathname;
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    throw Object.assign(new Error('ระบบตอบกลับไม่ถูกต้อง กรุณาลองอีกครั้ง'), { status: response.status, endpoint });
   }
-
   const result = (await response.json()) as ApiResponse<T>;
-
   if (!response.ok || result.success === false) {
-    throw new Error(
-      result.error ??
-        result.message ??
-        "เกิดข้อผิดพลาดในการเชื่อมต่อ API"
-    );
+    const detail = result.error ?? result.message ?? 'เกิดข้อผิดพลาดในการเชื่อมต่อ API';
+    const message = detail === 'Cannot connect to backend'
+      ? 'เชื่อมต่อระบบไม่สำเร็จ หรือระบบตอบกลับช้า กรุณาลองอีกครั้ง'
+      : detail;
+    throw Object.assign(new Error(message), { status: response.status, endpoint });
   }
 
+  if (init?.method && init.method !== "GET") {
+    if (path.startsWith("/api/bookmarks")) invalidateList("bookmarks:");
+    if (path.startsWith("/api/tors")) { invalidateList("market"); invalidateList("shared-drafts"); }
+  }
   return result.data;
 }
 
@@ -91,6 +87,9 @@ export async function createTor(data: TorFormData): Promise<Tor> {
     body: JSON.stringify(data),
   });
 }
+
+export const getSharedDraftTors = () => fetchList("shared-drafts", () => request<Tor[]>("/api/tors/drafts", { cache: "no-store" }));
+export const readSharedDraftSnapshot = () => readListSnapshot<Tor[]>("shared-drafts");
 
 export const getDraftTors = () => request<Tor[]>("/api/tors?status=draft");
 export async function getMyTors(): Promise<Tor[]> {
@@ -126,8 +125,9 @@ export const deleteTor = (id: string) => request<{ id: string }>(
   { method: "DELETE" }
 );
 
-export async function getMarketTors(): Promise<MarketTor[]> {
-  return request<MarketTor[]>("/api/tors/market");
+export async function getMarketTors(signal?: AbortSignal): Promise<MarketTor[]> {
+  // A caller-owned abort signal must not cancel another page's shared read.
+  return signal ? request<MarketTor[]>("/api/tors/market", { signal }) : fetchList("market", () => request<MarketTor[]>("/api/tors/market"));
 }
 
 export async function getMarketTorById(
@@ -156,6 +156,7 @@ export type SavedTor = {
   agencyName: string;
 
   budget: number | null;
+  referencePriceEstimate?: number | null;
   deadline?: string | null;
 
   status: string;
@@ -180,34 +181,51 @@ export type SavedTor = {
   savedAt: string;
 };
 
+type CreateBookmarkOptions = {
+  savedFrom?: "market" | "matching";
+  match?: BookmarkMatch | null;
+};
+
 export async function createBookmark(
   userId: string,
-  projectId: string
+  projectId: string,
+  options: CreateBookmarkOptions = {}
 ) {
+  const {
+    savedFrom = "market",
+    match = null,
+  } = options;
+
   return request("/api/bookmarks", {
     method: "POST",
     body: JSON.stringify({
       userId,
       source: "government",
       projectId,
-      savedFrom: "market",
-      match: null,
+      savedFrom,
+      match,
     }),
   });
 }
 
 export async function createInternalBookmark(
   userId: string,
-  torId: string
+  torId: string,
+  options: CreateBookmarkOptions = {}
 ) {
+  const {
+    savedFrom = "market",
+    match = null,
+  } = options;
+
   return request("/api/bookmarks", {
     method: "POST",
     body: JSON.stringify({
       userId,
       source: "internal",
       torId,
-      savedFrom: "market",
-      match: null,
+      savedFrom,
+      match,
     }),
   });
 }
@@ -215,9 +233,9 @@ export async function createInternalBookmark(
 export async function getBookmarks(
   userId: string
 ): Promise<SavedTor[]> {
-  return request<SavedTor[]>(
+  return fetchList(`bookmarks:${userId}`, () => request<SavedTor[]>(
     `/api/bookmarks?userId=${encodeURIComponent(userId)}`
-  );
+  ));
 }
 
 export async function deleteBookmark(
@@ -294,6 +312,62 @@ export async function deleteComment(
     );
 }
 
+export type PastProject = {
+  projectName: string;
+  projectType: string;
+  projectValue: number | null;
+
+  hasContract?: boolean | null;
+  contractValue?: number | null;
+
+  durationMonths: number | null;
+  clientName: string;
+  completedAt: string | null;
+  evidenceUrl: string;
+};
+
+export type CertificationDetail = {
+  name: string;
+  holderType: "company" | "individual";
+  holderName: string;
+  issuedAt: string | null;
+  expiresAt: string | null;
+  evidenceUrl: string;
+};
+
+export type LegalEligibility = {
+  registrationNumber: string;
+  bankruptcyStatus: "no" | "yes" | "unknown";
+  debarmentStatus: "no" | "yes" | "unknown";
+  evidenceUrl: string;
+
+  legalCapacity?: boolean | null;
+  liquidationStatus?: "no" | "yes" | "unknown";
+  suspensionStatus?: "no" | "yes" | "unknown";
+
+  isJuristicPerson?: boolean | null;
+  isEGPRegistered?: boolean | null;
+  hasConflictOfInterest?: boolean | null;
+
+  hasCourtImmunity?: boolean | null;
+  hasCourtImmunityWaiver?: boolean | null;
+
+  hasAntiCorruptionPolicy?: boolean | null;
+  hasSignedIntegrityAgreement?: boolean | null;
+  meetsProcurementCommitteeQualifications?: boolean | null;
+
+  companyRegistrationDate?: string | null;
+  netWorth?: number | null;
+};
+
+export type TeamQualification = {
+  role: string;
+  memberCount: number;
+  experienceYears: number;
+  educationLevel: "unspecified" | "vocational" | "diploma" | "bachelor" | "master" | "doctorate";
+  skills: string[];
+};
+
 export type UserProfile = {
   id: string;
   name: string;
@@ -337,14 +411,17 @@ export type UserProfile = {
     | "pending"
     | "approved"
     | "rejected";
+
+  pastProjects: PastProject[];
+  certificationDetails: CertificationDetail[];
+  legalEligibility: LegalEligibility;
+  teamQualifications: TeamQualification[];
 };
 
 export async function getUserProfile(
-  email: string
+  _email: string
 ): Promise<UserProfile> {
-  return request<UserProfile>(
-    `/api/users/profile/${encodeURIComponent(email)}`
-  );
+  return fetchList(`profile:${_email}`, () => request<UserProfile>("/api/profile"));
 }
 
 export type UpdateUserProfileData = {
@@ -375,19 +452,23 @@ export type UpdateUserProfileData = {
   registeredCapital?: number | null;
   maxPastProjectValue?: number | null;
   hasGovernmentExperience?: boolean | null;
+
+  pastProjects?: PastProject[];
+  certificationDetails?: CertificationDetail[];
+  legalEligibility?: LegalEligibility;
+  teamQualifications?: TeamQualification[];
 };
 
 export async function updateUserProfile(
-  email: string,
+  _email: string,
   data: UpdateUserProfileData
 ): Promise<UserProfile> {
-  return request<UserProfile>(
-    `/api/users/profile/${encodeURIComponent(email)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    }
-  );
+  const updated = await request<UserProfile>("/api/profile", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+  invalidateList(`profile:${_email}`);
+  return updated;
 }
 
 export type LocalDocumentFile = {
@@ -410,12 +491,14 @@ export type LocalProjectDocuments = {
 };
 
 export async function getLocalProjectDocuments(
-  projectId: string
+  projectId: string,
+  signal?: AbortSignal
 ): Promise<LocalProjectDocuments> {
     return request<LocalProjectDocuments>(
       `/api/gov-projects/${encodeURIComponent(
         projectId
-      )}/documents/local`
+      )}/documents/local`,
+      { signal }
     );
   }
 
@@ -428,13 +511,22 @@ export function getLocalDocumentUrl(
 export type ContractorNotificationType =
   | "deadline_5_days"
   | "deadline_1_day"
-  | "draft_updated";
+  | "draft_updated"
+  | "saved_tor_updated"
+  | "new_matching"
+  | "identity_verification_requested"
+  | "identity_verification_approved"
+  | "identity_verification_rejected"
+  | "owner_draft_ready"
+  | "owner_deadline_3_days"
+  | "owner_deadline_today";
 
   export type ContractorNotification = {
     _id: string;
     userId: string;
 
-    source: "government" | "internal";
+    source: "government" | "internal" | "verification";
+    verificationId?: string | null;
 
     projectId: string | null;
     torId: string | null;
@@ -458,22 +550,27 @@ export type ContractorNotificationType =
 export async function getContractorNotifications(
   userId: string
 ): Promise<ContractorNotification[]> {
-  return request<ContractorNotification[]>(
+  return fetchList(`notifications:${userId}`, () => request<ContractorNotification[]>(
     `/api/notifications?userId=${encodeURIComponent(userId)}`
-  );
+  ));
 }
 
 export async function markContractorNotificationAsRead(
   notificationId: string
 ): Promise<ContractorNotification> {
-  return request<ContractorNotification>(
+  const updated = await request<ContractorNotification>(
     `/api/notifications/${encodeURIComponent(notificationId)}/read`,
     {
       method: "PATCH",
     }
   );
+  updateLists<ContractorNotification[]>("notifications:", rows => rows.map(row => row._id === notificationId ? { ...row, read: true } : row));
+  return updated;
 }
 
+export const readNotificationSnapshot = (email: string) => readListSnapshot<ContractorNotification[]>(`notifications:${email}`);
+export const readBookmarkSnapshot = (email: string) => readListSnapshot<SavedTor[]>(`bookmarks:${email}`);
+export const readMarketSnapshot = () => readListSnapshot<MarketTor[]>("market");
 
 export type VerificationStatus =
     | "not_required"
@@ -720,4 +817,9 @@ export function getVerificationDocumentUrl(
     relativeUrl: string
 ) {
     return `${API_URL}${relativeUrl}`;
+}
+
+// ส่งตรวจผ่าน proxy เจ้าของ โดย backend จะตรวจสิทธิ์และเลขฉบับอีกครั้ง
+export function submitTorReview(id: string) {
+  return request<Tor>(`/api/tors/${encodeURIComponent(id)}/submit-review`, { method: "PATCH" });
 }

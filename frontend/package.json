@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test test/*.test.cjs"
   },
   "dependencies": {
     "lucide-react": "^1.35.0",

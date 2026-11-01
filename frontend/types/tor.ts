@@ -1,4 +1,13 @@
+export const REQUIREMENT_CATEGORIES = {
+  generalLegal: "คุณสมบัติทั่วไปและข้อกำหนดทางกฎหมาย",
+  projectSpecific: "คุณสมบัติเฉพาะโครงการ",
+  technicalRequirements: "ข้อกำหนดทางเทคนิค",
+  deliverables: "สิ่งที่ต้องส่งมอบ",
+} as const;
+export type TorRequirementCategory = keyof typeof REQUIREMENT_CATEGORIES;
+
 export type TorRequirement = {
+  category?: TorRequirementCategory; // รายการเดิมที่ไม่มีหมวดจัดเป็นคุณสมบัติเฉพาะโครงการ
   description: string;
   weight: number;
   mandatory: boolean;
@@ -12,14 +21,31 @@ export type TorFormData = {
   scopeOfWork: string[];
   requirements: TorRequirement[];
   budget: number | null;
+  referencePriceEstimate?: number | null;
   submissionDeadline: string;
   contactName: string;
   contactEmail: string;
 };
 
+// การตรวจ TOR เป็นคนละขั้นตอนกับความคิดเห็นผู้รับจ้างและการยืนยันตัวตน
+export type TorReviewStatus = "not_submitted" | "pending" | "changes_requested" | "approved";
+export type TorReviewHistoryEntry = {
+  decision: "approved" | "changes_requested";
+  comment: string;
+  reviewedBy: string;
+  reviewedAt: string;
+  version: number;
+};
+
 export type Tor = TorFormData & {
   _id: string;
   ownerId: string;
+  // เมื่ออ่านข้อมูลเดิม ให้ถือว่ายังไม่ส่งตรวจ ไม่อนุมานว่าได้รับอนุมัติแล้ว
+  reviewStatus?: TorReviewStatus;
+  contentVersion?: number;
+  submittedVersion?: number | null;
+  submittedForReviewAt?: string | null;
+  reviewHistory?: TorReviewHistoryEntry[];
   status: "draft" | "pending_verification" | "published";
   applicationDeadline?: string | null;
   publishedAt?: string | null;
@@ -28,6 +54,8 @@ export type Tor = TorFormData & {
 };
 
 export type MarketTor = {
+  documentTypes?: ('priceEstimate' | 'draftEbidding' | 'invitation')[];
+  publicationStatus?: 'open' | 'draft' | 'unknown';
   id: string;
   source: "government" | "internal";
   projectId?: string;
@@ -37,6 +65,8 @@ export type MarketTor = {
   allocatedBudget?: number | null;
   referencePriceEstimate?: number | null;
   deadline?: string | null;
+  commentDeadlineAt?: string | null;
+  biddingDeadline?: string | null;
   description?: string;
   status: string;
   winnerName?: string | null;
@@ -59,6 +89,9 @@ export type MarketTorDetail = {
   allocatedBudget?: number | null;
   referencePriceEstimate?: number | null;
   submissionDeadline: string | null;
+  commentDeadlineAt?: string | null;
+  biddingDeadline?: string | null;
+  publicationStatus?: 'open' | 'draft' | 'unknown';
 
   contactName: string;
   contactEmail: string;
@@ -95,6 +128,7 @@ export type MarketTorDetail = {
 };
 
 export type SavedTor = {
+  publicationStatus?: 'open' | 'draft' | 'unknown';
   bookmarkId: string;
   source: "government" | "internal";
   projectId?: string;
@@ -103,6 +137,8 @@ export type SavedTor = {
   agencyName: string;
   budget: number | null;
   deadline?: string | null;
+  commentDeadlineAt?: string | null;
+  biddingDeadline?: string | null;
   status: string;
   description?: string;
   objectives?: string[];

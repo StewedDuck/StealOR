@@ -44,6 +44,12 @@
 }
 
 /* Countdown */
+.tor-status-badge.tor-comment-closed {
+  background: #fff0d9;
+  color: #a45b13;
+  border: 1px solid #f5c987;
+}
+
 .tor-deadline-open {
   background: #fff0d9;
   color: #a46b22;

@@ -17,6 +17,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              "x-profile-proxy-secret": process.env.TOR_PROXY_SECRET ?? "",
+              "x-profile-email": user.email ?? "",
             },
             body: JSON.stringify({
               name: user.name,
@@ -55,7 +57,8 @@ export const AUTH_STORAGE_KEY = "stealors_auth_user";
 export const ADMIN_GMAILS = [
   "admin@gmail.com",
   "stealors.admin@gmail.com",
-  "cooldogng@gmail.com"
+  "cooldogng@gmail.com",
+  "sorasit33825@gmail.com",
 ];
 
 export function isAdminGmail(email: string): boolean {

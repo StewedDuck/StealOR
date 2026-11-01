@@ -1,5 +1,9 @@
 "use client";
 
+import Link from 'next/link';
+
+import { shouldShowMatchingCard, savedMatchingSnapshot } from '@/lib/matchingStatus';
+
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 
@@ -9,6 +13,7 @@ import { useToast } from "@/components/toast/ToastProvider";
 
 import {
   getBookmarks,
+  readBookmarkSnapshot,
   deleteBookmark,
   deleteInternalBookmark,
   getMarketTorById,
@@ -39,10 +44,16 @@ import {
   RotateCcw,
 } from "lucide-react";
 import "./saved.css";
+import { TorMatchingCard, MatchingModal } from '@/components/TorMatchingCard';
+import { useAvailableTorMatching } from '@/hooks/useAvailableTorMatching';
+import { torBookmarkKey, savedTorToMarketTor } from '@/lib/torIdentity';
+import { getTorProgressStatus, getTorProgressLabel, isTorCommentClosed, matchesTorStatusFilter } from '@/lib/torPublicationStatus';
+import TorCommentClosedBadge from '@/components/TorCommentClosedBadge';
+import type { MatchedTor } from '@/types/matching';
 import { getUserProfile } from "@/lib/torApi";
 import TORDocumentModal from "@/components/TORDocumentModal";
 import TorDeadlineBadge from "@/components/TorDeadlineBadge";
-import { getDeadlineInfo } from "@/lib/torDeadline";
+import { getTorDisplayDeadline } from "@/lib/torDeadline";
 import {
   getLocalProjectDocuments,
 } from "@/lib/torApi";
@@ -64,7 +75,8 @@ type StatusFilter =
   | "all"
   | "draft"
   | "published"
-  | "closed";
+  | "closed"
+  | "comments_closed";
 
 type BudgetFilter =
   | "all"
@@ -88,6 +100,7 @@ type YearFilter =
   | "older";
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
   day: "2-digit",
   month: "short",
   year: "numeric",
@@ -200,9 +213,11 @@ function getSavedTorYear(tor: SavedTor): number | null {
 }
 
 export default function SavedPage() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const { showToast } = useToast();
   const userId = session?.user?.email ?? null;
+  const matches = useAvailableTorMatching(userId);
+  const [selectedMatching, setSelectedMatching] = useState<MatchedTor | null>(null);
   const [displayName, setDisplayName] = useState("");
   const userName = displayName || session?.user?.name || "ผู้ใช้";
   const initials = userName
@@ -270,9 +285,10 @@ export default function SavedPage() {
     },
     {
       value: "closed",
-      label: "ปิดรับแล้ว",
+      label: "ปิดรับสมัคร",
     },
-  ];
+    { value: "comments_closed", label: "ปิดรับความคิดเห็น" },
+];
 
 
   const budgetOptions: {
@@ -380,17 +396,27 @@ export default function SavedPage() {
   }, [session?.user?.email, session?.user?.name]);
 
   useEffect(() => {
+    if (sessionStatus === "loading") return;
     if (!userId) {
+      setSavedTors([]);
       setLoading(false);
       return;
     }
+    let cancelled = false;
+    const cached = readBookmarkSnapshot(userId);
+    setSavedTors(cached || []);
+    setLoading(!cached);
   
     async function loadBookmarks() {
       try {
-        setLoading(true);
+        setLoading(!cached);
         setError("");
   
         const bookmarks = await getBookmarks(userId!);
+        if (cancelled) return;
+        // Display bookmarks immediately; document status lookups run afterwards.
+        setSavedTors(bookmarks);
+        setLoading(false);
   
         const governmentTors = bookmarks.filter(
           (tor) => tor.source === "government" && tor.projectId
@@ -424,21 +450,21 @@ export default function SavedPage() {
           statusMap[projectId] = status;
         });
   
-        setProjectPublicationStatuses(statusMap);
-        setSavedTors(bookmarks);
+        if (!cancelled) setProjectPublicationStatuses(statusMap);
       } catch (err) {
-        setError(
+        if (!cancelled) setError(
           err instanceof Error
             ? err.message
             : "โหลด TOR ที่บันทึกไม่สำเร็จ"
         );
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
   
     loadBookmarks();
-  }, [userId]);
+    return () => { cancelled = true; };
+  }, [userId, sessionStatus]);
 
   useEffect(() => {
     if (!reviewTor) return;
@@ -463,7 +489,10 @@ export default function SavedPage() {
   }, [reviewTor]);
 
   const filteredTors = useMemo(() => {
-    let result = [...savedTors];
+    let result = savedTors.map(tor => {
+        const publicationStatus = projectPublicationStatuses[tor.projectId || ''] || tor.publicationStatus;
+        return { ...tor, publicationStatus, deadline: getTorDisplayDeadline(tor, publicationStatus) };
+      });
 
       // SEARCH  
     const keyword = query.trim().toLocaleLowerCase("th");
@@ -487,31 +516,10 @@ export default function SavedPage() {
   
     // STATUS
     if (statusFilter !== "all") {
-      result = result.filter((tor) => {
-        const publicationStatus =
-          tor.source === "government"
-            ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
-            : getInternalPublicationStatus(tor.status);
-
-        const isClosed =
-          getDeadlineInfo(tor.deadline).status === "closed";
-
-        if (statusFilter === "closed") {
-          return isClosed;
-        }
-
-        if (statusFilter === "draft") {
-          return !isClosed && publicationStatus === "draft";
-        }
-
-        if (statusFilter === "published") {
-          return !isClosed && publicationStatus === "open";
-        }
-
-        return true;
-      });
+      result = result.filter(tor => matchesTorStatusFilter(tor, statusFilter,
+        projectPublicationStatuses[tor.projectId || ''] || tor.publicationStatus));
     }
-  
+
     // BUDGET  
     if (budgetFilter !== "all") {
       result = result.filter((tor) => {
@@ -560,10 +568,7 @@ export default function SavedPage() {
         }
   
         if (timeFilter === "closed") {
-          return (
-            days !== null &&
-            days < 0
-          );
+          return getTorProgressStatus(tor, tor.publicationStatus) === 'closed';
         }
 
         if (timeFilter === "new") {
@@ -711,6 +716,7 @@ export default function SavedPage() {
         agencyName: internalTor.agencyName,
 
         budget: internalTor.budget,
+        referencePriceEstimate: internalTor.referencePriceEstimate ?? null,
 
         submissionDeadline: internalTor.submissionDeadline || null,
 
@@ -794,11 +800,11 @@ export default function SavedPage() {
           </div>
 
           <div className="saved-header-actions">
-            <button type="button" className="saved-notification-button">
+            <Link href={'/contractor/notifications'} className="saved-notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
               <BellRing size={16} />
-            </button>
+            </Link>
 
-            <div className="saved-profile-circle">{initials}</div>
+            <Link href="/contractor/account" className="saved-profile-circle header-action-link" aria-label="บัญชีของฉัน">{initials}</Link>
           </div>
         </header>
 
@@ -901,23 +907,28 @@ export default function SavedPage() {
               {filteredTors.map((tor) => {
                 const deadline = tor.deadline;
 
-                const deadlineInfo = getDeadlineInfo(deadline);
-                const isClosed = deadlineInfo.status === "closed";
+                const isClosed = getTorProgressStatus(tor, tor.publicationStatus) === "closed";
 
                 const publicationStatus =
                   tor.source === "government"
-                    ? projectPublicationStatuses[tor.projectId ?? ""] ?? "unknown"
+                    ? projectPublicationStatuses[tor.projectId ?? ""] || tor.publicationStatus || "unknown"
                     : getInternalPublicationStatus(tor.status);
 
-                const statusLabel = isClosed
-                  ? "ปิดรับแล้ว"
-                  : publicationStatus === "open"
-                    ? "Open"
-                    : publicationStatus === "draft"
-                      ? "Draft"
-                      : "Unknown";
+                const statusLabel = getTorProgressLabel(getTorProgressStatus(tor, publicationStatus));
+                const commentsClosed = isTorCommentClosed(tor, publicationStatus);
 
-                const matchPercent = tor.match?.percent;
+                const matching = matches[torBookmarkKey(tor)] || savedMatchingSnapshot(tor);
+                if (shouldShowMatchingCard(matching) && !(tor.source === 'internal' && tor.status.toLowerCase() === 'draft')) {
+                  const marketTor = savedTorToMarketTor(tor);
+                  return <TorMatchingCard key={tor.bookmarkId} tor={marketTor} matching={matching}
+                    progressStatus={getTorProgressStatus(tor, publicationStatus)} saved={true}
+                    bookmarkLoading={removingId === tor.bookmarkId} detailLoading={detailLoading}
+                    onViewDetails={() => void handleViewSavedTor(tor)}
+                    onMatchingDetails={() => setSelectedMatching({ tor: marketTor, matching })}
+                    onBookmark={() => void handleRemoveBookmark(tor)}
+                    onDocuments={() => setDocumentTor({ projectId: tor.projectId!, projectName: tor.projectName })}
+                  />;
+                }
 
                 return (
                   <article key={tor.bookmarkId} className="saved-card">
@@ -946,6 +957,7 @@ export default function SavedPage() {
                         >
                           {statusLabel}
                         </span>
+                        {commentsClosed && <TorCommentClosedBadge />}
 
                         {tor.projectId && (
                           <span className="saved-tor-id">
@@ -1008,46 +1020,13 @@ export default function SavedPage() {
 
                         {/* Closing */}
                         {/* Deadline countdown */}
-                        <TorDeadlineBadge deadline={deadline} />
+                        {!commentsClosed && <TorDeadlineBadge deadline={deadline} />}
                       </div>
 
                       {tor.description && (
                         <p className="saved-card-description">
                           {tor.description}
                         </p>
-                      )}
-                    </div>
-
-                    <div className="saved-match">
-                      {typeof matchPercent === "number" ? (
-                        <>
-                          <div className="saved-match-circle">
-                            <svg viewBox="0 0 100 100">
-                              <circle
-                                className="saved-match-track"
-                                cx="50"
-                                cy="50"
-                                r="40"
-                              />
-
-                              <circle
-                                className="saved-match-progress"
-                                cx="50"
-                                cy="50"
-                                r="40"
-                                style={{
-                                  strokeDashoffset:
-                                    251 - (251 * matchPercent) / 100,
-                                }}
-                              />
-                            </svg>
-                            <span>{matchPercent}%</span>
-                          </div>
-
-                          <small>ความตรงกัน</small>
-                        </>
-                      ) : (
-                        <div></div>
                       )}
                     </div>
 
@@ -1144,9 +1123,12 @@ export default function SavedPage() {
         </div>
       )}
 
+      {selectedMatching && <MatchingModal item={{ ...selectedMatching, matching: matches[`${selectedMatching.tor.source}:${selectedMatching.matching.torId}`] || matches[torBookmarkKey(selectedMatching.tor)] || selectedMatching.matching }} onClose={() => setSelectedMatching(null)} />}
       {activeTorDetail && (
         <TorDetailModal
           tor={activeTorDetail}
+          publicationStatus={projectPublicationStatuses[activeTorDetail.projectId || '']}
+          progressStatus={getTorProgressStatus({ ...activeTorDetail, deadline: activeTorDetail.submissionDeadline }, projectPublicationStatuses[activeTorDetail.projectId || ''])}
           onClose={() => setActiveTorDetail(null)}
         />
       )}

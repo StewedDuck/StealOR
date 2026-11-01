@@ -30,4 +30,4 @@ out/
 backend/keys/
 
 # personal information of projectowner
-uploads/verifications/
+/backend/uploads/verifications/

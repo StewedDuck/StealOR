@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const bookmarkSchema = new mongoose.Schema(
   {
+    observedTorFingerprint: { type: String, default: null },
     userId: {
       type: String,
       required: true,

@@ -1,5 +1,7 @@
 "use client";
 
+import TorReviewPanel from "@/components/TorReviewPanel";
+
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/sideBar";
 import { useToast } from "@/components/toast/ToastProvider";
@@ -163,7 +165,8 @@ export default function MyTORPage() {
     }, []);
 
     const myTors = useMemo(
-        () => tors.filter(isVisibleInMyTor),
+        // TOR ที่อนุมัติแล้วต้องเข้าหน้าเผยแพร่ได้ แม้วันรับความคิดเห็นยังไม่หมด
+        () => tors.filter(tor => isVisibleInMyTor(tor) || tor.reviewStatus === "approved"),
         [tors]
     );
 
@@ -392,6 +395,7 @@ export default function MyTORPage() {
                                                     </p>
                                             </div>
 
+                                            <TorReviewPanel tor={tor} role="owner" onUpdated={updated => setTors(current => current.map(item => item._id === updated._id ? updated : item))} />
                                             <div className="myTOR-actions">
                                                 <button
                                                     onClick={() => handleView(tor)}
@@ -404,6 +408,8 @@ export default function MyTORPage() {
                                                 {status === "draft" && (
                                                     <button
                                                         className="publish"
+                                                        disabled={busy || tor.reviewStatus !== "approved" || tor.submittedVersion !== tor.contentVersion}
+                                                        title={tor.reviewStatus !== "approved" ? "ต้องได้รับอนุมัติจากผู้ดูแลก่อน" : "เผยแพร่ TOR"}
                                                         onClick={() => {
                                                             setPublishTarget(tor);
                                                             setApplicationDeadline("");
@@ -526,6 +532,11 @@ export default function MyTORPage() {
                                 </div>
 
                                 <div>
+                                    <small>ราคากลาง</small>
+                                    <strong>{selectedTor.referencePriceEstimate == null ? '-' : formatBudget(selectedTor.referencePriceEstimate)}</strong>
+                                </div>
+
+                                <div>
                                     <small>
                                         {getStatus(selectedTor) === "draft"
                                             ? "วันปิดรับข้อเสนอ"
@@ -556,22 +567,22 @@ export default function MyTORPage() {
 
                             <h3>วัตถุประสงค์</h3>
                             {selectedTor.objectives.length ? (
-                                <ul>
+                                <ol>
                                     {selectedTor.objectives.map((item, i) => (
                                         <li key={i}>{item}</li>
                                     ))}
-                                </ul>
+                                </ol>
                             ) : (
                                 <p>ไม่ระบุ</p>
                             )}
 
                             <h3>ขอบเขตงาน</h3>
                             {selectedTor.scopeOfWork.length ? (
-                                <ul>
+                                <ol>
                                     {selectedTor.scopeOfWork.map((item, i) => (
                                         <li key={i}>{item}</li>
                                     ))}
-                                </ul>
+                                </ol>
                             ) : (
                                 <p>ไม่ระบุ</p>
                             )}
@@ -582,7 +593,7 @@ export default function MyTORPage() {
                                     {selectedTor.requirements.map(
                                         (req, i) => (
                                         <div key={i}>
-                                            <span>{req.description}</span>
+                                            <span>{i + 1}. {req.description}</span>
                                             <small>
                                                 {req.mandatory
                                                     ? "บังคับ"

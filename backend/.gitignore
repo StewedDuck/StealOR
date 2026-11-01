@@ -23,3 +23,6 @@ Thumbs.db
 tmp
 /temp/
 *mannual-test-downloads
+
+# Synthetic, deterministic input for offline tests (no credentials).
+!test/fixtures/local-projects.json

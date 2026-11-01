@@ -221,7 +221,7 @@ export default function Sidebar () {
             setDisplayName(profile.name);
           })
           .catch((error) => {
-            console.error("Failed to load sidebar profile:", error);
+            console.warn("Failed to load sidebar profile:", error);
       
             setDisplayName(session?.user?.name ?? "");
           });
@@ -235,7 +235,8 @@ export default function Sidebar () {
             return;
         }
     
-        getContractorNotifications(email)
+        let cancelled = false;
+        const loadCount = () => getContractorNotifications(email)
             .then((notifications) => {
                 const unreadCount =
                     notifications.filter(
@@ -243,17 +244,19 @@ export default function Sidebar () {
                             !notification.read
                     ).length;
     
-                setNotificationCount(unreadCount);
+                if (!cancelled) setNotificationCount(unreadCount);
             })
             .catch((error) => {
-                console.error(
+                console.warn(
                     "Failed to load sidebar notifications:",
                     error
                 );
     
-                setNotificationCount(0);
+                if (!cancelled) setNotificationCount(0);
             });
-    
+        void loadCount();
+        const timer = setInterval(() => void loadCount(), 30000);
+        return () => { cancelled = true; clearInterval(timer); };
     }, [
         session?.user?.email,
         pathname,

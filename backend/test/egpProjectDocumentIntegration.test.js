@@ -767,7 +767,7 @@ test("67079622362 remains Price Estimate only with no selected procurement docum
 });
 
 test("local JSON projects can use the shared discovery result in the Mongo schema", async () => {
-  const [localProject] = await getLocalFilteredProjects({ limit: 1 });
+  const [localProject] = await getLocalFilteredProjects({ dataFile: require('node:path').join(__dirname, 'fixtures', 'local-projects.json'), limit: 1 });
   assert.equal(localProject.project_id, "68059426756");
 
   const available = (projectId, category) => ({

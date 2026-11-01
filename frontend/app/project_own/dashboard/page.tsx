@@ -129,16 +129,13 @@ export default function ProjectOwnerDashboard() {
                     </div>
 
                     <div className="owner-header-actions">
-                        <button
-                            className="owner-notification-button"
-                            aria-label="Notifications"
-                        >
+                        <Link href="/project_own/notifications" className="owner-notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
                             <BellRing size={17} />
-                        </button>
+                        </Link>
 
-                        <div className="owner-avatar">
+                        <Link href="/contractor/account" className="owner-avatar header-action-link" aria-label="บัญชีของฉัน">
                             {initials}
-                        </div>
+                        </Link>
                     </div>
                 </header>
 

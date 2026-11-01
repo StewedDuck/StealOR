@@ -58,6 +58,27 @@ export default function AdminVerificationPage() {
     const [actionLoading, setActionLoading] =
         useState(false);
 
+    const [documentError, setDocumentError] = useState('');
+    const [documentOpening, setDocumentOpening] = useState(false);
+    async function openDocument(relativeUrl: string) {
+        setDocumentError('');
+        setDocumentOpening(true);
+        const preview = window.open('', '_blank');
+        if (preview) preview.opener = null;
+        try {
+            const url = getVerificationDocumentUrl(relativeUrl);
+            const response = await fetch(url, { method: 'HEAD' });
+            if (!response.ok) throw new Error(response.status === 404
+                ? 'ไม่พบไฟล์เอกสารต้นฉบับ กรุณาให้ผู้ส่งคำขออัปโหลดเอกสารอีกครั้ง'
+                : 'เปิดเอกสารไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการเชื่อมต่อ');
+            if (!preview) throw new Error('เบราว์เซอร์บล็อกหน้าต่างเอกสาร กรุณาอนุญาตป๊อปอัปแล้วลองอีกครั้ง');
+            preview.location.href = url;
+        } catch (error) {
+            preview?.close();
+            setDocumentError(error instanceof Error ? error.message : 'เปิดเอกสารไม่สำเร็จ');
+        } finally { setDocumentOpening(false); }
+    }
+
     const [error, setError] =
         useState("");
 
@@ -603,17 +624,12 @@ export default function AdminVerificationPage() {
 
                             </div>
 
-                            <a
-                                href={getVerificationDocumentUrl(
-                                    selected.document.url
-                                )}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="document-button"
-                            >
+                            <button type="button" className="document-button" disabled={documentOpening}
+                                onClick={() => void openDocument(selected.document.url)}>
                                 <Eye size={17} />
-                                เปิดเอกสาร
-                            </a>
+                                {documentOpening ? 'กำลังเปิด…' : 'เปิดเอกสาร'}
+                            </button>
+                            {documentError && <p role="alert" className="verification-document-error">{documentError}</p>}
 
                         </div>
 

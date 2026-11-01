@@ -453,3 +453,12 @@
     background: #e9edf0;
     color: #71808e;
 }
+
+
+.draftTOR-cardActions { flex-wrap: wrap; }
+.draftTOR-cardActions button.submit-review { background: #224976; border-color: #224976; color: white; }
+.draftTOR-cardActions button.submit-review:hover { background: #1b3b60; }
+.draftTOR-meta .draftTOR-reviewStatus { padding: 6px 12px; border-radius: 20px; background: #e5edf6; color: #355773; font-size: 13px; }
+.draftTOR-meta .draftTOR-reviewStatus[data-status="approved"] { background: #e7f3eb; color: #40845a; }
+.draftTOR-meta .draftTOR-reviewStatus[data-status="changes_requested"] { background: #fff1db; color: #946021; }
+.draftTOR-reviewLink { margin: 14px 0 0; }

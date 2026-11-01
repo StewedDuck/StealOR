@@ -8,6 +8,7 @@ import {
     ShieldCheck,
     RotateCcwClock,
     Siren,
+    BellRing,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 
@@ -32,6 +33,11 @@ const menuItems: MenuSection[] = [
                 name: "แดชบอร์ด",
                 href: "/admin/dashboard",
                 icon: "LayoutDashboard",
+            },
+            {
+                name: "การแจ้งเตือน",
+                href: "/admin/notifications",
+                icon: "BellRing",
             },
             {
                 name: "จัดการผู้ใช้งาน",
@@ -109,6 +115,7 @@ export default function SidebarAdmin () {
                                         {item.icon === "Users" && <Users size={20}/>}
                                         {item.icon === "ShieldCheck" && <ShieldCheck size={20}/>}
                                         {item.icon === "RotateCcwClock" && <RotateCcwClock size={20}/>}
+                                        {item.icon === "BellRing" && <BellRing size={20}/>}
                                         {item.icon === "Siren" && <Siren size={20}/>}
                                     </span>
 

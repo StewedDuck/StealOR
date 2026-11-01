@@ -1,15 +1,28 @@
 "use client";
 
-import { X, CheckCircle2 } from "lucide-react";
-import type { Tor, MarketTorDetail } from "@/types/tor";
+import type { ReactNode } from "react";
+import { X } from "lucide-react";
+import { REQUIREMENT_CATEGORIES, type Tor, type MarketTorDetail } from "@/types/tor";
+import { normalizeTorRequirements } from "@/lib/torRequirements";
 import "./TORDetail.css"
+import TorStatusProgress from "@/components/TorStatusProgress";
+import { getTorDisplayDeadline } from '@/lib/torDeadline';
+import { isTorCommentClosed } from '@/lib/torPublicationStatus';
+import TorCommentClosedBadge from '@/components/TorCommentClosedBadge';
 
 type TorDetailModalProps = {
     tor: Tor | MarketTorDetail;
     onClose: () => void;
+    // แสดงรหัสและวันที่เพิ่มเติมเฉพาะหน้าผู้ดูแล โดยไม่เพิ่มปุ่มแก้ไขหรืออนุมัติ
+    showAdminMetadata?: boolean;
+    // หน้าadminส่งเครื่องมือตรวจเข้ามา โดยหน้า contractor ไม่ได้รับปุ่มเหล่านี้
+    reviewPanel?: ReactNode;
+    progressStatus?: "draft" | "open" | "closed" | "unknown";
+    publicationStatus?: "draft" | "open" | "unknown";
 };
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
     dateStyle: "medium",
 });
 
@@ -32,29 +45,36 @@ function formatDate(value: string | null) {
 }
 
 
+// แสดงข้อมูลที่เจ้าของกรอกและข้อมูลโครงการรัฐด้วยหัวข้อเดียวกัน
 export default function TorDetailModal({
     tor,
     onClose,
+    progressStatus = "unknown",
+    publicationStatus,
+    showAdminMetadata = false,
+    reviewPanel,
 }: TorDetailModalProps) {
 
+
+    // ข้อมูลรัฐใช้กลุ่มข้อความเดิม ส่วน TOR ภายในจัดหมวดจากรายการที่มีน้ำหนัก
     const isGovernment = "source" in tor && tor.source === "government";
-
-    const qualifications = isGovernment
-        ? tor.contractorQualifications
-        : undefined;
-
-    const generalLegal = qualifications?.generalLegal ?? [];
-    const projectSpecific = qualifications?.projectSpecific ?? [];
-
-    const technicalRequirements = isGovernment
-        ? tor.technicalRequirements ?? []
-        : [];
-
-    const deliverables = isGovernment
-        ? tor.deliverables ?? []
-        : [];
-
+    const qualifications = isGovernment && "contractorQualifications" in tor ? tor.contractorQualifications : undefined;
+    const generalLegal = isGovernment ? qualifications?.generalLegal ?? [] : [];
+    const projectSpecific = isGovernment ? qualifications?.projectSpecific ?? [] : [];
+    const technicalRequirements = isGovernment && "technicalRequirements" in tor ? tor.technicalRequirements ?? [] : [];
+    const deliverables = isGovernment && "deliverables" in tor ? tor.deliverables ?? [] : [];
     const hasAnalyzedQualifications = generalLegal.length > 0 || projectSpecific.length > 0;
+    const requirements = isGovernment ? tor.requirements ?? [] : normalizeTorRequirements(tor);
+    const requirementGroups = Object.entries(REQUIREMENT_CATEGORIES).map(([category, title]) => ({
+      category, title, items: requirements.filter((item) => (item.category ?? "projectSpecific") === category),
+    })).filter((group) => group.items.length > 0);
+
+    // ใช้สถานะที่บันทึกจริง แทนการแสดงคำว่าฉบับร่างสำหรับ TOR ภายในทุกโครงการ
+    const internalStatusLabel = ({
+        draft: "ฉบับร่าง",
+        pending_verification: "รอตรวจสอบ",
+        published: "เผยแพร่แล้ว",
+    } as Record<string, string>)[tor.status] ?? tor.status;
 
     return (
         <div
@@ -73,19 +93,20 @@ export default function TorDetailModal({
                         <span className="tor-status draft">
                             {"source" in tor && tor.source === "government"
                                 ? "Government"
-                                : "ฉบับร่าง"}
+                                : internalStatusLabel}
                         </span>
 
                         <span className="tor-status">
                             {"source" in tor && tor.source === "government"
                                 ? tor.status
-                                : "ยังไม่เปิดรับสมัคร"}
+                                : tor.status === "published" ? "เผยแพร่แล้ว" : "ยังไม่เปิดรับสมัคร"}
                         </span>
                     </div>
 
                     <button
                         type="button"
                         className="tor-modal-close"
+                        aria-label="ปิดรายละเอียด TOR"
                         onClick={onClose}
                     >
                         <X size={20} />
@@ -114,7 +135,7 @@ export default function TorDetailModal({
                         </strong>
                     </div>
 
-                    {"source" in tor && tor.source === "government" && (
+                    {tor.referencePriceEstimate != null && (
                         <div className="tor-info-card">
                             <span>ราคากลาง</span>
                             <strong>
@@ -126,7 +147,9 @@ export default function TorDetailModal({
                     <div className="tor-info-card">
                         <span>กำหนดส่ง</span>
                         <strong>
-                            {formatDate(tor.submissionDeadline)}
+                            {formatDate('source' in tor && tor.source === 'government'
+                                ? getTorDisplayDeadline({ ...tor, deadline: tor.submissionDeadline }, publicationStatus || (progressStatus === 'draft' ? 'draft' : tor.publicationStatus)) ?? null
+                                : tor.submissionDeadline)}
                         </strong>
                     </div>
                 </div>
@@ -134,17 +157,34 @@ export default function TorDetailModal({
 
                 {/* Body */}
                 <div className="tor-modal-body">
+                    {reviewPanel}
+
+                    {/* Progress Bar */}
+                    {/* หน้าผู้ดูแลใช้สถานะจริงด้านบน ไม่แสดง progress ที่ยังไม่ได้คำนวณ */}
+                    {(!showAdminMetadata || progressStatus !== "unknown") && <TorStatusProgress status={progressStatus} />}
+                    {'source' in tor && tor.source === 'government' &&
+                        isTorCommentClosed({ ...tor, deadline: tor.submissionDeadline }, publicationStatus || tor.publicationStatus) && <TorCommentClosedBadge />}
+
+                    {showAdminMetadata && "ownerId" in tor && (
+                        <section className="tor-section">
+                            <h3>ข้อมูลในระบบ</h3>
+                            <dl className="tor-admin-metadata">
+                                {[
+                                    ["รหัส TOR", tor._id], ["รหัสเจ้าของโครงการ", tor.ownerId],
+                                    ["สร้างเมื่อ", formatDate(tor.createdAt)],
+                                    ["แก้ไขล่าสุด", formatDate(tor.updatedAt)],
+                                    ["เผยแพร่เมื่อ", formatDate(tor.publishedAt ?? null)],
+                                    ["ปิดรับสมัคร", formatDate(tor.applicationDeadline ?? null)],
+                                ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+                            </dl>
+                        </section>
+                    )}
 
                     {/* Description */}
                     {tor.description && (
                         <section className="tor-section">
-
                             <h3>รายละเอียดโครงการ</h3>
-
-                            <p>
-                                {tor.description}
-                            </p>
-
+                            <p>{tor.description}</p>
                         </section>
                     )}
 
@@ -154,11 +194,11 @@ export default function TorDetailModal({
                         <h3>วัตถุประสงค์</h3>
 
                         {(tor.objectives?.length ?? 0) > 0 ? (
-                            <ul>
+                            <ol>
                             {tor.objectives.map((item, index) => (
                                 <li key={index}>{item}</li>
                             ))}
-                            </ul>
+                            </ol>
                         ) : (
                             <p>ยังไม่มีข้อมูลวัตถุประสงค์</p>
                         )}
@@ -171,7 +211,7 @@ export default function TorDetailModal({
 
                             <h3>ขอบเขตงาน</h3>
 
-                            <ul>
+                            <ol>
                                 {tor.scopeOfWork.map(
                                     (item, index) => (
                                         <li key={index}>
@@ -179,75 +219,74 @@ export default function TorDetailModal({
                                         </li>
                                     )
                                 )}
-                            </ul>
+                            </ol>
 
                         </section>
                     )}
 
                     {/* Government Contractor Qualifications */}
-                    {isGovernment && hasAnalyzedQualifications && (
+                    {hasAnalyzedQualifications && (
                         <section className="tor-section">
                             <h3>คุณสมบัติผู้รับจ้าง</h3>
 
                             {generalLegal.length > 0 && (
                                 <div className="tor-analysis-group">
                                     <h4>คุณสมบัติทั่วไปและข้อกำหนดทางกฎหมาย</h4>
-                                    <ul>
+                                    <ol>
                                         {generalLegal.map((item, index) => (
                                             <li key={`legal-${index}`}>{item}</li>
                                         ))}
-                                    </ul>
+                                    </ol>
                                 </div>
                             )}
 
                             {projectSpecific.length > 0 && (
                                 <div className="tor-analysis-group">
                                     <h4>คุณสมบัติเฉพาะโครงการ</h4>
-                                    <ul>
+                                    <ol>
                                         {projectSpecific.map((item, index) => (
                                             <li key={`specific-${index}`}>{item}</li>
                                         ))}
-                                    </ul>
+                                    </ol>
                                 </div>
                             )}
                         </section>
                     )}
 
                     {/* Technical Requirements */}
-                    {isGovernment && technicalRequirements.length > 0 && (
+                    {technicalRequirements.length > 0 && (
                         <section className="tor-section">
                             <h3>ข้อกำหนดทางเทคนิค</h3>
-                            <ul>
+                            <ol>
                                 {technicalRequirements.map((item, index) => (
                                     <li key={index}>{item}</li>
                                 ))}
-                            </ul>
+                            </ol>
                         </section>
                     )}
 
                     {/* Deliverables */}
-                        {isGovernment && deliverables.length > 0 && (
+                        {deliverables.length > 0 && (
                         <section className="tor-section">
                             <h3>สิ่งที่ต้องส่งมอบ</h3>
-                            <ul>
+                            <ol>
                                 {deliverables.map((item, index) => (
                                     <li key={index}>{item}</li>
                                 ))}
-                            </ul>
+                            </ol>
                         </section>
                     )}
 
 
                     {/* Requirements */}
-                    {!hasAnalyzedQualifications &&
-                    (tor.requirements?.length ?? 0) > 0 && (
-                        <section className="tor-section">
+                    {requirementGroups.map((group) => (
+                        <section className="tor-section" key={group.category}>
 
-                            <h3>คุณสมบัติที่ต้องการ</h3>
+                            <h3>{group.title}</h3>
 
                             <div className="qualification-list">
 
-                                {tor.requirements?.map(
+                                {group.items.map(
                                     (requirement, index) => (
 
                                         <div
@@ -256,7 +295,7 @@ export default function TorDetailModal({
                                         >
 
                                             <div className="qualification-icon">
-                                                <CheckCircle2 size={19} />
+                                                <span>{index + 1}.</span>
                                             </div>
 
                                             <div className="qualification-name">
@@ -266,10 +305,7 @@ export default function TorDetailModal({
                                             </div>
 
                                             <span className="qualification-status status-match">
-                                                {requirement.mandatory
-                                                    ? "บังคับ"
-                                                    : `น้ำหนัก ${requirement.weight}%`
-                                                }
+                                                {`น้ำหนัก ${requirement.weight}%${requirement.mandatory ? " · บังคับ" : ""}`}
                                             </span>
 
                                         </div>
@@ -280,7 +316,7 @@ export default function TorDetailModal({
                             </div>
 
                         </section>
-                    )}
+                    ))}
 
 
                     {/* Contact */}

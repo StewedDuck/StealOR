@@ -20,6 +20,7 @@ const VERIFICATION_ID =  "507f191e810c19729de860ec";
 let mockUsers;
 let mockVerification;
 let notificationCalls;
+let queuedEmailCalls = [];
 
 let userSaveCalls;
 let verificationSaveCalls;
@@ -166,7 +167,8 @@ const {
 
 
 // Restore normal require
-Module.prototype.require =  originalRequire;
+Module.prototype.require = originalRequire;
+require('../src/services/notifications/deliveryService').enqueueEmail = async (...args) => { queuedEmailCalls.push(args); };
 
 // Helpers
 function createUser({
@@ -234,6 +236,7 @@ function createUploadedFile() {
 
 // Reset before each test
 beforeEach(() => {
+    queuedEmailCalls = [];
     notificationCalls = [];
     userSaveCalls = 0;
     verificationSaveCalls = 0;
@@ -345,6 +348,8 @@ describe(
                         .query.type,
                     "identity_verification_requested"
                 );
+                assert.equal(queuedEmailCalls.length, 1);
+                assert.equal(queuedEmailCalls[0][1], 'admin@test.com');
 
 
                 assert.equal(
@@ -357,7 +362,7 @@ describe(
 
         // TC02
         test(
-            "TC02 - Contractor cannot submit verification",
+            "TC02 - Contractor can request verification to become a project owner",
             async () => {
 
                 const req = {
@@ -400,25 +405,22 @@ describe(
 
                 assert.equal(
                     res.statusCode,
-                    403
+                    201
                 );
 
 
                 assert.equal(
                     res.body.success,
-                    false
+                    true
                 );
 
 
-                assert.equal(
-                    mockVerification,
-                    null
-                );
+                assert.ok(mockVerification);
 
 
                 assert.equal(
                     notificationCalls.length,
-                    0
+                    1
                 );
             }
         );
@@ -598,6 +600,8 @@ describe(
                         .query.type,
                     "identity_verification_approved"
                 );
+                assert.equal(queuedEmailCalls.length, 1);
+                assert.equal(queuedEmailCalls[0][1], 'owner@test.com');
 
 
                 assert.equal(
@@ -722,6 +726,8 @@ describe(
                         .query.type,
                     "identity_verification_rejected"
                 );
+                assert.equal(queuedEmailCalls.length, 1);
+                assert.equal(queuedEmailCalls[0][1], 'owner@test.com');
 
 
                 assert.equal(

@@ -2,22 +2,29 @@ const mongoose = require("mongoose");
 const Tor = require("../models/Tor");
 const Bookmark = require("../models/Bookmark");
 const User = require("../models/User");
-const NotificationLog = require("../models/NotificationLog");
+const { governmentTorDates } = require('../services/governmentTorDates');
 
-const { draftUpdated } = require("../email/Contractor");
-const { sendEmail } = require("../email/Mailer");
 
 // const DEMO_OWNER_ID = "demo-project-owner";
 const EDITABLE_FIELDS = [
   "projectName", "agencyName", "description", "objectives", "scopeOfWork",
+  "referencePriceEstimate",
   "requirements", "budget", "submissionDeadline", "contactName", "contactEmail",
 ];
 const GovProject = require("../models/GovProject");
 
+// รับเฉพาะfieldที่เจ้าของแก้ได้ และจัดรูปแบบรายการก่อนบันทึกทั้งตอนสร้างและแก้ไข
 function prepareTorData(body) {
   const data = {};
   for (const field of EDITABLE_FIELDS) {
     if (body[field] !== undefined) data[field] = body[field];
+  }
+  if (data.referencePriceEstimate === "") data.referencePriceEstimate = null;
+  if (data.referencePriceEstimate != null &&
+      (typeof data.referencePriceEstimate !== "number" || !Number.isFinite(data.referencePriceEstimate) || data.referencePriceEstimate < 0)) {
+    const error = new Error("ราคากลางต้องเป็นตัวเลขตั้งแต่ศูนย์ขึ้นไป");
+    error.status = 400;
+    throw error;
   }
   if (Array.isArray(data.objectives)) {
     data.objectives = data.objectives.map((item) => String(item).trim()).filter(Boolean);
@@ -25,21 +32,37 @@ function prepareTorData(body) {
   if (Array.isArray(data.scopeOfWork)) {
     data.scopeOfWork = data.scopeOfWork.map((item) => String(item).trim()).filter(Boolean);
   }
-  if (Array.isArray(data.requirements)) {
-    data.requirements = data.requirements
-      .filter((item) => item && String(item.description || "").trim())
-      .map((item) => ({
-        description: String(item.description).trim(),
-        weight: Number(item.weight) || 0,
-        mandatory: Boolean(item.mandatory),
-      }));
+  const categories = ["generalLegal", "projectSpecific", "technicalRequirements", "deliverables"];
+  const invalidRequirement = () => {
+    const error = new Error("หมวดหมู่ รายละเอียด น้ำหนัก หรือข้อบังคับของรายการไม่ถูกต้อง");
+    error.status = 400;
+    throw error;
+  };
+  if (data.requirements !== undefined) {
+    if (!Array.isArray(data.requirements)) invalidRequirement();
+    data.requirements = data.requirements.map((item) => {
+      if (!item || typeof item.description !== "string" ||
+          !categories.includes(item.category ?? "projectSpecific") ||
+          (item.weight !== undefined && (typeof item.weight !== "number" || !Number.isFinite(item.weight) || item.weight < 0 || item.weight > 100)) ||
+          (item.mandatory !== undefined && typeof item.mandatory !== "boolean")) invalidRequirement();
+      return {
+        category: item.category ?? "projectSpecific",
+        description: item.description.trim(),
+        weight: item.weight ?? 0,
+        mandatory: item.mandatory ?? false,
+      };
+    }).filter((item) => item.description);
   }
   if (data.submissionDeadline === "") data.submissionDeadline = null;
   if (data.budget === "") data.budget = null;
   return data;
 }
 
+// ส่งข้อผิดพลาดข้อมูลจากฟอร์มเป็น 400 แทนข้อผิดพลาดภายในระบบ
 function handleError(res, error) {
+  if (error.status === 400 || error.code === 'INVALID_OWNER_CRITERIA') {
+    return res.status(400).json({ success: false, error: error.message });
+  }
   if (error instanceof mongoose.Error.ValidationError) {
     return res.status(400).json({ success: false, error: error.message });
   }
@@ -58,6 +81,16 @@ async function createTor(req, res) {
   } catch (error) {
     return handleError(res, error);
   }
+}
+
+// Contractor preview/review list is shared; owner management remains scoped.
+async function getSharedDraftTors(req, res) {
+  try {
+    const tors = await Tor.find({ status: 'draft' })
+      .select('projectName agencyName description objectives scopeOfWork requirements budget referencePriceEstimate submissionDeadline applicationDeadline status createdAt updatedAt contactName contactEmail')
+      .sort({ updatedAt: -1 }).lean();
+    return res.json({ success: true, data: tors });
+  } catch (error) { return handleError(res, error); }
 }
 
 async function getTors(req, res) {
@@ -85,75 +118,9 @@ async function getTorById(req, res) {
 }
 
 async function notifyDraftUpdated(tor) {
-  const bookmarks = await Bookmark.find({
-    source: "internal",
-    torId: tor._id.toString(),
-  }).lean();
-
-  console.log(
-    `Found ${bookmarks.length} bookmarks for updated TOR ${tor._id}`
-  );
-
-  for (const bookmark of bookmarks) {
-    try {
-      const user = await User.findOne({
-        email: bookmark.userId
-          .trim()
-          .toLowerCase(),
-      }).lean();
-
-      if (!user) {
-        console.log(
-          `User not found: ${bookmark.userId}`
-        );
-        continue;
-      }
-
-      await NotificationLog.findOneAndUpdate(
-          {
-              userId: bookmark.userId,
-              source: "internal",
-              projectId: null,
-              torId: tor._id.toString(),
-              type: "draft_updated",
-          },
-          {
-              $set: {
-                  title: `TOR ร่างมีการอัปเดต: ${tor.projectName}`,
-                  message:
-                      "TOR ร่างที่คุณบันทึกไว้มีการอัปเดตข้อมูล กรุณาตรวจสอบรายละเอียดล่าสุด",
-                  read: false,
-                  sentAt: new Date(),
-              },
-          },
-          {
-              upsert: true,
-              new: true,
-          }
-      );
-
-      const email = draftUpdated({
-        name: user.name,
-        torTitle: tor.projectName,
-        torUrl: `${process.env.APP_URL}/contractor/saved`,
-      });
-
-      await sendEmail({
-        to: user.email,
-        subject: email.subject,
-        text: email.text,
-        html: email.html,
-      });
-      console.log(
-        `Draft updated email sent to ${user.email}: ${tor.projectName}`
-      );
-    } catch (error) {
-      console.error(
-        `Draft updated email failed for ${bookmark.userId}:`,
-        error.message
-      );
-    }
-  }
+  // The same detector handles government imports and internal edits, with one deduplication policy.
+  try { await require('../services/notifications/savedTorUpdateService').checkSavedTorUpdates({ source: 'internal', torId: String(tor._id) }); }
+  catch { console.warn('[NOTIFICATION] Saved TOR update notification deferred'); }
 }
 
 async function updateTor(req, res) {
@@ -161,15 +128,33 @@ async function updateTor(req, res) {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ success: false, error: "Invalid TOR id" });
     }
+    const current = await Tor.findOne({ _id: req.params.id, ownerId: req.ownerId, status: "draft" }).lean();
+    if (!current) return res.status(404).json({ success: false, error: "Draft TOR not found" });
+    if (current.reviewStatus === "pending") {
+      return res.status(409).json({ success: false, error: "TOR อยู่ระหว่างตรวจสอบ ยังแก้ไขไม่ได้" });
+    }
+    const data = prepareTorData(req.body);
+    // กดบันทึกโดยไม่เปลี่ยนเนื้อหาไม่นับเป็นฉบับใหม่ และไม่ปลดล็อกการส่งซ้ำหลังขอแก้ไข
+    const comparable = (key, value) => key === "submissionDeadline"
+      ? (value ? new Date(value).getTime() : null)
+      : JSON.stringify(value);
+    const changed = Object.keys(data).some(key => comparable(key, data[key]) !== comparable(key, current[key]));
+    if (!changed) return res.json({ success: true, data: current, message: "ไม่มีการเปลี่ยนแปลงเนื้อหา" });
+    const version = current.contentVersion ?? 1;
+    // แก้ร่างที่อนุมัติแล้วต้องส่งตรวจใหม่ และเก็บประวัติการตรวจเดิมไว้
+    // ตรวจ version และสถานะพร้อมกัน ป้องกันการแก้ไขชนกับการส่งตรวจ/เผยแพร่
     const tor = await Tor.findOneAndUpdate(
-      { _id: req.params.id, ownerId: req.ownerId, status: "draft" },
-      { $set: prepareTorData(req.body) },
+      { _id: req.params.id, ownerId: req.ownerId, status: "draft",
+        reviewStatus: { $ne: "pending" },
+        ...require("./torReviewController").versionFilter(version) },
+      { $set: { ...data, contentVersion: version + 1,
+        reviewStatus: "not_submitted", submittedVersion: null, submittedForReviewAt: null } },
       { new: true, runValidators: true }
     );
     if (!tor) {
-      return res.status(404).json({ 
+      return res.status(409).json({ 
         success: false, 
-        error: "Draft TOR not found" 
+        error: "TOR เปลี่ยนแปลงระหว่างแก้ไข กรุณาโหลดใหม่" 
       })
     };
     await notifyDraftUpdated(tor);
@@ -225,11 +210,14 @@ async function deleteTor(req, res) {
 
 async function getMarketTors(req, res) {
   try {
-    const governmentTors = await GovProject.find({
-      contract_status: {
-        $not: /ยกเลิก|สิ้นสุด/,
-      },
-    }).sort({ updatedAt: -1});
+    const [governmentTors, internalTors] = await Promise.all([
+      GovProject.find({ contract_status: { $not: /ยกเลิก|สิ้นสุด/ } })
+        .select('project_id project_name dept_name budget_amount contract_status winner_name winner_tin createdAt updatedAt procurementAnalysis.allocatedBudget procurementAnalysis.referencePriceEstimate procurementAnalysis.projectDetails procurementAnalysis.biddingClosingDate raw_data.project_description raw_data.submission_deadline raw_data.deadline documents.invitation.status documents.draftEbidding.commentDeadlineAt')
+        .sort({ updatedAt: -1 }).lean(),
+      Tor.find({ status: 'published', applicationDeadline: { $gt: new Date() } })
+        .select('projectName agencyName budget referencePriceEstimate applicationDeadline description createdAt updatedAt')
+        .sort({ publishedAt: -1 }).lean(),
+    ]);
 
     const data = governmentTors.map((project) => ({
       id: project._id.toString(),
@@ -251,11 +239,7 @@ async function getMarketTors(req, res) {
         project.raw_data?.project_description ||
         "",
           
-      deadline:
-        project.procurementAnalysis?.biddingClosingDate?.dateTime ||
-        project.raw_data?.submission_deadline ||
-        project.raw_data?.deadline ||
-        null,
+      ...governmentTorDates(project),
 
       allocatedBudget:
         project.procurementAnalysis?.allocatedBudget?.amount ?? null,
@@ -272,11 +256,6 @@ async function getMarketTors(req, res) {
       updatedAt: project.updatedAt,
     }));
 
-    const internalTors = await Tor.find({
-      status: "published",
-      applicationDeadline: { $gt: new Date() },
-    }).sort({ publishedAt: -1 });
-
     const internalData = internalTors.map((tor) => ({
       id: tor._id.toString(),
       source: "internal",
@@ -284,6 +263,7 @@ async function getMarketTors(req, res) {
       projectName: tor.projectName,
       agencyName: tor.agencyName,
       budget: tor.budget,
+      referencePriceEstimate: tor.referencePriceEstimate ?? null,
       deadline: tor.applicationDeadline,
       description: tor.description,
       status: "เปิดรับสมัคร",
@@ -292,12 +272,8 @@ async function getMarketTors(req, res) {
     }));
     
     data.push(...internalData);
-
-    return res.json({
-      success: true,
-      total: data.length,
-      data,
-    });
+    const summarized = await require('../services/marketDocumentSummary').addMarketDocumentSummaries(data);
+    return res.json({ success: true, total: summarized.length, data: summarized });
   } catch (error) {
     console.error("TOR Market API error:", error);
 
@@ -308,6 +284,7 @@ async function getMarketTors(req, res) {
   }
 }
 
+// ส่งรายละเอียด TOR ภายในให้ครบกลุ่มข้อมูลเดียวกับที่หน้ารายละเอียดโครงการรัฐใช้
 async function getMarketTorDetail(req, res) {
   try {
 
@@ -328,6 +305,7 @@ async function getMarketTorDetail(req, res) {
             projectName: internalTor.projectName,
             agencyName: internalTor.agencyName,
             budget: internalTor.budget,
+            referencePriceEstimate: internalTor.referencePriceEstimate ?? null,
             submissionDeadline: internalTor.applicationDeadline,
             contactName: internalTor.contactName,
             contactEmail: internalTor.contactEmail,
@@ -391,11 +369,8 @@ async function getMarketTorDetail(req, res) {
       referencePriceEstimate:
         project.procurementAnalysis?.referencePriceEstimate?.amount ?? null,
 
-      submissionDeadline:
-        analysis.biddingClosingDate?.dateTime ||
-        raw.submission_deadline ||
-        raw.deadline ||
-        null,
+      ...governmentTorDates(project),
+      submissionDeadline: governmentTorDates(project).deadline,
       
       biddingClosingDate:
         analysis.biddingClosingDate || null,
@@ -527,11 +502,18 @@ async function publishTor(req, res) {
       });
     }
 
+    const owner = await User.findOne({ email: req.ownerId, accountRole: 'project_owner', verificationStatus: 'approved' }).lean();
+    if (!owner) return res.status(403).json({ success: false, error: 'กรุณายืนยันตัวตนให้ผ่านก่อนเผยแพร่ TOR' });
+
     const tor = await Tor.findOneAndUpdate(
       {
         _id: id,
         ownerId: req.ownerId,
         status: "draft",
+        // บังคับที่ backend: อนุมัติแล้วและเลขฉบับยังตรงกับที่ส่งตรวจเท่านั้น
+        reviewStatus: "approved",
+        submittedVersion: { $ne: null },
+        $expr: { $eq: ["$contentVersion", "$submittedVersion"] },
       },
       {
         $set: {
@@ -547,9 +529,9 @@ async function publishTor(req, res) {
     );
 
     if (!tor) {
-      return res.status(404).json({
+      return res.status(409).json({
         success: false,
-        error: "ไม่พบ TOR ฉบับร่างที่สามารถเผยแพร่ได้",
+        error: "TOR ต้องได้รับอนุมัติฉบับปัจจุบันก่อนเผยแพร่",
       });
     }
 
@@ -566,6 +548,7 @@ async function publishTor(req, res) {
 module.exports = {
   createTor,
   getTors,
+  getSharedDraftTors,
   getTorById,
   updateTor,
   deleteTor,
