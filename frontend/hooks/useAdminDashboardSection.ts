@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { readAdminSnapshot, writeAdminSnapshot } from '@/lib/adminDashboardSnapshot';
-import type { AdminDashboardCharts, AdminDashboardSummary } from '@/types/adminDashboard';
+import type { AdminDashboardActivity, AdminDashboardCharts, AdminDashboardSummary } from '@/types/adminDashboard';
 
-type Sections = { summary: AdminDashboardSummary; charts: AdminDashboardCharts };
+type Sections = { summary: AdminDashboardSummary; charts: AdminDashboardCharts; activity: AdminDashboardActivity };
 export function useAdminDashboardSection<K extends keyof Sections>(email: string | undefined, section: K, reload: number) {
     const [state, setState] = useState<{ email?: string; data: Sections[K] | null; error: string; refreshing: boolean }>({ data: null, error: '', refreshing: false });
     useEffect(() => {
@@ -17,7 +17,7 @@ export function useAdminDashboardSection<K extends keyof Sections>(email: string
         async function refresh() {
             setState(previous => ({ ...previous, refreshing: true }));
             try {
-                const response = await fetch(`/api/admin/dashboard${section === 'charts' ? '?charts=true' : ''}`, {
+                const response = await fetch(`/api/admin/dashboard${section === 'charts' ? '?charts=true' : section === 'activity' ? '?section=activity' : ''}`, {
                     cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]),
                 });
                 const result = await response.json();

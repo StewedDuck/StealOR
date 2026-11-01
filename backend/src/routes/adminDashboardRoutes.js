@@ -16,6 +16,13 @@ async function getSummary(req, res) {
         return res.status(500).json({ success: false, error: 'ไม่สามารถโหลดข้อมูลสรุปแดชบอร์ดได้' });
     }
 }
+router.get('/activity', adminAuth, async (req, res) => {
+    try {
+        return res.json({ success: true, data: { events: await require('../services/adminDashboardActivity').loadActivity() } });
+    } catch {
+        return res.status(500).json({ success: false, error: 'ไม่สามารถโหลดกิจกรรมล่าสุดได้' });
+    }
+});
 router.get('/charts', adminAuth, async (req, res) => {
     try {
         const now = new Date();

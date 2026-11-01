@@ -8,7 +8,8 @@ export async function GET(request: Request) {
     if (!isAdminGmail(email)) return NextResponse.json({ success: false, error: 'เฉพาะผู้ดูแลระบบเท่านั้น' }, { status: 403 });
     const secret = process.env.TOR_PROXY_SECRET;
     if (!secret) return NextResponse.json({ success: false, error: 'Admin API is not configured' }, { status: 500 });
-    const path = new URL(request.url).searchParams.get("charts") === "true" ? "/charts" : "";
+    const params = new URL(request.url).searchParams;
+    const path = params.get("section") === "activity" ? "/activity" : params.get("charts") === "true" ? "/charts" : "";
     try {
         const response = await fetch(`${process.env.INTERNAL_API_URL ?? 'http://localhost:5000'}/api/admin/dashboard${path}`, {
             headers: { 'x-internal-secret': secret, 'x-admin-email': email },

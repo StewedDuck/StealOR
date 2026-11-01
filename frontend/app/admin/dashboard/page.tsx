@@ -14,8 +14,16 @@ import {
 } from "lucide-react";
 import "./admin_dashboard.css";
 import { useAdminDashboardSection } from "@/hooks/useAdminDashboardSection";
+import type { AdminActivityType } from "@/types/adminDashboard";
 import TorVolumeChart from "@/components/TorVolumeChart";
 import UserDistributionChart from "@/components/UserDistributionChart";
+
+const activityLabels: Record<AdminActivityType, string> = {
+    tor_created: 'สร้าง TOR', tor_submitted: 'ส่ง TOR ตรวจ', tor_published: 'เผยแพร่ TOR',
+    tor_approved: 'อนุมัติ TOR', tor_changes_requested: 'ขอแก้ไข TOR',
+    verification_submitted: 'ส่งคำขอยืนยันตัวตน', verification_approved: 'อนุมัติการยืนยันตัวตน', verification_rejected: 'ปฏิเสธการยืนยันตัวตน',
+};
+const activityDate = (at: string) => new Intl.DateTimeFormat('th-TH', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(at));
 
 export default function AdminDashboard() {
     const router = useRouter();
@@ -24,6 +32,7 @@ export default function AdminDashboard() {
     const email = ready && user?.accountRole === 'admin' ? user.email.trim().toLowerCase() : undefined;
     const { data: summary, error, refreshing: summaryRefreshing } = useAdminDashboardSection(email, 'summary', reload);
     const { data: charts, error: chartError, refreshing: chartsRefreshing } = useAdminDashboardSection(email, 'charts', reload);
+    const { data: activity, error: activityError, refreshing: activityRefreshing } = useAdminDashboardSection(email, 'activity', reload);
     useEffect(() => {
         if (!ready) return;
         if (!user) router.replace('/');
@@ -58,7 +67,7 @@ export default function AdminDashboard() {
                 {/* CONTENT */}
                 <div className="admin-content">
 
-                    {(summary || charts) && (summaryRefreshing || chartsRefreshing) && <p role="status">กำลังอัปเดตข้อมูลล่าสุด…</p>}
+                    {(summary || charts) && (summaryRefreshing || chartsRefreshing || activityRefreshing) && <p role="status">กำลังอัปเดตข้อมูลล่าสุด…</p>}
                     {error ? <div role="alert">{error} {summary && 'แสดงข้อมูลที่โหลดไว้ก่อนหน้า'} <button onClick={() => setReload(value => value + 1)}>ลองอีกครั้ง</button></div> : !summary && <p role="status">กำลังโหลดข้อมูลสรุป…</p>}
                     <div className="admin-summary-grid">
                         <Link href="/admin/manageUser" style={{ color: 'inherit', textDecoration: 'none' }}><SummaryCard icon={<CircleCheckBig size={20} />} title="ผู้ใช้ทั้งหมด" value={count(summary?.users)} footer="บัญชีทั้งหมด รวมบัญชีที่ระงับ" /></Link>
@@ -74,212 +83,29 @@ export default function AdminDashboard() {
                         <TorVolumeChart data={charts.torMonths} />
                         <UserDistributionChart data={charts.userDistribution} />
                     </div>}
-                    <p role="note">กิจกรรมและรายการรอดำเนินการด้านล่างยังเป็นข้อมูลตัวอย่าง อยู่ระหว่างพัฒนา</p>
 
-
-                    {/* ACTIVITY + PENDING */}
                     <div className="admin-dashboard-grid">
-
-                        {/* RECENT ACTIVITY */}
                         <div className="admin-card activity-card">
+                            <div className="card-heading"><div><h2>กิจกรรมล่าสุด</h2><p>10 เหตุการณ์ล่าสุดจาก TOR และคำขอยืนยันตัวตน</p></div></div>
 
-                            <div className="card-heading">
-                                <div>
-                                    <h2>กิจกรรมล่าสุด</h2>
-                                    <p>
-                                        เหตุการณ์ล่าสุดในแพลตฟอร์ม
-                                    </p>
-                                </div>
-
-                                <button className="view-all">
-                                    ดูบันทึกทั้งหมด
-                                </button>
-                            </div>
-
-
+                            {activityError && <div role="alert">{activityError} {activity && 'แสดงข้อมูลที่โหลดไว้ก่อนหน้า'} <button onClick={() => setReload(value => value + 1)}>ลองอีกครั้ง</button></div>}
+                            {!activity && !activityError && <p role="status">กำลังโหลดกิจกรรม…</p>}
+                            {activity?.events.length === 0 && <p>ยังไม่มีกิจกรรม</p>}
                             <div className="activity-list">
-
-                                {/* Activity 1 */}
-                                <div className="activity-item">
-
-                                    <span className="activity-time">
-                                        วันนี้ 10:42
-                                    </span>
-
-                                    <span className="activity-badge user">
-                                        USER
-                                    </span>
-
-                                    <span className="activity-text">
-                                        ผู้รับเหมา Cooldog บันทึก TOR-2569-0142
-                                    </span>
-
-                                </div>
-
-
-                                {/* Activity 2 */}
-                                <div className="activity-item">
-
-                                    <span className="activity-time">
-                                        วันนี้ 09:18
-                                    </span>
-
-                                    <span className="activity-badge tor">
-                                        TOR
-                                    </span>
-
-                                    <span className="activity-text">
-                                        ร่าง TOR ใหม่ อัปโหลดโดย สำนักผังเมือง กทม.
-                                    </span>
-
-                                </div>
-
-
-                                {/* Activity 3 */}
-                                <div className="activity-item">
-
-                                    <span className="activity-time">
-                                        วันนี้ 08:55
-                                    </span>
-
-                                    <span className="activity-badge system">
-                                        SYSTEM
-                                    </span>
-
-                                    <span className="activity-text">
-                                        ข้อมูลจากหน่วยงาน BMA ซิงค์เรียบร้อยแล้ว — นำเข้า TOR ใหม่ 4 รายการ
-                                    </span>
-
-                                </div>
-
-
-                                {/* Activity 4 */}
-                                <div className="activity-item">
-
-                                    <span className="activity-time">
-                                        เมื่อวาน 17:30
-                                    </span>
-
-                                    <span className="activity-badge user">
-                                        USER
-                                    </span>
-
-                                    <span className="activity-text">
-                                        ส่งการยืนยันจากเจ้าของโครงการแล้ว
-                                        — นอร์ธไลน์ ซอฟต์แวร์
-                                    </span>
-
-                                </div>
-
-
-                                {/* Activity 5 */}
-                                <div className="activity-item">
-
-                                    <span className="activity-time">
-                                        เมื่อวาน 14:05
-                                    </span>
-
-                                    <span className="activity-badge tor">
-                                        TOR
-                                    </span>
-
-                                    <span className="activity-text">
-                                        เอกสาร TOR ฉบับใหม่จาก MEA ได้รับการเผยแพร่แล้ว —
-                                        การปรับปรุงโครงสร้างพื้นฐานคลาวด์ให้ทันสมัย
-                                    </span>
-
-                                </div>
-
+                                {activity?.events.map(event => <div className="activity-item" key={event.id}>
+                                    <time className="activity-time" dateTime={event.at}>{activityDate(event.at)}</time>
+                                    <span className={`activity-badge ${event.type.startsWith('tor_') ? 'tor' : 'user'}`}>{event.type.startsWith('tor_') ? 'TOR' : 'USER'}</span>
+                                    <Link className="activity-text" href={event.href}>{activityLabels[event.type]} — {event.title}</Link>
+                                </div>)}
                             </div>
-
                         </div>
-
-
-                        {/* PENDING ACTIONS */}
                         <div className="admin-card pending-card">
-
-                            <div className="card-heading">
-                                <div>
-                                    <h2>รอดำเนินการ</h2>
-                                    <p>
-                                        รายการที่ต้องได้รับการดูแลจากแอดมิน
-                                    </p>
-                                </div>
-                            </div>
-
-
+                            <div className="card-heading"><div><h2>รอดำเนินการ</h2><p>รายการที่ต้องได้รับการตรวจสอบจากแอดมิน</p></div></div>
                             <div className="pending-list">
-
-                                {/* Pending 1 */}
-                                <div className="pending-item">
-
-                                    <div className="pending-info">
-
-                                        <strong>
-                                            การยืนยันตัวตน
-                                        </strong>
-
-                                        <span>
-                                            0 รายการรอตรวจสอบ
-                                        </span>
-
-                                    </div>
-
-                                    <button>
-                                        ตรวจสอบ
-                                    </button>
-
-                                </div>
-
-
-                                {/* Pending 2 */}
-                                <div className="pending-item">
-
-                                    <div className="pending-info">
-
-                                        <strong>
-                                            รายงาน / ร้องเรียน
-                                        </strong>
-
-                                        <span>
-                                            2 รายการที่ยังเปิดอยู่
-                                        </span>
-
-                                    </div>
-
-                                    <button>
-                                        ตรวจสอบ
-                                    </button>
-
-                                </div>
-
-
-                                {/* Pending 3 */}
-                                <div className="pending-item">
-
-                                    <div className="pending-info">
-
-                                        <strong>
-                                            แหล่งข้อมูล TOR
-                                        </strong>
-
-                                        <span>
-                                            1 แหล่งข้อมูลหยุดชั่วคราว —
-                                            ตัวดึง Legacy e-GP
-                                        </span>
-
-                                    </div>
-
-                                    <button>
-                                        จัดการ
-                                    </button>
-
-                                </div>
-
+                                <div className="pending-item"><div className="pending-info"><strong>การยืนยันตัวตน</strong><span>{count(summary?.pendingVerifications)} รายการรอตรวจสอบ</span></div><Link href="/admin/verification">ตรวจสอบ</Link></div>
+                                <div className="pending-item"><div className="pending-info"><strong>TOR รออนุมัติ</strong><span>{count(summary?.pendingTorReviews)} รายการรอตรวจสอบ</span></div><Link href="/admin/issue">ตรวจสอบ TOR</Link></div>
                             </div>
-
                         </div>
-
                     </div>
 
                 </div>

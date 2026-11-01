@@ -1,6 +1,6 @@
-import type { AdminDashboardCharts, AdminDashboardSummary } from '@/types/adminDashboard';
+import type { AdminDashboardActivity, AdminDashboardCharts, AdminDashboardSummary } from '@/types/adminDashboard';
 
-type Sections = { summary: AdminDashboardSummary; charts: AdminDashboardCharts };
+type Sections = { summary: AdminDashboardSummary; charts: AdminDashboardCharts; activity: AdminDashboardActivity };
 type Entry = { savedAt: number; data: unknown };
 const MAX_AGE = 5 * 60 * 1000;
 const memory = new Map<string, Entry>();
@@ -18,6 +18,8 @@ export function readAdminSnapshot<K extends keyof Sections>(email: string, secti
     if (section === 'summary') {
         const summary = data as AdminDashboardSummary;
         if (![summary.users, summary.tors, summary.pendingVerifications, summary.pendingTorReviews].every(value => Number.isInteger(value) && value >= 0)) return null;
+    } else if (section === 'activity') {
+        if (!Array.isArray((data as AdminDashboardActivity).events)) return null;
     } else {
         const charts = data as AdminDashboardCharts;
         if (!Array.isArray(charts.torMonths) || !Array.isArray(charts.userDistribution)) return null;
