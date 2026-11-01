@@ -37,6 +37,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/matching", matchingRoutes);
 app.use("/api/notifications", notificationRoutes );
 app.use("/api/verifications", verificationRoutes);
+app.use("/api/admin/dashboard", require("./routes/adminDashboardRoutes"));
 app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/admin/tors", require("./routes/adminTorRoutes"));
 

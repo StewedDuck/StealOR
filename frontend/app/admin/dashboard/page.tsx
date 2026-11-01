@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import Sidebar from "@/components/sideBarAdmin";
@@ -18,67 +19,28 @@ import UserDistributionChart from "@/components/UserDistributionChart";
 export default function AdminDashboard() {
     const router = useRouter();
     const { user } = useAuth();
-    const torMonthlyData = [
-        {
-          month: "มี.ค.",
-          published: 8,
-          draft: 2,
-        },
-        {
-          month: "เม.ย.",
-          published: 10,
-          draft: 3,
-        },
-        {
-          month: "พ.ค.",
-          published: 12,
-          draft: 2,
-        },
-        {
-          month: "มิ.ย.",
-          published: 14,
-          draft: 4,
-        },
-        {
-          month: "ก.ค.",
-          published: 15,
-          draft: 3,
-        },
-        {
-          month: "ส.ค.",
-          published: 16,
-          draft: 3,
-        },
-    ];
-
-    const userDistributionData = [
-        {
-          name: "ผู้รับจ้าง",
-          value: 186,
-        },
-        {
-          name: "เจ้าของโครงการที่ยืนยันแล้ว",
-          value: 41,
-        },
-        {
-          name: "ผู้ดูแลระบบ",
-          value: 3,
-        },
-    ];
-
-    // Admin only
+    const { ready } = useAuth();
+    const [summary, setSummary] = useState<{ users: number; tors: number; pendingVerifications: number; pendingTorReviews: number } | null>(null);
+    const [error, setError] = useState('');
+    const [reload, setReload] = useState(0);
     useEffect(() => {
-        if (!user) return;
-
-        if (user.accountRole === "admin") {
-            router.replace("/admin/dashboard");
-          }
-        }, [user, router]);
-        
-    // Don't show page while checking user
-    if (!user || user.accountRole !== "admin") {
-        return null;
-    }
+        if (!ready) return;
+        if (!user) { router.replace('/'); return; }
+        if (user.accountRole !== 'admin') { router.replace('/contractor/dashboard'); return; }
+        const controller = new AbortController();
+        setError('');
+        setSummary(null);
+        void fetch('/api/admin/dashboard', { cache: 'no-store', signal: controller.signal })
+            .then(async response => {
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error(result.error || 'โหลดข้อมูลไม่สำเร็จ');
+                if (!controller.signal.aborted) setSummary(result.data);
+            })
+            .catch(error => { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ'); });
+        return () => controller.abort();
+    }, [ready, user, router, reload]);
+    if (!ready || !user || user.accountRole !== 'admin') return null;
+    const count = (value?: number) => value === undefined ? '—' : value.toLocaleString('th-TH');
 
     return (
         <div className="admin-layout">
@@ -106,42 +68,14 @@ export default function AdminDashboard() {
                 {/* CONTENT */}
                 <div className="admin-content">
 
-                    {/* SUMMARY */}
+                    {error ? <div role="alert">{error} <button onClick={() => setReload(value => value + 1)}>ลองอีกครั้ง</button></div> : !summary && <p role="status">กำลังโหลดข้อมูลสรุป…</p>}
                     <div className="admin-summary-grid">
-
-                        <SummaryCard
-                            icon={<CircleCheckBig size={20} />}
-                            title="ผู้ใช้ทั้งหมด"
-                            value="248"
-                            footer="+12 เดือนนี้"
-                            footerType="success"
-                        />
-
-                        <SummaryCard
-                            icon={<Clock size={20} />}
-                            title="TOR ทั้งหมด"
-                            value="12"
-                            footer="3 ร่าง · 21 ประกาศแล้ว"
-                            footerType="normal"
-                        />
-
-                        <SummaryCard
-                            icon={<BellRing size={20} />}
-                            title="รอยืนยันตัวตน"
-                            value="0"
-                            footer="ต้องได้รับการตรวจสอบโดยผู้ดูแล"
-                            footerType="warning"
-                        />
-
-                        <SummaryCard
-                            icon={<TriangleAlert size={20} />}
-                            title="รายงานที่เปิดอยู่"
-                            value="3"
-                            footer="2 เรื่องร้องเรียนที่ยังไม่แก้ไข"
-                            footerType="warning"
-                        />
-
+                        <Link href="/admin/manageUser" style={{ color: 'inherit', textDecoration: 'none' }}><SummaryCard icon={<CircleCheckBig size={20} />} title="ผู้ใช้ทั้งหมด" value={count(summary?.users)} footer="บัญชีทั้งหมด รวมบัญชีที่ระงับ" /></Link>
+                        <Link href="/admin/issue" style={{ color: 'inherit', textDecoration: 'none' }}><SummaryCard icon={<Clock size={20} />} title="TOR ของเจ้าของโครงการ" value={count(summary?.tors)} footer="ทุกสถานะ ไม่รวมข้อมูลนำเข้าจาก e-GP" /></Link>
+                        <Link href="/admin/verification" style={{ color: 'inherit', textDecoration: 'none' }}><SummaryCard icon={<BellRing size={20} />} title="รอยืนยันตัวตน" value={count(summary?.pendingVerifications)} footer="คำขอที่รอผู้ดูแลตรวจสอบ" footerType="warning" /></Link>
+                        <Link href="/admin/issue" style={{ color: 'inherit', textDecoration: 'none' }}><SummaryCard icon={<TriangleAlert size={20} />} title="TOR รออนุมัติ" value={count(summary?.pendingTorReviews)} footer="TOR ที่ส่งตรวจและยังรอผล" footerType="warning" /></Link>
                     </div>
+                    <p role="note">กราฟ กิจกรรม และรายการรอดำเนินการด้านล่างยังเป็นข้อมูลตัวอย่าง อยู่ระหว่างพัฒนา</p>
 
                     {/* chart */}
                     <div className="admin-chart-grid">
