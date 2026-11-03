@@ -33,6 +33,10 @@ const {
   createVertexRequestScheduler,
 } = require("../src/services/procurementAnalysis/vertexAnalyzer");
 
+/**
+ * Turn command-line strings into validated settings for this run.
+ * Returns project IDs, paths and mode flags; rejects unknown or invalid options.
+ */
 function parseCliArgs(argv) {
   const args = {
     projectIds: [],
@@ -75,6 +79,7 @@ function parseCliArgs(argv) {
   return args;
 }
 
+/** Return the usage instructions as text; this does not start any analysis. */
 function helpText() {
   return [
     "Usage: node scripts/analyzeProcurementTexts.js [options]",
@@ -97,6 +102,7 @@ function helpText() {
   ].join("\n");
 }
 
+/** Format reported AI token counts for the console, allowing missing counts. */
 function formatTokenUsage(tokenUsage) {
   if (!tokenUsage) return "tokens unavailable";
   const input = tokenUsage.inputTokens == null ? "?" : tokenUsage.inputTokens;
@@ -105,6 +111,7 @@ function formatTokenUsage(tokenUsage) {
   return `tokens input=${input} output=${output} total=${total}`;
 }
 
+/** Convert one queued/completed document event into a readable progress line. */
 function formatAnalysisProgress(progress) {
   const identity = `${progress.documentName || progress.documentId} (${progress.archiveCategory || "unknown"})`;
   if (progress.phase === "completed") {
@@ -119,6 +126,13 @@ function formatAnalysisProgress(progress) {
   return `Vertex: [${progress.request}/${progress.totalRequests}] ${identity} QUEUED`;
 }
 
+/**
+ * Coordinate analysis for one project's already-extracted local documents.
+ * Reuse a matching fingerprint cache unless forced; otherwise delegate to the
+ * analysis service and save analysis.json plus summary.md. Existing stale
+ * outputs require --force. Returns the result, paths and cache-hit flag.
+ * This function does not download PDFs or import results into MongoDB.
+ */
 async function runProject(projectId, args, dependencies = {}) {
   const config = dependencies.config || getVertexConfig();
   const input = await readLocalProjectInput({ projectId, inputRoot: args.inputRoot }, dependencies);
@@ -158,6 +172,7 @@ async function runProject(projectId, args, dependencies = {}) {
   return { projectId, input, result, outputPaths, cached: false };
 }
 
+/** Save a timestamped JSON validation report locally and return its file path. */
 async function writeValidationReport(report, outputRoot, dependencies = {}) {
   const io = dependencies.fs || fs;
   await io.mkdir(outputRoot, { recursive: true });
@@ -167,6 +182,7 @@ async function writeValidationReport(report, outputRoot, dependencies = {}) {
   return reportPath;
 }
 
+/** Print how many saved analyses are suitable or unsuitable for database import. */
 function logValidationSummary(report, logger) {
   logger("LOCAL VALIDATION");
   logger(`Analyses checked: ${report.summary.total}`);
@@ -174,6 +190,12 @@ function logValidationSummary(report, logger) {
   logger(`Unsuitable: ${report.summary.unsuitable}`);
 }
 
+/**
+ * Entry point: choose help, discovery, validation or sequential batch analysis.
+ * Share one request scheduler across projects, record individual project errors
+ * without stopping the batch, then report totals and validate saved outputs.
+ * Returns mode details or batch results; imports can call it without running CLI.
+ */
 async function main(argv = process.argv.slice(2), dependencies = {}) {
   const args = parseCliArgs(argv);
   const logger = dependencies.logger || console.log;
@@ -248,6 +270,7 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
   return runs;
 }
 
+// Run automatically only when Node executes this file directly, not on require().
 if (require.main === module) {
   main().catch((error) => {
     let message = error && error.message ? error.message : String(error);

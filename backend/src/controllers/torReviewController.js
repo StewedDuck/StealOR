@@ -8,6 +8,11 @@ function versionFilter(version) {
     : { contentVersion: version };
 }
 
+/**
+ * Submit an owned draft for review and record its submitted content version.
+ * Uses a conditional update to reject concurrent changes or duplicate submission.
+ * A draft with requested changes must be edited and saved before resubmission.
+ */
 async function submitTorReview(req, res) {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ success: false, error: "Invalid TOR id" });
@@ -33,6 +38,11 @@ async function submitTorReview(req, res) {
   }
 }
 
+/**
+ * Validate an admin decision and atomically save it with a review-history entry.
+ * Only the pending, submitted content version can be reviewed; a changed
+ * version returns a conflict so an admin cannot approve unseen edits.
+ */
 async function reviewTor(req, res) {
   try {
     const { decision, comment = "", version } = req.body;

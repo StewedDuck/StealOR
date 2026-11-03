@@ -1,3 +1,9 @@
+/**
+ * Application workflow for official e-GP documents: discover categories, select
+ * usable references, download original ZIPs and optionally extract PDF text.
+ * Metadata describes a document; a ZIP buffer contains its actual file bytes.
+ * This service does not run AI analysis or write records to MongoDB.
+ */
 const crypto = require("crypto");
 const path = require("path");
 const pdfParse = require("pdf-parse");
@@ -14,10 +20,16 @@ const MAX_PDF_COUNT = 20;
 const MAX_TOTAL_PDF_BYTES = 100 * 1024 * 1024;
 const MAX_EXTRACTED_TEXT_CHARS = 2_000_000;
 
+/**
+ * Use a supplied e-GP adapter when provided, otherwise use the shared national adapter.
+ */
 function getAdapter(dependencies) {
   return dependencies.egpAdapter || nationalEgpAdapter;
 }
 
+/**
+ * Convert a discovery failure into stored metadata, distinguishing confirmed absence from an upstream error.
+ */
 function documentDiscoveryError(projectId, category, error, lastCheckedAt) {
   const lookupAttempts = Array.isArray(error?.details?.lookupAttempts)
     ? { lookupAttempts: error.details.lookupAttempts }
@@ -58,6 +70,9 @@ function documentDiscoveryError(projectId, category, error, lastCheckedAt) {
   };
 }
 
+/**
+ * Prefer an available invitation; use an available draft only when the invitation is confirmed absent. Otherwise return null.
+ */
 function selectProcurementDocument(documents) {
   if (documents.invitation.status === "available") return "invitation";
 
@@ -72,6 +87,11 @@ function selectProcurementDocument(documents) {
   return null;
 }
 
+/**
+ * Validate a project ID and discover metadata for price, invitation and draft documents.
+ * Checks categories sequentially, isolates failures, and returns all statuses
+ * plus the selected procurement document. Does not download archives.
+ */
 async function discoverProjectDocuments(projectId, dependencies = {}) {
   const safeProjectId = validateProjectId(projectId);
   const adapter = getAdapter(dependencies);
@@ -117,6 +137,9 @@ async function discoverProjectDocuments(projectId, dependencies = {}) {
   return { projectId: safeProjectId, documents };
 }
 
+/**
+ * Delegate archive downloading to the adapter, which selects the upstream download mechanism.
+ */
 async function downloadPriceEstimateArchive(metadata, dependencies) {
   // The service handles application workflow; the adapter owns all knowledge
   // of modern file-ID downloads versus the legacy filename servlet.
@@ -132,11 +155,20 @@ class DocumentExtractionError extends Error {
   }
 }
 
+/**
+ * Reject absolute paths and parent-directory segments in archive entry names.
+ */
 function isSafeArchivePath(entryPath) {
   const normalized = String(entryPath).replace(/\\/g, "/");
   return !normalized.startsWith("/") && !normalized.split("/").includes("..");
 }
 
+/**
+ * Read PDF entries from a ZIP buffer and combine their extractable text.
+ * Enforces count/size/path/signature limits and returns text plus PDF filenames.
+ * Throws for unusable archives or insufficient text; scanned images require OCR
+ * that this function does not implement.
+ */
 async function extractPdfTextFromZip(zipBuffer, { parsePdf = pdfParse } = {}) {
   let directory;
   try {
@@ -201,6 +233,11 @@ async function extractPdfTextFromZip(zipBuffer, { parsePdf = pdfParse } = {}) {
   return { extractedText, textLength: extractedText.length, pdfFileNames };
 }
 
+/**
+ * Discover and download a price archive, hash its bytes, and extract PDF text.
+ * Returns source metadata and extracted text; attaches source metadata to
+ * download/extraction errors so callers can record which document failed.
+ */
 async function getPriceEstimateDocument(projectId, dependencies = {}) {
   const safeProjectId = validateProjectId(projectId);
   const metadata = await getAdapter(dependencies).discoverPriceEstimate(
@@ -249,6 +286,10 @@ async function getPriceEstimateDocument(projectId, dependencies = {}) {
   };
 }
 
+/**
+ * Return the original price-estimate ZIP and its file reference. Reuse a stored
+ * reference when available; rediscover and retry once if that reference is stale.
+ */
 async function getPriceEstimateArchive(
   projectId,
   knownMetadata = {},
@@ -297,6 +338,9 @@ async function getPriceEstimateArchive(
   };
 }
 
+/**
+ * Validate the project ID and look up invitation metadata without downloading its archive.
+ */
 async function getInvitationMetadata(projectId, dependencies = {}) {
   const safeProjectId = validateProjectId(projectId);
   return getAdapter(dependencies).discoverInvitation(
@@ -305,6 +349,9 @@ async function getInvitationMetadata(projectId, dependencies = {}) {
   );
 }
 
+/**
+ * Require an available invitation with a file ID; otherwise throw a not-found service error.
+ */
 function requireInvitationArchiveMetadata(metadata) {
   if (metadata.status === "available" && metadata.fileId) return metadata;
   throw new EgpServiceError(
@@ -317,6 +364,10 @@ function requireInvitationArchiveMetadata(metadata) {
   );
 }
 
+/**
+ * Download the invitation bidding-document ZIP using a stored or discovered file ID.
+ * A stale stored reference gets one fresh discovery and retry; returns bytes and file metadata.
+ */
 async function getInvitationArchive(
   projectId,
   knownMetadata = {},
@@ -360,6 +411,9 @@ async function getInvitationArchive(
   };
 }
 
+/**
+ * Validate the project ID and discover draft e-bidding metadata without downloading the archive.
+ */
 async function getDraftEbiddingMetadata(projectId, dependencies = {}) {
   const safeProjectId = validateProjectId(projectId);
   return getAdapter(dependencies).discoverDraftEbidding(
@@ -368,6 +422,9 @@ async function getDraftEbiddingMetadata(projectId, dependencies = {}) {
   );
 }
 
+/**
+ * Check that metadata contains the required locator fields for a legacy draft transfer.
+ */
 function hasLegacyDraftReference(metadata) {
   const itemNo = metadata?.legacyItemNo;
   return Boolean(
@@ -383,6 +440,9 @@ function hasLegacyDraftReference(metadata) {
   );
 }
 
+/**
+ * Require an available draft with a usable locator; reject missing or ambiguous selections instead of guessing.
+ */
 function requireDraftArchiveMetadata(metadata) {
   if (
     metadata.status === "available" &&
@@ -411,6 +471,11 @@ function requireDraftArchiveMetadata(metadata) {
   );
 }
 
+/**
+ * Download a selected draft ZIP through its modern file ID or legacy locator.
+ * Reuse stored references, rediscover once on a stale-reference error, and
+ * return ZIP bytes with revision and source-reference metadata.
+ */
 async function getDraftEbiddingArchive(
   projectId,
   knownMetadata = {},
