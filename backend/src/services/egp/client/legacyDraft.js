@@ -17,6 +17,9 @@ const {
 } = require("./metadata");
 const { responseCode } = require("./process5Draft");
 
+/**
+ * Build a consistent error for legacy draft responses that cannot be trusted.
+ */
 function invalidLegacyDraftResponse(message) {
   return new EgpServiceError(message, 502, {
     code: "EGP_INVALID_LEGACY_DRAFT_RESPONSE",
@@ -24,6 +27,10 @@ function invalidLegacyDraftResponse(message) {
   });
 }
 
+/**
+ * Validate the project-specific ZIP filename and its Buddhist Era timestamp; return the
+ * filename and UTC timestamp.
+ */
 function parseLegacyDraftFileName(fileName, projectId) {
   const normalized = validateZipFileName(fileName);
   const escapedProjectId = projectId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -65,6 +72,10 @@ function parseLegacyDraftFileName(fileName, projectId) {
   return { fileName: normalized, fileTimestamp: stamp, timestampMs };
 }
 
+/**
+ * Check project, source step and matching publication dates, then preserve the fields
+ * needed for a legacy transfer.
+ */
 function normalizeLegacyDraftCandidate(projectId, record, legacyItemNo, queryType) {
   if (!record || typeof record !== "object") {
     throw invalidLegacyDraftResponse("e-GP returned malformed Legacy Draft metadata");
@@ -117,6 +128,10 @@ function normalizeLegacyDraftCandidate(projectId, record, legacyItemNo, queryTyp
   };
 }
 
+/**
+ * Query one supported legacy draft type and normalize each returned record with its item
+ * locator.
+ */
 async function requestLegacyDraftCandidates(projectId, queryType, options) {
   const url = new URL(LEGACY_DRAFT_DISCOVERY_PATH, EGP_BASE_URL);
   for (const [key, value] of Object.entries({
@@ -142,6 +157,10 @@ async function requestLegacyDraftCandidates(projectId, queryType, options) {
   );
 }
 
+/**
+ * Group records by filename and require exactly one locator matching the source type for
+ * each file.
+ */
 function deduplicateLegacyDraftCandidates(candidates) {
   const grouped = new Map();
   for (const candidate of candidates) {
@@ -162,6 +181,10 @@ function deduplicateLegacyDraftCandidates(candidates) {
   return deduplicated;
 }
 
+/**
+ * Choose the uniquely latest filename timestamp; return not-found or ambiguous metadata
+ * when no safe selection exists.
+ */
 function selectLegacyDraftCandidate(projectId, candidates) {
   if (candidates.length === 0) {
     return createNotFoundMetadata(
@@ -202,6 +225,10 @@ function selectLegacyDraftCandidate(projectId, candidates) {
   });
 }
 
+/**
+ * Query all supported legacy draft types, deduplicate their locators and select the latest
+ * unambiguous archive.
+ */
 async function getLegacyDraftEbiddingMetadata(projectId, options) {
   const candidatesByType = [];
   for (const queryType of LEGACY_DRAFT_TYPES) {

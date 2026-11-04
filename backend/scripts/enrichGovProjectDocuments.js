@@ -40,6 +40,10 @@ const EGP_MAP_COUNTER_FIELDS = Object.freeze([
   "retryExhaustionsByEndpoint",
 ]);
 
+/**
+ * Calculate this run's counter increments from shared e-GP diagnostics while retaining
+ * current coordinator state.
+ */
 function requestDiagnosticsDelta(before, after) {
   if (!after) return null;
   const result = { ...after };
@@ -60,6 +64,9 @@ function requestDiagnosticsDelta(before, after) {
   return result;
 }
 
+/**
+ * Read the argument following a flag and reject missing values.
+ */
 function requireValue(argv, index, flag) {
   const value = argv[index + 1];
   if (!value || value.startsWith("--")) {
@@ -68,6 +75,9 @@ function requireValue(argv, index, flag) {
   return value;
 }
 
+/**
+ * Require a positive integer for a numeric selection flag.
+ */
 function positiveInteger(value, flag) {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) {
@@ -76,6 +86,10 @@ function positiveInteger(value, flag) {
   return parsed;
 }
 
+/**
+ * Validate CLI source, selection, delay and mode; require the confirmation string before
+ * enabling database writes.
+ */
 function parseArgs(argv = process.argv.slice(2)) {
   const options = {
     source: null,
@@ -146,6 +160,9 @@ function parseArgs(argv = process.argv.slice(2)) {
   return options;
 }
 
+/**
+ * Validate and deduplicate candidate project IDs while preserving their first-seen order.
+ */
 function uniqueProjectIds(projects) {
   const ids = [];
   const seen = new Set();
@@ -159,6 +176,10 @@ function uniqueProjectIds(projects) {
   return ids;
 }
 
+/**
+ * Select existing MongoDB records directly or from local/explicit candidate IDs; preserve
+ * candidate order and report missing IDs.
+ */
 async function resolveProjects(options, dependencies = {}) {
   const collection = dependencies.collection;
   if (!collection) throw new TypeError("collection is required");
@@ -207,6 +228,10 @@ async function resolveProjects(options, dependencies = {}) {
   };
 }
 
+/**
+ * Save prior document metadata and changed paths for planned updates before database
+ * writes begin.
+ */
 async function writeBackup(plans, dependencies = {}) {
   const fileSystem = dependencies.fs || fs;
   const backupDirectory =
@@ -234,6 +259,10 @@ async function writeBackup(plans, dependencies = {}) {
   return backupPath;
 }
 
+/**
+ * Read updated records and compare document references and selection with the planned
+ * values.
+ */
 async function verifyAppliedPlans(plans, collection) {
   const results = [];
   for (const plan of plans.filter((item) => item.operation)) {
@@ -258,6 +287,10 @@ async function verifyAppliedPlans(plans, collection) {
   return results;
 }
 
+/**
+ * Back up changed records, apply guarded updates and optionally verify successfully
+ * matched plans.
+ */
 async function executeApplyWithBackup(plans, dependencies = {}) {
   const pendingPlans = plans.filter((plan) => plan.operation);
   if (pendingPlans.length === 0) {
@@ -283,6 +316,11 @@ async function executeApplyWithBackup(plans, dependencies = {}) {
   return { backupPath, apply, verification };
 }
 
+/**
+ * Connect to MongoDB, discover document metadata and retry rate-limited observations after
+ * cooldown. Print a plan by default; apply mode backs up, writes and verifies changes.
+ * Always disconnect.
+ */
 async function run(argv = process.argv.slice(2), dependencies = {}) {
   const options = parseArgs(argv);
   const mongo = dependencies.mongoose || mongoose;

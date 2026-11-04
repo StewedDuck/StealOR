@@ -1,5 +1,8 @@
 const { ERROR_KIND, EgpServiceError } = require("./errors");
 
+/**
+ * Return a trimmed 11-digit project ID, or throw an invalid-input error before contacting e-GP.
+ */
 function validateProjectId(projectId) {
   const normalized = String(projectId || "").trim();
   if (!/^\d{11}$/.test(normalized)) {
@@ -11,6 +14,9 @@ function validateProjectId(projectId) {
   return normalized;
 }
 
+/**
+ * Allow only bounded file-ID characters; reject malformed upstream references.
+ */
 function validateFileId(fileId) {
   const normalized = String(fileId || "").trim();
   if (!/^[A-Za-z0-9._-]{1,200}$/.test(normalized)) {
@@ -22,6 +28,9 @@ function validateFileId(fileId) {
   return normalized;
 }
 
+/**
+ * Require a UUID-shaped document ID for chunked downloads and return it in lowercase.
+ */
 function validateUuidDocumentId(fileId) {
   const normalized = validateFileId(fileId);
   if (
@@ -37,6 +46,9 @@ function validateUuidDocumentId(fileId) {
   return normalized.toLowerCase();
 }
 
+/**
+ * Require a pricebuild ZIP filename belonging to this project and containing no path separators.
+ */
 function validateLegacyFileName(fileName, projectId) {
   const normalized = String(fileName || "").trim();
   const expectedSuffix = `_${projectId}.zip`;
@@ -53,6 +65,9 @@ function validateLegacyFileName(fileName, projectId) {
   return normalized;
 }
 
+/**
+ * Require a bounded ZIP filename without path separators or control characters.
+ */
 function validateZipFileName(fileName) {
   const normalized = String(fileName || "").trim();
   if (

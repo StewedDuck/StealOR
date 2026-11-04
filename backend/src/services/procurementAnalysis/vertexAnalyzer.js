@@ -102,6 +102,10 @@ const CANDIDATE_SCHEMA = {
   ],
 };
 
+/**
+ * Build instructions and the full source text for one document, limiting requested fields
+ * according to its category and label.
+ */
 function buildPrompt(document) {
   const priceEligible = document.archiveCategory === "priceEstimate" && document.label !== "JUNK";
   const torEligible = ["TOR", "BIDDING_NOTICE", "DRAFT_NOTICE"].includes(document.label);
@@ -151,6 +155,10 @@ function createVertexRequestScheduler(options = {}) {
   };
 }
 
+/**
+ * Normalize available token-usage fields from the model response; preserve unavailable
+ * counts as null.
+ */
 function extractTokenUsage(response) {
   const usage = response && response.usageMetadata;
   if (!usage || typeof usage !== "object") return null;
@@ -169,6 +177,11 @@ function extractTokenUsage(response) {
   };
 }
 
+/**
+ * Make one whole-document Gemini request with the JSON schema and record timing/token
+ * diagnostics. Parse the JSON and normalize expected array fields; quotation checks happen
+ * later in evidenceValidator.
+ */
 async function requestVertexCandidates(client, config, document, options = {}) {
   const basePrompt = buildPrompt(document);
   const now = options.now || Date.now;

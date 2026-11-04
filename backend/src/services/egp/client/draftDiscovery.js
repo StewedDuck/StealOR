@@ -8,6 +8,11 @@ const {
   getPublicAnnouncementDocumentList,
 } = require("./publicAnnouncement");
 
+/**
+ * Check public category evidence, then look up Process 5 draft metadata.
+ * Try the legacy lookup only after Process 5 reports not_found; preserve
+ * lookup attempts and propagate errors rather than treating them as absence.
+ */
 async function discoverDraftEbiddingMetadata(projectId, options) {
   let publicDocuments;
   try {

@@ -1,6 +1,6 @@
 "use client";
 
-import Yandex from "next-auth/providers/yandex";
+import type { TorMonth } from "@/types/adminDashboard";
 import {
     LineChart,
     Line,
@@ -12,54 +12,20 @@ import {
     Legend,
 } from "recharts";
 
-const torMonthlyData = [
-    {
-        month: "มี.ค.",
-        published: 8,
-        draft: 2,
-    },
-    {
-        month: "เม.ย.",
-        published: 10,
-        draft: 3,
-    },
-    {
-        month: "พ.ค.",
-        published: 12,
-        draft: 2,
-    },
-    {
-        month: "มิ.ย.",
-        published: 14,
-        draft: 4,
-    },
-    {
-        month: "ก.ค.",
-        published: 15,
-        draft: 3,
-    },
-    {
-        month: "ส.ค.",
-        published: 16,
-        draft: 3,
-    },
-];
-
-
-export default function TorVolumeChart() {
+export default function TorVolumeChart({ data }: { data: TorMonth[] }) {
     return (
         <div className="admin-chart-card">
             <div className="chart-header">
                 <div>
                     <h2>ปริมาณ TOR รายเดือน</h2>
-                    <p>จำนวน TOR ที่ประกาศแล้วและร่างย้อนหลัง 6 เดือน</p>
+                    <p>TOR ที่สร้างในแต่ละเดือน แยกตามสถานะปัจจุบัน · 6 เดือนล่าสุด </p>
                 </div>
             </div>
 
             <div className="admin-chart-container">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                        data={torMonthlyData}
+                        data={data}
                         margin={{
                             top: 10,
                             right: 20,
@@ -106,6 +72,7 @@ export default function TorVolumeChart() {
                             activeDot={{ r: 6 }}
                         />
 
+                        <Line type="monotone" dataKey="pending" name="รอเผยแพร่ / ยืนยัน" stroke="#C28B36" strokeWidth={3} />
                         {/* ร่าง */}
                         <Line
                             type="monotone"

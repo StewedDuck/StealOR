@@ -15,6 +15,11 @@ const {
 } = require("./constants");
 const { ERROR_KIND, EgpServiceError, createHttpError } = require("./errors");
 
+/**
+ * Perform an e-GP HTTP request with timeout, pacing and bounded retries. Handle rate
+ * limits separately from timeout/server retries; return a successful response or a
+ * classified error.
+ */
 async function request(
   url,
   {
@@ -150,6 +155,10 @@ async function request(
 
 }
 
+/**
+ * Detect rate-limit wording even in HTTP 200 responses; inspect a clone so callers can
+ * still read the original response.
+ */
 async function hasRateLimitBody(response) {
   if (response.status !== 200) return false;
   const contentType = String(response.headers.get("content-type") || "")
@@ -166,6 +175,10 @@ async function hasRateLimitBody(response) {
   return /rate\s*limit\s*exceeded(?:\.\s*try\s*again\s*later\.?)?/i.test(body);
 }
 
+/**
+ * Share request spacing, adaptive cooldown and diagnostic counters across calls. Slow down
+ * after rate limits and recover gradually after successful requests.
+ */
 function createEgpRequestCoordinator({
   minIntervalMs = DEFAULT_REQUEST_MIN_INTERVAL_MS,
   maxIntervalMs = DEFAULT_REQUEST_MAX_INTERVAL_MS,
@@ -313,15 +326,25 @@ function createEgpRequestCoordinator({
   return coordinator;
 }
 
+/**
+ * Build a method/path label for diagnostics without including query parameters.
+ */
 function requestEndpoint(url, method) {
   const parsed = url instanceof URL ? url : new URL(url);
   return `${String(method || "GET").toUpperCase()} ${parsed.pathname}`;
 }
 
+/**
+ * Increment a named diagnostic counter, starting from zero when absent.
+ */
 function incrementCounter(target, key) {
   target[key] = (target[key] || 0) + 1;
 }
 
+/**
+ * Provide the compatibility pacing interface through the shared coordinator, with fixed
+ * spacing and no cooldown by default.
+ */
 function createRequestPacer(options = {}) {
   const minIntervalMs = options.minIntervalMs ?? DEFAULT_REQUEST_MIN_INTERVAL_MS;
   return createEgpRequestCoordinator({
@@ -333,6 +356,9 @@ function createRequestPacer(options = {}) {
   });
 }
 
+/**
+ * Validate a numeric configuration value against an inclusive integer range.
+ */
 function boundedInteger(value, name, maximum, minimum = 0) {
   const parsed = Number(value);
   if (
@@ -345,6 +371,10 @@ function boundedInteger(value, name, maximum, minimum = 0) {
   return parsed;
 }
 
+/**
+ * Calculate exponential backoff with randomized jitter; the jitter is applied after
+ * capping the base delay.
+ */
 function retryDelay(attempt, baseDelayMs, maxDelayMs, randomImpl) {
   const exponential = Math.min(
     Math.max(0, Number(baseDelayMs) || 0) * 2 ** attempt,
@@ -353,6 +383,9 @@ function retryDelay(attempt, baseDelayMs, maxDelayMs, randomImpl) {
   return Math.round(exponential * (0.75 + randomImpl() * 0.5));
 }
 
+/**
+ * Parse upstream metadata as JSON and wrap parse failures in a recoverable e-GP error.
+ */
 async function readMetadataJson(response, sourceName) {
   try {
     return await response.json();
@@ -368,6 +401,10 @@ async function readMetadataJson(response, sourceName) {
   }
 }
 
+/**
+ * Collect response bytes while enforcing declared and actual size limits; return the
+ * assembled buffer.
+ */
 async function readLimitedBody(response, maxBytes) {
   const declaredLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {

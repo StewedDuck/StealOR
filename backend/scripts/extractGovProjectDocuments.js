@@ -25,6 +25,9 @@ const PROJECT_PROJECTION = {
   documents: 1,
 };
 
+/**
+ * Read the value after a CLI flag; reject missing values or another flag in its place.
+ */
 function requireValue(argv, index, flag) {
   const value = argv[index + 1];
   if (!value || value.startsWith("--")) {
@@ -33,6 +36,9 @@ function requireValue(argv, index, flag) {
   return value;
 }
 
+/**
+ * Convert a CLI value into a positive integer or report which flag is invalid.
+ */
 function positiveInteger(value, flag) {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) {
@@ -41,6 +47,9 @@ function positiveInteger(value, flag) {
   return parsed;
 }
 
+/**
+ * Validate the delay between downloads against the supported range.
+ */
 function boundedDelay(value = DEFAULT_DELAY_MS) {
   const delay = Number(value);
   if (!Number.isInteger(delay) || delay < 0 || delay > MAX_DELAY_MS) {
@@ -49,6 +58,9 @@ function boundedDelay(value = DEFAULT_DELAY_MS) {
   return delay;
 }
 
+/**
+ * Validate the archive download limit in megabytes.
+ */
 function boundedMaxDownloadMb(value = DEFAULT_MAX_DOWNLOAD_MB) {
   const maxDownloadMb = Number(value);
   if (
@@ -63,6 +75,9 @@ function boundedMaxDownloadMb(value = DEFAULT_MAX_DOWNLOAD_MB) {
   return maxDownloadMb;
 }
 
+/**
+ * Validate the per-request download timeout in milliseconds.
+ */
 function boundedDownloadTimeoutMs(value = DEFAULT_DOWNLOAD_TIMEOUT_MS) {
   const timeoutMs = Number(value);
   if (
@@ -77,6 +92,9 @@ function boundedDownloadTimeoutMs(value = DEFAULT_DOWNLOAD_TIMEOUT_MS) {
   return timeoutMs;
 }
 
+/**
+ * Return a shared hook that delays each download after the first across this run.
+ */
 function createDownloadThrottle(delayMs, dependencies = {}) {
   const delay = boundedDelay(delayMs);
   const sleep =
@@ -91,6 +109,10 @@ function createDownloadThrottle(delayMs, dependencies = {}) {
   };
 }
 
+/**
+ * Parse project selection and extraction options. Default to planning; require the
+ * explicit confirmation string for downloads/file writes.
+ */
 function parseArgs(argv = process.argv.slice(2)) {
   const options = {
     source: null,
@@ -190,6 +212,10 @@ function parseArgs(argv = process.argv.slice(2)) {
   return options;
 }
 
+/**
+ * Describe which stored references would be extracted, with no downloads or extraction
+ * writes.
+ */
 function createDryRunReport(projects, options = {}) {
   if (options.apply) {
     throw new Error("Apply execution is not available in the planning stage");
@@ -215,6 +241,10 @@ function createDryRunReport(projects, options = {}) {
   };
 }
 
+/**
+ * Read selected projects and document references from MongoDB, reporting a missing
+ * explicit project separately.
+ */
 async function resolveProjects(options, dependencies = {}) {
   const collection = dependencies.collection;
   if (!collection) throw new TypeError("collection is required");
@@ -253,6 +283,9 @@ async function resolveProjects(options, dependencies = {}) {
   };
 }
 
+/**
+ * Initialize project/category outcome counts for an extraction run.
+ */
 function createApplySummary(totalProjects) {
   return {
     projects: totalProjects,
@@ -264,6 +297,10 @@ function createApplySummary(totalProjects) {
   };
 }
 
+/**
+ * Run extraction sequentially with download size/time limits; isolate project failures and
+ * aggregate category results.
+ */
 async function executeProjects(projects, options, dependencies = {}) {
   const processProject =
     dependencies.processProjectDocumentExtractions ||
@@ -318,6 +355,10 @@ async function executeProjects(projects, options, dependencies = {}) {
   return { reports, summary };
 }
 
+/**
+ * Connect to MongoDB, select records, then plan or execute ZIP-to-PDF extraction and print
+ * a report. Disconnect in finally; MongoDB records are not updated here.
+ */
 async function run(argv = process.argv.slice(2), dependencies = {}) {
   const options = parseArgs(argv);
   const mongo = dependencies.mongoose || mongoose;

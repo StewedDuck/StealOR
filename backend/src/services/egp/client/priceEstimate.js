@@ -16,6 +16,10 @@ const { createDocumentMetadata } = require("./metadata");
 const { encryptAnnouncementData } = require("./publicAnnouncement");
 const { getChunkedDocumentInfo } = require("./downloads");
 
+/**
+ * Query the primary price-archive endpoint; return normalized metadata or null when it
+ * supplies no usable file ID.
+ */
 async function getPrimaryPriceEstimateMetadata(projectId, options) {
   const url = new URL(
     "/egp-doc-price-estimate-service/dpe-common/infoDocPriceestZipHis",
@@ -38,6 +42,10 @@ async function getPrimaryPriceEstimateMetadata(projectId, options) {
   });
 }
 
+/**
+ * Query the project-service fallback using its configured API key and select the last
+ * usable archive record.
+ */
 async function getFallbackPriceEstimateMetadata(projectId, options) {
   const apiKey = String(
     options.projectServiceApiKey || process.env.EGP_PROJECT_SERVICE_API_KEY || ""
@@ -80,6 +88,10 @@ async function getFallbackPriceEstimateMetadata(projectId, options) {
   });
 }
 
+/**
+ * Reuse public price evidence within this discovery run; remove failed lookups from the
+ * optional cache.
+ */
 async function getPublicPriceEvidence(projectId, options) {
   const cache = options.metadataCache instanceof Map ? options.metadataCache : null;
   const cacheKey = `public-price-evidence:${projectId}`;
@@ -95,6 +107,10 @@ async function getPublicPriceEvidence(projectId, options) {
   }
 }
 
+/**
+ * Obtain an announcement token, project details and the public GreenBook records used by
+ * legacy and chunked lookups.
+ */
 async function getPublicPriceEvidenceUncached(projectId, options) {
   const tokenUrl = new URL(`${ANNOUNCEMENT_PATH}/generateToken`, EGP_BASE_URL);
   const firstKey = encryptAnnouncementData({ projectId });
@@ -161,6 +177,9 @@ async function getPublicPriceEvidenceUncached(projectId, options) {
   return { token, detail, greenBookPayload, records };
 }
 
+/**
+ * Find a BOQ record with a valid legacy price filename belonging to this project.
+ */
 function legacyPriceRecord(records, projectId) {
   if (!Array.isArray(records)) return null;
   return records.find((item) => {
@@ -174,6 +193,10 @@ function legacyPriceRecord(records, projectId) {
   });
 }
 
+/**
+ * Convert a verified public legacy price filename into metadata for filename-based
+ * downloading.
+ */
 async function getLegacyPriceEstimateMetadata(projectId, options) {
   const evidence = await getPublicPriceEvidence(projectId, options);
   if (!evidence) return null;
@@ -188,6 +211,10 @@ async function getLegacyPriceEstimateMetadata(projectId, options) {
   });
 }
 
+/**
+ * Create an invalid-response error when public evidence cannot safely resolve a chunked
+ * price document.
+ */
 function unresolvedChunkError(message) {
   return new EgpServiceError(message, 502, {
     code: "EGP_PRICE_CHUNK_UNRESOLVED",
@@ -195,6 +222,10 @@ function unresolvedChunkError(message) {
   });
 }
 
+/**
+ * Resolve a public BOQ UUID only after checking project, publication and procurement
+ * state; validate chunk info and return download metadata.
+ */
 async function getChunkedPriceEstimateMetadata(projectId, options) {
   const evidence = await getPublicPriceEvidence(projectId, options);
   if (!evidence) return null;
@@ -273,6 +304,10 @@ async function getChunkedPriceEstimateMetadata(projectId, options) {
   });
 }
 
+/**
+ * Try primary, project-service, legacy and chunked discovery in order. Return the first
+ * result with lookup diagnostics; continue only for allowed errors.
+ */
 async function discoverPriceEstimateMetadata(projectId, options = {}) {
   const safeProjectId = validateProjectId(projectId);
   const discoveryOptions = {
@@ -322,6 +357,10 @@ async function discoverPriceEstimateMetadata(projectId, options = {}) {
   });
 }
 
+/**
+ * Decide whether a lookup failure permits the next strategy; rate-limit and other unlisted
+ * error kinds stop discovery.
+ */
 function canContinueLookup(error) {
   return [
     ERROR_KIND.CONFIGURATION,
