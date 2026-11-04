@@ -13,7 +13,7 @@ export default function LoginPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const user = session?.user;
+  const user = session?.accountSuspended ? undefined : session?.user;
   const ready = status !== "loading";
 
   useEffect(() => {
