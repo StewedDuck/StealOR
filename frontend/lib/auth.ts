@@ -37,12 +37,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return token;
           }
         }
-        if (!response.ok) return null;
+        // Keep the signed session during temporary backend failures.
+        // Protected APIs still check account status on every request.
+        if (!response.ok) return token;
         token.accountSuspended = false;
         return token;
       } catch {
         console.error("Unable to validate account status");
-        return null;
+        return token;
       }
     },
     async session({ session, token }) {

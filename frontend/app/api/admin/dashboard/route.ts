@@ -15,6 +15,11 @@ export async function GET(request: Request) {
             headers: { 'x-internal-secret': secret, 'x-admin-email': email },
             cache: 'no-store', signal: AbortSignal.timeout(15000),
         });
+        if (!response.headers.get('content-type')?.includes('application/json')) {
+            return NextResponse.json({ success: false, error: response.status === 404
+                ? 'ไม่พบ API แดชบอร์ด กรุณารีสตาร์ต backend เพื่อโหลดเส้นทางใหม่'
+                : `Backend ส่งข้อมูลที่ไม่ใช่ JSON (HTTP ${response.status})` }, { status: 502 });
+        }
         return NextResponse.json(await response.json(), { status: response.status });
     } catch {
         return NextResponse.json({ success: false, error: 'ไม่สามารถเชื่อมต่อข้อมูลแดชบอร์ดได้' }, { status: 502 });

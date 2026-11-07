@@ -166,9 +166,16 @@ async function submitVerification(req, res) {
             });
         }
 
+        const verificationId = new (require("mongoose").Types.ObjectId)();
+        // Persist bytes and ownership before accepting the verification request.
+        await require('../services/verificationStorage').persistVerificationDocument({
+            storedFileName: req.file.filename, fileName: req.file.originalname,
+        }, { verificationId, userId: user._id }).then(saved => { if (!saved) throw new Error('Uploaded verification document is missing'); });
+
         // Create Verification
         const verification =
             await IdentityVerification.create({
+                _id: verificationId,
                 userId: user._id,
 
                 citizenId: citizenId.trim(),
@@ -634,8 +641,8 @@ async function getVerificationDocument(req, res) {
             });
         }
 
-        const filePath = await require('../services/verificationStorage').resolveVerificationDocument(verification.document);
-        if (!filePath) {
+        const fileData = await require('../services/verificationStorage').readVerificationDocument(verification.document);
+        if (!fileData) {
             return res.status(404).json({ success: false, code: 'VERIFICATION_FILE_MISSING',
                 error: 'ไม่พบไฟล์เอกสารยืนยันตัวตนในพื้นที่จัดเก็บ กรุณาอัปโหลดเอกสารอีกครั้ง' });
         }
@@ -654,7 +661,7 @@ async function getVerificationDocument(req, res) {
             )}"`
         );
 
-        return res.sendFile(filePath);
+        return res.send(fileData);
 
     } catch (error) {
 

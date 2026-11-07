@@ -170,6 +170,9 @@ const {
 Module.prototype.require = originalRequire;
 require('../src/services/notifications/deliveryService').enqueueEmail = async (...args) => { queuedEmailCalls.push(args); };
 
+// Controller tests isolate shared storage; byte persistence is tested separately.
+require('../src/services/verificationStorage').persistVerificationDocument = async () => true;
+
 // Helpers
 function createUser({
     id,

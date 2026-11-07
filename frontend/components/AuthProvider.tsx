@@ -85,7 +85,11 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
         });
     }
 
-    const ready = status !== "loading";
+    // Wait until the session has also been applied to the context user.
+    const sessionEmail = session?.user?.email?.trim().toLowerCase();
+    const ready = status !== "loading" && (sessionEmail
+        ? user?.email === sessionEmail
+        : user === null);
 
     return (
         <AuthContext.Provider
