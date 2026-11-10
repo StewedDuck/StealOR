@@ -415,6 +415,7 @@ async function analyzeProcurementInput(input, options = {}) {
     referencePriceEstimate: [], allocatedBudget: [], torSummaryItems: [],
     biddingClosingDate: [], documentAssessment: [],
   };
+  let isBangkokArea = false;
   const rejectedCandidates = [];
   // เก็บทั้ง raw และ validated candidate เพื่อ debug ได้จาก analysis.json
   // โดยไม่ต้องเรียก Gemini ซ้ำ และยังคง rejectedCandidates สำหรับ consumer เดิม
@@ -468,6 +469,9 @@ async function analyzeProcurementInput(input, options = {}) {
             tokenUsage: diagnostics.tokenUsage,
             outcome: diagnostics.outcome,
           });
+          if (response.is_bangkok_area === true) {
+          isBangkokArea = true;
+      }
         },
       });
       for (const fieldName of PRICE_FIELDS) {
@@ -539,6 +543,7 @@ async function analyzeProcurementInput(input, options = {}) {
     analysisVersion: ANALYSIS_VERSION,
     promptVersion: PROMPT_VERSION,
     projectId: input.projectId,
+    is_bangkok_area: isBangkokArea,
     generatedAt: new Date(projectCompletedAtMs).toISOString(),
     fingerprint,
     model: { provider: "vertex-ai", name: config.model, location: config.location },

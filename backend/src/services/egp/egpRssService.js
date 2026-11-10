@@ -57,7 +57,7 @@ async function fetchEgpRssAnnouncements(options = {}) {
       `e-GP RSS Request Failed: HTTP ${response.status} ${response.statusText}`
     );
   }
-x
+
   const xmlText = await response.text();
   const parser = new XMLParser({
     ignoreAttributes: false,

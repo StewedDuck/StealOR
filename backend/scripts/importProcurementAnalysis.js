@@ -169,14 +169,42 @@ async function run(argv = process.argv.slice(2), dependencies = {}) {
       return output;
     }
     const localAnalyses = await loadLocalAnalyses(options, dependencies);
-    const projectIds = [...new Set(localAnalyses.map((item) => item.analysis?.projectId || item.projectId).filter((id) => /^\d{11}$/.test(id)))];
+    const validBangkokAnalyses = [];
+    const nonBangkokProjectIds = [];
+
+    for (const item of localAnalyses) {
+      // ถ้าไม่ได้ระบุว่าเป็น true (หมายถึงเป็นต่างจังหวัด หรือไม่ระบุ)
+      if (item.analysis && item.analysis.is_bangkok_area !== true) {
+        nonBangkokProjectIds.push(item.projectId);
+      } else {
+        validBangkokAnalyses.push(item);
+      }
+    }
+
+    if (nonBangkokProjectIds.length > 0 && options.apply) { // ลบจริงเมื่อรันด้วยโหมด --apply เท่านั้น
+       console.log(`\n🧹 [Cleanup] พบโครงการที่อยู่นอกพื้นที่ กทม. จำนวน ${nonBangkokProjectIds.length} โครงการ`);
+       console.log(`🔥 ทำการลบออกจาก Database...`);
+       
+       for (const pId of nonBangkokProjectIds) {
+           await model.deleteOne({ project_id: pId });
+           console.log(`   - ลบโครงการ: ${pId}`);
+       }
+       console.log(`✅ ลบสำเร็จ!`);
+       
+       if (validBangkokAnalyses.length === 0) {
+           console.log("ไม่มีโครงการใน กทม. ให้ทำต่อ จบการทำงาน Pipeline");
+           return { mode: "cleanup-only", deleted: nonBangkokProjectIds };
+       }
+    }
+
+    const projectIds = [...new Set(validBangkokAnalyses.map((item) => item.analysis?.projectId || item.projectId).filter((id) => /^\d{11}$/.test(id)))];
     const projects = await findProjects(model.collection, projectIds);
-    const plan = buildImportPlan(localAnalyses, projects);
+    const plan = buildImportPlan(validBangkokAnalyses, projects);
     let backupPath = null;
     let applyResults = [];
     let verification = [];
     if (options.verify) {
-      verification = localAnalyses.map((item) => {
+      verification = validBangkokAnalyses.map((item) => {
         const project = projects.find((candidate) => candidate.project_id === item.projectId);
         const planned = plan.plans.find((candidate) => candidate.projectId === item.projectId);
         return { projectId: item.projectId, verified: Boolean(project && !planned && plan.reports.some((report) => report.projectId === item.projectId && report.outcome === "unchanged")) };
