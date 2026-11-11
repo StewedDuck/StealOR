@@ -3,6 +3,7 @@ const adminAuth = require('../middleware/adminAuth');
 const User = require('../models/User');
 const Tor = require('../models/Tor');
 const IdentityVerification = require('../models/IdentityVerification');
+const adminController = require('../controllers/adminController');
 
 async function getSummary(req, res) {
     try {
@@ -41,5 +42,6 @@ router.get('/charts', adminAuth, async (req, res) => {
     }
 });
 router.get('/', adminAuth, getSummary);
+router.get('/logs', adminAuth, adminController.getActivityLogs);
 module.exports = router;
 module.exports.getSummary = getSummary;

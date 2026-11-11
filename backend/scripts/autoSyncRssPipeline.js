@@ -3,7 +3,7 @@ const path = require("path");
 const mongoose = require("mongoose");
 const cron = require("node-cron");
 const { execSync } = require("child_process");
-
+const { logActivity } = require('../src/utils/logger');
 const { fetchEgpRssAnnouncements } = require("../src/services/egp/egpRssService");
 const GovProject = require("../src/models/GovProject");
 const { VertexAI, SchemaType } = require("@google-cloud/vertexai");
@@ -91,6 +91,12 @@ async function pollOnce() {
     // รวมข้อมูล
     const items = [...draftTors, ...invitations];
     console.log(`\n✅ รวมประกาศที่พบทั้งหมด: ${items.length} รายการ`);
+    await logActivity(
+    'system', 
+    'StealOR Bot', 
+    'อัปเดต e-GP RSS อัตโนมัติ', 
+    `ตรวจสอบพบประกาศทั้งหมด ${items.length} รายการ`
+    );
 
     if (items.length === 0) {
         console.log(`🤷‍♂️ ไม่มีประกาศในวันนี้ (อาจเป็นวันหยุด หรือระบบ e-GP ยังไม่อัปเดต)`);
@@ -118,6 +124,13 @@ async function pollOnce() {
             contract_status: "หนังสือเชิญชวน/ประกาศเชิญชวน"
           });
           console.log(`  📝 สร้าง Placeholder ใน DB เรียบร้อย`);
+          
+          await logActivity(
+              'system', 
+              'StealOR Bot', 
+              'พบโครงการไอทีใหม่', 
+              `โครงการ: ${item.title} (ID: ${item.projectId})`
+          );
         }
 
         console.log(`  🚀 กำลังเตะเข้า Safe Pipeline...`);

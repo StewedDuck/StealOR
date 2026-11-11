@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const User = require("../models/User");
+const { logActivity } = require('../utils/logger');
 
 function formatUser(user) {
     return {
@@ -110,6 +111,9 @@ exports.updateUserStatus = async (req, res) => {
 
         user.isActive = isActive;
         await user.save();
+
+        const actionText = isActive ? 'ปลดระงับบัญชีผู้ใช้งาน' : 'ระงับบัญชีผู้ใช้งาน';
+        await logActivity('user', req.adminEmail || 'Admin', actionText, `ผู้ใช้: ${user.email}`);
 
         return res.json({
             success: true,

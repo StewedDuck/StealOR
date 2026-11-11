@@ -108,6 +108,7 @@ export const ADMIN_GMAILS = [
   "stealors.admin@gmail.com",
   "cooldogng@gmail.com",
   "sorasit33825@gmail.com",
+  "jongchana.kh@ku.th"
 ];
 
 export function isAdminGmail(email: string): boolean {

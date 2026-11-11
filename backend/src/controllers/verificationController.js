@@ -212,6 +212,12 @@ async function submitVerification(req, res) {
         user.verificationReason = null;
 
         await user.save();
+        await logActivity(
+            'user', 
+            user.email, 
+            'ส่งคำขอยืนยันตัวตน', 
+            `ผู้ใช้: ${user.name} (${user.email})`
+        );
 
         // Notify Admins
         const admins = await User.find({
@@ -751,6 +757,7 @@ async function approveVerification(req, res) {
         owner.verificationReason = null;
         owner.accountRole = "project_owner";
         await owner.save();
+        await logActivity('user', req.adminEmail || 'Admin', 'อนุมัติยืนยันตัวตน', `ผู้ใช้: ${owner.email}`);
 
 
         // Notify Project Owner
@@ -902,6 +909,7 @@ async function rejectVerification(req, res) {
         owner.verificationReason = rejectionReason;
         owner.accountRole = "contractor";
         await owner.save();
+        await logActivity('user', req.adminEmail || 'Admin', 'ปฏิเสธยืนยันตัวตน', `ผู้ใช้: ${owner.email} | เหตุผล: ${rejectionReason}`);
 
         // Notify Project Owner
         await saveVerificationNotification(
