@@ -3,6 +3,7 @@ const Tor = require("../models/Tor");
 const Bookmark = require("../models/Bookmark");
 const User = require("../models/User");
 const { governmentTorDates } = require('../services/governmentTorDates');
+const { logActivity } = require('../utils/logger');
 
 
 // const DEMO_OWNER_ID = "demo-project-owner";
@@ -77,6 +78,8 @@ async function createTor(req, res) {
       ownerId: req.ownerId,
       status: "draft",
     });
+    await logActivity('tor', req.ownerId, 'สร้างฉบับร่าง TOR', `โครงการ: ${tor.projectName || 'ไม่ระบุชื่อ'}`);
+
     return res.status(201).json({ success: true, data: tor, message: "TOR draft created successfully" });
   } catch (error) {
     return handleError(res, error);
@@ -158,11 +161,12 @@ async function updateTor(req, res) {
       })
     };
     await notifyDraftUpdated(tor);
+    await logActivity('tor', req.ownerId, 'เผยแพร่ TOR', `โครงการ: ${tor.projectName}`);
 
     return res.json({ 
       success: true, 
       data: tor, 
-      message: "TOR draft updated successfully" 
+      message: "เผยแพร่ TOR สำเร็จ",
     });
   } catch (error) {
     return handleError(res, error);

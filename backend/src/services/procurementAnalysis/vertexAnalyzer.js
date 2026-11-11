@@ -10,7 +10,7 @@
  */
 const { TOR_SECTIONS, normalizeText } = require("./evidenceValidator");
 
-const PROMPT_VERSION = "2026-10-12.5";
+const PROMPT_VERSION = "2026-11-08.1";
 const DEFAULT_REQUEST_DELAY_MS = 1_500;
 // Large whole-document TOR responses have exceeded both 16,384 and 32,768
 // tokens and ended mid-JSON. Use Gemini 2.5 Flash's documented maximum while
@@ -47,6 +47,7 @@ const DEADLINE_CANDIDATE = {
 const CANDIDATE_SCHEMA = {
   type: "OBJECT",
   properties: {
+    is_bangkok_area: { type: "BOOLEAN", description: "true if delivery/project location is in Bangkok or perimeter, false otherwise" },
     referencePriceEstimate: {
       type: "ARRAY",
       maxItems: 3,
@@ -93,6 +94,7 @@ const CANDIDATE_SCHEMA = {
     warnings: { type: "ARRAY", maxItems: 5, items: { type: "STRING" } },
   },
   required: [
+    "is_bangkok_area",
     "referencePriceEstimate",
     "allocatedBudget",
     "torSummaryItems",
@@ -102,6 +104,10 @@ const CANDIDATE_SCHEMA = {
   ],
 };
 
+/**
+ * Build instructions and the full source text for one document, limiting requested fields
+ * according to its category and label.
+ */
 function buildPrompt(document) {
   const priceEligible = document.archiveCategory === "priceEstimate" && document.label !== "JUNK";
   const torEligible = ["TOR", "BIDDING_NOTICE", "DRAFT_NOTICE"].includes(document.label);
@@ -119,6 +125,7 @@ function buildPrompt(document) {
     "DEADLINE: biddingClosingDate is only the final bid/proposal submission deadline.",
     "Never classify a draft public-comment deadline, publication, bid-opening, download, signing, delivery, or completion date as biddingClosingDate.",
     "DOCUMENT LIFECYCLE: draft requires textual draft evidence; invitation requires invitation/final bidding-document evidence. Do not infer lifecycle from archive category or supplied label alone.",
+    "LOCATION: Evaluate the delivery location or project site. Set is_bangkok_area to true ONLY if it is explicitly in Bangkok (กรุงเทพมหานคร) or its perimeter. Otherwise, return false.",
     "Prefer quotations of at most 300 characters. Empty arrays are correct when evidence is absent.",
     "",
     `PROJECT_ID: ${document.projectId}`,
@@ -151,6 +158,10 @@ function createVertexRequestScheduler(options = {}) {
   };
 }
 
+/**
+ * Normalize available token-usage fields from the model response; preserve unavailable
+ * counts as null.
+ */
 function extractTokenUsage(response) {
   const usage = response && response.usageMetadata;
   if (!usage || typeof usage !== "object") return null;
@@ -169,6 +180,11 @@ function extractTokenUsage(response) {
   };
 }
 
+/**
+ * Make one whole-document Gemini request with the JSON schema and record timing/token
+ * diagnostics. Parse the JSON and normalize expected array fields; quotation checks happen
+ * later in evidenceValidator.
+ */
 async function requestVertexCandidates(client, config, document, options = {}) {
   const basePrompt = buildPrompt(document);
   const now = options.now || Date.now;
@@ -232,6 +248,7 @@ async function requestVertexCandidates(client, config, document, options = {}) {
   ]) {
     if (!Array.isArray(parsed[key])) parsed[key] = [];
   }
+  if (typeof parsed.is_bangkok_area !== "boolean") parsed.is_bangkok_area = false;
   return parsed;
 }
 

@@ -451,7 +451,11 @@
 
 /* PENDING BUTTON */
 
-.pending-item button {
+.pending-item button,
+.pending-item > a {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
     flex-shrink: 0;
 
     height: 40px;
@@ -474,7 +478,8 @@
 }
 
 
-.pending-item button:hover {
+.pending-item button:hover,
+.pending-item > a:hover {
     background: #F2F4F5;
 }
 

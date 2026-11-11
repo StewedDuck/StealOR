@@ -32,6 +32,9 @@ function createDocumentMetadata({
   return { ...metadata, downloadUrl: buildDocumentDownloadUrl(metadata) };
 }
 
+/**
+ * Represent confirmed document absence using the same metadata shape as successful discovery.
+ */
 function createNotFoundMetadata(projectId, category, lookupMethod) {
   return {
     projectId,
@@ -46,6 +49,9 @@ function createNotFoundMetadata(projectId, category, lookupMethod) {
   };
 }
 
+/**
+ * Return candidate diagnostics without selecting a draft when discovery cannot identify one safely.
+ */
 function createAmbiguousMetadata(projectId, candidates, details = {}) {
   return {
     projectId,
@@ -63,6 +69,9 @@ function createAmbiguousMetadata(projectId, candidates, details = {}) {
   };
 }
 
+/**
+ * Copy the locator and revision fields needed to explain a discovered candidate.
+ */
 function createCandidateDiagnostic(candidate) {
   const diagnostic = {};
   for (const field of [
@@ -83,6 +92,9 @@ function createCandidateDiagnostic(candidate) {
   return diagnostic;
 }
 
+/**
+ * Build the URL for the selected download method; legacy draft transfer parameters are handled by the downloader.
+ */
 function buildDocumentDownloadUrl(metadata) {
   if (metadata.downloadMethod === DOWNLOAD_METHOD.CHUNKED_DOCUMENT) {
     const url = new URL("/egp-agpc01-web/common/download/", EGP_BASE_URL);

@@ -20,16 +20,25 @@ const TOR_SECTIONS = [
   "deliverable",
 ];
 
+/**
+ * Normalize line endings so source and candidate quotations can be compared consistently.
+ */
 function normalizeText(value) {
   return String(value || "").replace(/\r\n?/g, "\n");
 }
 
+/**
+ * Convert a character offset to a one-based line number for source traceability.
+ */
 function lineNumberAt(text, offset) {
   let line = 1;
   for (let index = 0; index < offset; index += 1) if (text.charCodeAt(index) === 10) line += 1;
   return line;
 }
 
+/**
+ * Build an evidence record linking a source quotation to document references and character/line positions.
+ */
 function evidenceFor(document, quote, charStart, charEnd, extra = {}) {
   return {
     documentId: document.documentId,
@@ -48,6 +57,9 @@ function evidenceFor(document, quote, charStart, charEnd, extra = {}) {
   };
 }
 
+/**
+ * Check that a nonempty quotation occurs exactly once in the source; attach evidence or a rejection reason.
+ */
 function verifyExactQuote(document, candidate) {
   const text = normalizeText(document.text);
   const quote = normalizeText(candidate && candidate.quote);
@@ -70,6 +82,9 @@ function verifyExactQuote(document, candidate) {
   return { ...base, quote, evidenceStatus: "VERIFIED", evidence: evidenceFor(document, quote, charStart, charEnd) };
 }
 
+/**
+ * Recover a unique whitespace-insensitive match and map it back to a verbatim source quotation.
+ */
 function recoverWhitespaceEvidence(document, candidate) {
   const requestedQuote = normalizeText(candidate && candidate.quote).trim();
   if (!requestedQuote || requestedQuote.length > 2_000 || requestedQuote.includes("...")) return candidate;
@@ -116,11 +131,17 @@ function recoverWhitespaceEvidence(document, candidate) {
   return recovered;
 }
 
+/**
+ * Try exact quotation matching first, then attempt whitespace-only recovery if needed.
+ */
 function verifyWithRecovery(document, candidate) {
   const verified = verifyExactQuote(document, candidate);
   return verified.evidenceStatus === "VERIFIED" ? verified : recoverWhitespaceEvidence(document, verified);
 }
 
+/**
+ * Convert Thai and Bengali digits to Arabic digits while keeping character positions aligned.
+ */
 function thaiDigitsToArabic(value) {
   const thai = "๐๑๒๓๔๕๖๗๘๙";
   const bengali = "০১২৩৪৫৬৭৮৯";
@@ -130,10 +151,16 @@ function thaiDigitsToArabic(value) {
   });
 }
 
+/**
+ * Extract numeric-looking tokens after digit conversion; does not yet interpret separators.
+ */
 function extractMoneyTokens(value) {
   return thaiDigitsToArabic(value).match(/\d(?:[\d.,]*\d)?/g) || [];
 }
 
+/**
+ * Interpret decimal/thousands separators and return a numeric string, or null for an invalid token.
+ */
 function normalizeMoneyToken(value) {
   const token = thaiDigitsToArabic(value).replace(/\s/g, "");
   if (!/^\d(?:[\d.,]*\d)?$/.test(token)) return null;
@@ -153,6 +180,9 @@ function normalizeMoneyToken(value) {
   return `${integerPart}.${decimalPart}`;
 }
 
+/**
+ * Parse the first monetary token as a finite nonnegative number, or return null.
+ */
 function parseMoney(value) {
   const token = extractMoneyTokens(value)[0];
   const normalized = token && normalizeMoneyToken(token);
@@ -161,6 +191,9 @@ function parseMoney(value) {
   return Number.isFinite(amount) && amount >= 0 ? amount : null;
 }
 
+/**
+ * Check whether the quotation contains the candidate amount within the configured numeric tolerance.
+ */
 function amountOccursInQuote(amount, quote) {
   if (amount == null) return false;
   const values = extractMoneyTokens(quote)
@@ -171,6 +204,9 @@ function amountOccursInQuote(amount, quote) {
   return values.some((value) => Math.abs(value - amount) < 0.005);
 }
 
+/**
+ * Collect and prioritize amount/date text anchors used to locate supporting source passages.
+ */
 function candidateAnchors(groupName, candidate) {
   const fields = PRICE_FIELDS.includes(groupName)
     ? [candidate.amountText, candidate.originalThaiText]
@@ -184,6 +220,9 @@ function candidateAnchors(groupName, candidate) {
   return [...new Set(anchors)].sort((left, right) => right.length - left.length);
 }
 
+/**
+ * Search for a unique candidate anchor and verify a surrounding source quotation.
+ */
 function recoverExactEvidence(document, groupName, candidate) {
   const text = normalizeText(document.text);
   for (const anchor of candidateAnchors(groupName, candidate)) {
@@ -208,6 +247,9 @@ function recoverExactEvidence(document, groupName, candidate) {
   return candidate;
 }
 
+/**
+ * Expand verified evidence into preceding lines to include the required context without opposing context.
+ */
 function expandVerifiedEvidenceToContext(document, candidate, contextPattern, maxPreviousLines = 3, opposingPattern = null) {
   if (candidate?.evidenceStatus !== "VERIFIED" || !candidate.evidence || contextPattern.test(candidate.quote || "")) {
     return candidate;
@@ -237,6 +279,9 @@ function expandVerifiedEvidenceToContext(document, candidate, contextPattern, ma
   return candidate;
 }
 
+/**
+ * Find source passages supporting the amount and the correct price heading; preserve source offsets.
+ */
 function recoverPriceEvidenceByContext(document, fieldName, candidate, contextPattern, opposingPattern) {
   const text = normalizeText(document.text);
   // Some PDF fonts extract a single amount with mixed Thai/Bengali digit
@@ -297,6 +342,10 @@ function recoverPriceEvidenceByContext(document, fieldName, candidate, contextPa
   return recovered;
 }
 
+/**
+ * Require a price-estimate source, verified quotation, matching amount and correct price context.
+ * Keeps evidence verification separate from whether the price interpretation is rule-supported.
+ */
 function verifyPriceCandidate(document, fieldName, rawCandidate) {
   if ((document.archiveCategory || document.category) !== "priceEstimate" || document.label === "JUNK") {
     return { ...rawCandidate, fieldName, evidenceStatus: "REJECTED", interpretationStatus: "REJECTED", rejectionReason: "outside_price_estimate_archive" };
@@ -360,6 +409,9 @@ const THAI_MONTHS = new Map([
   ["พฤศจิกายน", 11], ["พ.ย.", 11], ["ธันวาคม", 12], ["ธ.ค.", 12],
 ]);
 
+/**
+ * Parse supported Thai month names and Buddhist/Common Era years into YYYY-MM-DD; return null for invalid dates.
+ */
 function parseThaiDate(value) {
   const normalized = thaiDigitsToArabic(value).replace(/พ\.ศ\.?/g, " ").replace(/\s+/g, " ").trim();
   const monthPattern = [...THAI_MONTHS.keys()].sort((a, b) => b.length - a.length).map((name) => name.replace(/\./g, "\\.")).join("|");
@@ -375,6 +427,9 @@ function parseThaiDate(value) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+/**
+ * Extract valid clock times; treat the last as the end and the first as the start when multiple times exist.
+ */
 function parseTimeWindow(value) {
   const matches = [...thaiDigitsToArabic(value).matchAll(/(\d{1,2})[.:](\d{2})/g)]
     .map((match) => ({ hour: Number(match[1]), minute: Number(match[2]) }))
@@ -384,6 +439,10 @@ function parseTimeWindow(value) {
   return { start: matches.length > 1 ? matches[0] : null, end: matches[matches.length - 1] };
 }
 
+/**
+ * Verify source evidence and require bidding-submission context plus a parseable date.
+ * Produces a Bangkok closing datetime only when an end time is also available.
+ */
 function verifyDeadlineCandidate(document, groupName, rawCandidate) {
   let candidate = verifyWithRecovery(document, rawCandidate);
   if (candidate.evidenceStatus !== "VERIFIED") candidate = recoverExactEvidence(document, groupName, candidate);
@@ -405,6 +464,9 @@ function verifyDeadlineCandidate(document, groupName, rawCandidate) {
   };
 }
 
+/**
+ * Verify a TOR summary item, correct selected qualification categories using context, and enforce eligible sections/labels.
+ */
 function verifyTorItem(document, rawCandidate) {
   const candidate = verifyWithRecovery(document, rawCandidate);
   const labelEligible = ["TOR", "BIDDING_NOTICE", "DRAFT_NOTICE"].includes(document.label);
@@ -426,6 +488,9 @@ function verifyTorItem(document, rawCandidate) {
   };
 }
 
+/**
+ * Require verified source wording supporting the proposed draft or invitation lifecycle.
+ */
 function verifyLifecycleCandidate(document, rawCandidate) {
   const candidate = verifyWithRecovery(document, rawCandidate);
   const quote = candidate.quote || "";
@@ -441,6 +506,9 @@ function verifyLifecycleCandidate(document, rawCandidate) {
   };
 }
 
+/**
+ * Accept a candidate only when both its quotation and its interpretation pass their respective checks.
+ */
 function supported(candidate) {
   return candidate.evidenceStatus === "VERIFIED" && candidate.interpretationStatus === "RULE_SUPPORTED";
 }

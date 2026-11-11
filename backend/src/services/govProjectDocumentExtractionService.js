@@ -40,6 +40,10 @@ const {
   temporaryZipPaths,
 } = require("./govProjectDocumentExtraction/temporaryZipStore");
 
+/**
+ * Convert a Mongoose document to a plain object, preserve ordinary objects and fall back
+ * to an empty object.
+ */
 function asPlainObject(value) {
   if (!value || typeof value !== "object") return {};
   return typeof value.toObject === "function"
@@ -47,12 +51,19 @@ function asPlainObject(value) {
     : value;
 }
 
+/**
+ * Explain why a stored document reference cannot be used for downloading.
+ */
 function unusableReferenceReason(reference) {
   const status = String(reference.status || "not_checked");
   if (status !== "available") return `status_${status}`;
   return "missing_or_invalid_locator";
 }
 
+/**
+ * Inspect stored references and report which categories would download or be skipped;
+ * performs no downloads or file writes.
+ */
 function planProjectDocumentExtraction(projectInput) {
   const project = asPlainObject(projectInput);
   const projectId = validateProjectId(String(project.project_id || "").trim());
@@ -96,6 +107,10 @@ function planProjectDocumentExtraction(projectInput) {
   };
 }
 
+/**
+ * Build extraction plans for multiple projects, isolating invalid projects and returning
+ * aggregate counts.
+ */
 function planDocumentExtractionBatch(projects) {
   if (!Array.isArray(projects)) throw new TypeError("projects must be an array");
 
@@ -134,6 +149,10 @@ function planDocumentExtractionBatch(projects) {
   return { reports, summary };
 }
 
+/**
+ * Build the extraction manifest and delegate publication of staged PDFs into the category
+ * directory.
+ */
 async function publishStagedDocumentCategory(input, dependencies = {}) {
   const stagedExtraction = input?.stagedExtraction;
   if (!stagedExtraction?.stagingDirectory || !Array.isArray(stagedExtraction.pdfs)) {
@@ -161,6 +180,10 @@ async function publishStagedDocumentCategory(input, dependencies = {}) {
   return { ...publication, manifest };
 }
 
+/**
+ * Check existing category artifacts against the expected source locator before deciding
+ * whether they can be reused.
+ */
 function verifyPublishedDocumentCategory(input, dependencies = {}) {
   return verifyCategoryArtifacts(
     {
@@ -171,6 +194,9 @@ function verifyPublishedDocumentCategory(input, dependencies = {}) {
   );
 }
 
+/**
+ * Build separate published and run-specific staging paths for one project/category.
+ */
 function extractionPaths(tempRoot, projectId, category, runId) {
   return {
     categoryDirectory: path.join(
@@ -190,6 +216,10 @@ function extractionPaths(tempRoot, projectId, category, runId) {
   };
 }
 
+/**
+ * Remove only empty project/run staging parents in the expected layout; return warnings
+ * instead of pruning an unexpected path.
+ */
 async function pruneRunOwnedStagingParents(
   stagingDirectory,
   stagingRoot,
@@ -236,6 +266,10 @@ async function pruneRunOwnedStagingParents(
   return warnings;
 }
 
+/**
+ * Mark stale references as requiring metadata refresh; classify other download failures
+ * without rediscovering metadata here.
+ */
 function classifiedDownloadError(error, adapter) {
   if (adapter.shouldRediscoverAfterDownloadError?.(error) === true) {
     const classified = extractionError(
@@ -258,6 +292,12 @@ function classifiedDownloadError(error, adapter) {
   return classified;
 }
 
+/**
+ * Reuse verified PDFs or a matching temporary ZIP, otherwise download from the stored
+ * reference. Stage and publish PDFs plus a manifest, then clean temporary artifacts. On
+ * failure, clean staging and report retained ZIP status. Does not extract text or perform
+ * OCR.
+ */
 async function processDocumentCategory(input, dependencies = {}) {
   const projectId = validateProjectId(String(input?.projectId || "").trim());
   const category = input?.category;
@@ -458,6 +498,10 @@ async function processDocumentCategory(input, dependencies = {}) {
   }
 }
 
+/**
+ * Process each stored document category sequentially and return per-category outcomes with
+ * extracted/skipped/failed totals.
+ */
 async function processProjectDocumentExtractions(
   projectInput,
   options = {},

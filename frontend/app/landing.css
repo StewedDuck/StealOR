@@ -23,7 +23,7 @@
 }
 @media(hover:hover) and (pointer:fine) {
   .lp-login:hover,.lp-button:hover { transform:translateY(-3px); box-shadow:0 7px 24px #9bc4dd26; }
-  .lp-text-link:hover,.lp-small-link:hover { transform:translateY(-2px); color:#fff; border-color:#d4e9f5; }
+  .lp-text-link:hover,.lp-small-link:hover { transform:translateY(-3px); color:#fff; border-color:#d4e9f5; text-shadow:0 0 16px #9bc4dd80; }
   .lp-page :is(.lp-button,.lp-text-link,.lp-small-link):hover svg { transform:translateX(5px); }
   .lp-nav-links a:hover { transform:translateY(-2px); }
   .lp-audience:hover,.lp-audience:focus-within {
@@ -55,3 +55,38 @@
     transition:none!important;
   }
 }
+
+/* Lift the sample TOR independently of its surrounding layout. */
+.lp-preview {
+  transition:transform .35s cubic-bezier(.2,.9,.3,1.35),
+    border-color .25s ease,box-shadow .25s ease;
+}
+@media(hover:hover) and (pointer:fine) {
+  .lp-preview:hover {
+    transform:translateY(-7px) scale(1.015);
+    border-color:#c8e1f0a6;
+    box-shadow:0 20px 40px #00000026,0 7px 24px #9bc4dd26,0 0 32px #9bc4dd18;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  .lp-preview:hover { transform:none; }
+}
+
+/* A blurred layer covers both the link interior and its surroundings evenly. */
+.lp-text-link,.lp-small-link { position:relative; isolation:isolate; }
+.lp-text-link::before,.lp-small-link::before {
+  content:"";
+  position:absolute;
+  inset:-8px -12px;
+  z-index:-1;
+  pointer-events:none;
+  border-radius:999px;
+  background:#9bc4dd;
+  filter:blur(18px);
+  opacity:0;
+  transition:opacity .25s ease;
+}
+@media(hover:hover) and (pointer:fine) {
+  .lp-text-link:hover::before,.lp-small-link:hover::before { opacity:.2; }
+}
+.lp-text-link:focus-visible::before,.lp-small-link:focus-visible::before { opacity:.2; }

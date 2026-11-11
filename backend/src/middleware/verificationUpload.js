@@ -1,7 +1,7 @@
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-
+const { logActivity } = require('../utils/logger');
 const { verificationDirectory: uploadDirectory } = require('../services/verificationStorage');
 
 fs.mkdirSync(uploadDirectory, {

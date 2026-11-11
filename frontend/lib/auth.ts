@@ -1,7 +1,14 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 
+declare module "next-auth" {
+  interface Session {
+    accountSuspended?: boolean;
+  }
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  pages: { error: "/auth/error" },
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -9,6 +16,44 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
+    async jwt({ token }) {
+      if (!token.email) return null;
+      try {
+        const response = await fetch(
+          `${process.env.INTERNAL_API_URL ?? "http://localhost:5000"}/api/users/status`,
+          {
+            headers: {
+              "x-profile-proxy-secret": process.env.TOR_PROXY_SECRET ?? "",
+              "x-profile-email": token.email,
+            },
+            cache: "no-store",
+            signal: AbortSignal.timeout(10000),
+          }
+        );
+        if (response.status === 403) {
+          const data = await response.json();
+          if (data.code === "ACCOUNT_SUSPENDED") {
+            token.accountSuspended = true;
+            return token;
+          }
+        }
+        // Keep the signed session during temporary backend failures.
+        // Protected APIs still check account status on every request.
+        if (!response.ok) return token;
+        token.accountSuspended = false;
+        return token;
+      } catch {
+        console.error("Unable to validate account status");
+        return token;
+      }
+    },
+    async session({ session, token }) {
+      session.accountSuspended = token.accountSuspended === true;
+      if (session.accountSuspended) {
+        session.user = { ...session.user, email: "", name: null, image: null };
+      }
+      return session;
+    },
     async signIn({ user }) {
       try {
         const response = await fetch (
@@ -29,6 +74,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         );
 
         if (!response.ok) {
+          if (response.status === 403) {
+            const data = await response.json();
+            if (data.code === "ACCOUNT_SUSPENDED") return "/account-suspended";
+          }
           console.error("Failed to sync user with backend:", response.statusText);
           return false;
         }
@@ -59,6 +108,7 @@ export const ADMIN_GMAILS = [
   "stealors.admin@gmail.com",
   "cooldogng@gmail.com",
   "sorasit33825@gmail.com",
+  "jongchana.kh@ku.th"
 ];
 
 export function isAdminGmail(email: string): boolean {

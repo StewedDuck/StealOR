@@ -6,6 +6,7 @@ import { getMatchingRefreshLabel } from "@/lib/matchingStatus";
 import { getEgpAnnouncementUrl } from '@/lib/torApi';
 import { Bookmark, ExternalLink, FileText, CalendarDays, Wallet, CheckCircle2, XCircle, CircleHelp, X, Building2 } from 'lucide-react';
 import { getTorProgressLabel, isTorCommentClosed, type TorProgressStatus } from '@/lib/torPublicationStatus';
+import TorDeadlineBadge from '@/components/TorDeadlineBadge';
 import TorCommentClosedBadge from '@/components/TorCommentClosedBadge';
 import { getTorDisplayDeadline } from '@/lib/torDeadline';
 import '@/app/contractor/matching/matching.css';
@@ -462,6 +463,9 @@ export function TorMatchingCard({ tor, matching, saved, bookmarkLoading = false,
     onDocuments: () => void;
 }) {
     const progressLabel = getTorProgressLabel(progressStatus);
+    const publicationStatus = progressStatus === 'draft' ? 'draft' : tor.publicationStatus;
+    const deadline = getTorDisplayDeadline(tor, publicationStatus);
+    const commentsClosed = isTorCommentClosed(tor, publicationStatus);
     const pass = matching.relevanceResults.filter(r => r.status === 'pass' || r.matchedGroups?.length > 0);
     const fail = matching.relevanceResults.filter(r => r.status === 'fail');
     const unknown = matching.relevanceResults.filter(r => r.status === 'unknown');
@@ -473,16 +477,16 @@ export function TorMatchingCard({ tor, matching, saved, bookmarkLoading = false,
                                 >
                                     <div className="tm-card-body">
                                         <div className="tm-card-badges">
-                                            <span className="tm-source">
+                                            <span className={`tor-source-badge tor-source-${tor.source}`}>
                                                 {tor.source === "government"
-                                                ? "TOR ราชการ"
-                                                : "TOR ภายใน"}
+                                                ? "รัฐบาล"
+                                                : "ภายใน"}
                                             </span>
 
-                                            <span className={`tm-open tm-publication-${progressStatus}`}>
+                                            <span className={`tor-status-badge tor-status-${progressStatus}`}>
                                                 {progressLabel}
                                             </span>
-                                            {isTorCommentClosed(tor, progressStatus === 'draft' ? 'draft' : tor.publicationStatus) && <TorCommentClosedBadge />}
+                                            {commentsClosed && <TorCommentClosedBadge />}
 
                                             <small>
                                                 {tor.projectId
@@ -491,14 +495,14 @@ export function TorMatchingCard({ tor, matching, saved, bookmarkLoading = false,
                                             </small>
                                         </div>
 
+                                        <h2>
+                                            {tor.projectName || "ไม่ระบุชื่อโครงการ"}
+                                        </h2>
+
                                         <p className="tm-agency">
                                             <Building2 size={14} />
                                             {tor.agencyName || "ไม่ระบุหน่วยงาน"}
                                         </p>
-
-                                        <h2>
-                                            {tor.projectName || "ไม่ระบุชื่อโครงการ"}
-                                        </h2>
 
                                         <div className="tm-meta">
                                             <span>
@@ -508,8 +512,9 @@ export function TorMatchingCard({ tor, matching, saved, bookmarkLoading = false,
                                             <span>Software Project</span>
                                             <span>
                                                 <CalendarDays size={15} />
-                                                ปิดรับ {formatDate(getTorDisplayDeadline(tor, progressStatus === 'draft' ? 'draft' : tor.publicationStatus))}
+                                                ปิดรับ {formatDate(deadline)}
                                             </span>
+                                            {!commentsClosed && <TorDeadlineBadge deadline={deadline} />}
                                         </div>
 
                                         {matching.isCachedSnapshot ? (

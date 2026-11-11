@@ -1,3 +1,4 @@
+const activeAccount = require("./activeAccount");
 const crypto = require("crypto");
 
 function adminAuth(req, res, next) {
@@ -26,7 +27,7 @@ function adminAuth(req, res, next) {
     }
 
     req.adminEmail = email;
-    next();
+    return activeAccount(email, res, next);
 }
 
 module.exports = adminAuth;

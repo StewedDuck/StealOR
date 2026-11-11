@@ -1,3 +1,8 @@
+/**
+ * e-GP adapter: gives application services one interface for metadata discovery
+ * and ZIP downloading across modern and legacy government endpoints.
+ * Endpoint-specific lookup, validation and transport live in ./client/.
+ */
 const {
   EGP_BASE_URL,
   DOCUMENT_CATEGORY,
@@ -38,6 +43,9 @@ const {
 } = require("./client/downloads");
 const { createEgpRequestCoordinator } = require("./client/transport");
 
+/**
+ * Convert a configuration value to a bounded nonnegative integer; reject invalid settings before requests start.
+ */
 function configuredInteger(value, name, maximum = 60_000) {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0 || parsed > maximum) {
@@ -46,6 +54,11 @@ function configuredInteger(value, name, maximum = 60_000) {
   return parsed;
 }
 
+/**
+ * Build the shared e-GP interface for discovering and downloading documents.
+ * Reads pacing/retry settings from options or environment variables and shares
+ * a request coordinator so calls can respect upstream rate limits.
+ */
 function createNationalEgpAdapter(defaultOptions = {}) {
   const configuredInterval = configuredInteger(
     defaultOptions.minRequestIntervalMs ??
@@ -129,6 +142,9 @@ function createNationalEgpAdapter(defaultOptions = {}) {
       })
     : null;
 
+  /**
+   * Combine adapter defaults with per-call overrides and choose the request coordinator for this call.
+   */
   function mergeRequestOptions(options) {
     const callOverridesFetch =
       options.fetchImpl && options.fetchImpl !== configuredOptions.fetchImpl;
@@ -208,6 +224,9 @@ const nationalEgpAdapter = createNationalEgpAdapter();
 
 // Compatibility wrapper retained for current services and tests while the
 // application is migrated incrementally to the adapter interface.
+/**
+ * Look up price-estimate metadata through the shared adapter; does not download the ZIP.
+ */
 function getPriceEstimateMetadata(projectId, options = {}) {
   return nationalEgpAdapter.discoverPriceEstimate(projectId, options);
 }

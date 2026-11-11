@@ -6,6 +6,7 @@ import {
     useContext,
     useEffect,
     useState,
+    useRef,
     type ReactNode,
 } from "react";
 
@@ -26,12 +27,25 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 function AuthContextProvider({ children }: { children: ReactNode }) {
     const { data: session, status } = useSession();
 
+    const hadSession = useRef(false);
+
     const [user, setUser] = useState<AuthUser | null>(null);
 
     useEffect(() => {
         if (status === "loading") return;
 
+        if (session?.accountSuspended) {
+            setUser(null);
+            localStorage.removeItem("stealors_auth_user");
+            hadSession.current = false;
+            void nextAuthSignOut({ redirect: false }).finally(() => {
+                window.location.replace("/account-suspended");
+            });
+            return;
+        }
+
         if (session?.user?.email) {
+            hadSession.current = true;
             const authUser = buildUserFromGmail(session.user.email);
 
             setUser(authUser);
@@ -42,6 +56,10 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
         } else {
             setUser(null);
             localStorage.removeItem("stealors_auth_user");
+            if (hadSession.current) {
+                hadSession.current = false;
+                window.location.replace("/");
+            }
         }
     }, [session, status]);
 
@@ -67,7 +85,11 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
         });
     }
 
-    const ready = status !== "loading";
+    // Wait until the session has also been applied to the context user.
+    const sessionEmail = session?.user?.email?.trim().toLowerCase();
+    const ready = status !== "loading" && (sessionEmail
+        ? user?.email === sessionEmail
+        : user === null);
 
     return (
         <AuthContext.Provider
@@ -89,7 +111,7 @@ export default function AuthProvider({
     children: ReactNode;
 }) {
     return (
-        <SessionProvider>
+        <SessionProvider refetchInterval={15} refetchOnWindowFocus>
             <AuthContextProvider>
                 {children}
             </AuthContextProvider>

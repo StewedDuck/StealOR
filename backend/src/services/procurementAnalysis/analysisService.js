@@ -33,6 +33,9 @@ const {
 // schema-v2 cache files are never reused.
 const ANALYSIS_VERSION = "3.4";
 
+/**
+ * Choose a readable filename for progress reporting, falling back to the document ID.
+ */
 function documentDisplayName(document) {
   const originalName = document.metadata && document.metadata.originalFileName;
   if (String(originalName || "").trim()) return String(originalName).trim();
@@ -41,6 +44,10 @@ function documentDisplayName(document) {
   return document.documentId;
 }
 
+/**
+ * Sum reported token counts across document runs, preserving null where no count is
+ * available.
+ */
 function aggregateTokenUsage(documentRuns) {
   const usages = documentRuns.map((run) => run.tokenUsage).filter(Boolean);
   if (!usages.length) return null;
@@ -58,6 +65,10 @@ function aggregateTokenUsage(documentRuns) {
   };
 }
 
+/**
+ * Require a project and uniquely identified, labeled, nonempty text documents before
+ * analysis begins.
+ */
 function validateProcurementInput(input) {
   if (!input || typeof input !== "object") throw new Error("input is required.");
   if (!String(input.projectId || "").trim()) throw new Error("input.projectId is required.");
@@ -76,6 +87,10 @@ function validateProcurementInput(input) {
   }
 }
 
+/**
+ * Summarize a rejected candidate with its source, value and evidence/interpretation
+ * failure reason.
+ */
 function candidateDiagnostic(group, candidate, document) {
   return {
     group,
@@ -90,6 +105,10 @@ function candidateDiagnostic(group, candidate, document) {
   };
 }
 
+/**
+ * Retain raw and validated candidates together so acceptance decisions can be inspected
+ * without another AI request.
+ */
 function candidateTrace(group, rawCandidate, candidate, document) {
   return {
     group,
@@ -100,6 +119,10 @@ function candidateTrace(group, rawCandidate, candidate, document) {
   };
 }
 
+/**
+ * Require complete price coverage and processing, group supported amounts/currencies and
+ * report found, missing or conflicting values.
+ */
 function resolvePriceField(fieldName, candidates, processingComplete, priceCoverageComplete) {
   const accepted = candidates.filter(supported);
   if (!priceCoverageComplete) {
@@ -140,6 +163,10 @@ function resolvePriceField(fieldName, candidates, processingComplete, priceCover
   };
 }
 
+/**
+ * Identify invitation announcement versus detailed bidding text from its source filename;
+ * return null for unknown sources.
+ */
 function deadlineDocumentKind(candidate) {
   const evidence = candidate && candidate.evidence;
   if (evidence?.archiveCategory !== "invitation") return null;
@@ -150,6 +177,10 @@ function deadlineDocumentKind(candidate) {
   return null;
 }
 
+/**
+ * Resolve a disagreement only when all sources are recognized and the public announcement
+ * candidates agree; otherwise leave it unresolved.
+ */
 function preferredAnnouncementDeadline(candidates) {
   const classified = candidates.map((candidate) => ({
     candidate,
@@ -175,6 +206,10 @@ function preferredAnnouncementDeadline(candidates) {
   return announcementValues.size === 1 ? announcements : null;
 }
 
+/**
+ * Build a found-deadline result from agreeing candidates while preserving evidence and
+ * coverage status.
+ */
 function foundDeadline(groupName, items, processingComplete) {
   return {
     status: "found",
@@ -191,6 +226,10 @@ function foundDeadline(groupName, items, processingComplete) {
   };
 }
 
+/**
+ * Group supported dates/end times, apply the narrow announcement preference when valid,
+ * and preserve unresolved conflicts or incomplete coverage.
+ */
 function resolveDeadline(groupName, candidates, processingComplete) {
   const accepted = candidates.filter(supported);
   const byValue = new Map();
@@ -245,6 +284,9 @@ function resolveDeadline(groupName, candidates, processingComplete) {
   return foundDeadline(groupName, items, processingComplete);
 }
 
+/**
+ * Normalize Thai digits, case, spacing and selected punctuation for summary comparison.
+ */
 function normalizeSummaryKey(value) {
   const thai = "๐๑๒๓๔๕๖๗๘๙";
   return String(value || "")
@@ -253,6 +295,10 @@ function normalizeSummaryKey(value) {
     .replace(/[\s.,;:()\-–—"'“”]+/g, "");
 }
 
+/**
+ * Build a section-specific duplicate key using known requirement patterns or normalized
+ * text.
+ */
 function summaryDedupKey(value, section) {
   const normalized = normalizeSummaryKey(value);
   const rules = [
@@ -270,10 +316,18 @@ function summaryDedupKey(value, section) {
   return `${section}:${normalized}`;
 }
 
+/**
+ * Replace numbers in normalized text to flag similarly worded items with potentially
+ * different numeric requirements.
+ */
 function conflictSkeleton(value) {
   return normalizeSummaryKey(value).replace(/\d+(?:\.\d+)?/g, "#");
 }
 
+/**
+ * Merge supported duplicate items within one section, retain their evidence and flag
+ * remaining numeric conflicts for review.
+ */
 function makeSummaryItems(candidates, section) {
   const accepted = candidates.filter((candidate) => supported(candidate) && candidate.section === section);
   const deduplicated = new Map();
@@ -297,10 +351,17 @@ function makeSummaryItems(candidates, section) {
   return items;
 }
 
+/**
+ * Wrap section items with found/unavailable status.
+ */
 function sectionResult(items) {
   return { status: items.length ? "found" : "unavailable", items };
 }
 
+/**
+ * Assemble supported candidates into TOR sections, preserving evidence, missing sections,
+ * conflicts and coverage status.
+ */
 function buildTorSummary(candidates, processingComplete) {
   const projectItems = makeSummaryItems(candidates, "project_details");
   const objectives = makeSummaryItems(candidates, "objective");
@@ -341,6 +402,10 @@ function buildTorSummary(candidates, processingComplete) {
   };
 }
 
+/**
+ * Summarize supported draft/invitation evidence; report a conflict when both are present
+ * without claiming an authoritative latest revision.
+ */
 function resolveDocumentAssessment(candidates, processingComplete) {
   const accepted = candidates.filter(supported);
   if (!accepted.length && !processingComplete) {
@@ -359,6 +424,10 @@ function resolveDocumentAssessment(candidates, processingComplete) {
   };
 }
 
+/**
+ * Build a stable coverage description for caching, including missing-input warnings
+ * without machine-specific error text.
+ */
 function coverageFingerprint(coverage) {
   if (!coverage) return null;
   const categories = Object.fromEntries(
@@ -391,6 +460,10 @@ function coverageFingerprint(coverage) {
   };
 }
 
+/**
+ * Hash analysis/prompt/schema/model settings, coverage and ordered document content so
+ * relevant changes invalidate cached results.
+ */
 function computeAnalysisFingerprint(input, config) {
   const hash = createHash("sha256");
   hash.update(JSON.stringify({ analysisVersion: ANALYSIS_VERSION, promptVersion: PROMPT_VERSION, schema: CANDIDATE_SCHEMA, model: config.model, location: config.location }));
@@ -404,6 +477,11 @@ function computeAnalysisFingerprint(input, config) {
   return hash.digest("hex");
 }
 
+/**
+ * Analyze documents sequentially, verify each returned candidate and aggregate project
+ * results. Preserve per-document failures, coverage, evidence and diagnostics; return an
+ * in-memory result without writing files or MongoDB records.
+ */
 async function analyzeProcurementInput(input, options = {}) {
   validateProcurementInput(input);
   const now = options.now || Date.now;
@@ -415,6 +493,7 @@ async function analyzeProcurementInput(input, options = {}) {
     referencePriceEstimate: [], allocatedBudget: [], torSummaryItems: [],
     biddingClosingDate: [], documentAssessment: [],
   };
+  let isBangkokArea = false;
   const rejectedCandidates = [];
   // เก็บทั้ง raw และ validated candidate เพื่อ debug ได้จาก analysis.json
   // โดยไม่ต้องเรียก Gemini ซ้ำ และยังคง rejectedCandidates สำหรับ consumer เดิม
@@ -468,6 +547,9 @@ async function analyzeProcurementInput(input, options = {}) {
             tokenUsage: diagnostics.tokenUsage,
             outcome: diagnostics.outcome,
           });
+          if (response.is_bangkok_area === true) {
+          isBangkokArea = true;
+      }
         },
       });
       for (const fieldName of PRICE_FIELDS) {
@@ -539,6 +621,7 @@ async function analyzeProcurementInput(input, options = {}) {
     analysisVersion: ANALYSIS_VERSION,
     promptVersion: PROMPT_VERSION,
     projectId: input.projectId,
+    is_bangkok_area: isBangkokArea,
     generatedAt: new Date(projectCompletedAtMs).toISOString(),
     fingerprint,
     model: { provider: "vertex-ai", name: config.model, location: config.location },

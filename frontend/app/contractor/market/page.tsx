@@ -100,15 +100,15 @@ function formatBudget(budget: number | null) {
   }
 
   if (budget >= 1_000_000_000) {
-    return `฿${(budget / 1_000_000_000).toFixed(1)}B`;
+    return `฿${(budget / 1_000_000_000).toFixed(1)} พันล้านบาท`;
   }
 
   if (budget >= 1_000_000) {
-    return `฿${(budget / 1_000_000).toFixed(1)}M`;
+    return `฿${(budget / 1_000_000).toFixed(1)} ล้านบาท`;
   }
 
   if (budget >= 1_000) {
-    return `฿${(budget / 1_000).toFixed(1)}K`;
+    return `฿${(budget / 1_000).toFixed(1)} พันบาท`;
   }
 
   return `฿${budget.toLocaleString("th-TH")}`;
@@ -198,7 +198,7 @@ function getTimeLabel(value?: string | null) {
 
 function getSourceLabel(source: MarketTor["source"]) {
   if (source === "government") {
-    return "ราชการ";
+    return "รัฐบาล";
   }
 
   return "ภายใน";
@@ -312,11 +312,11 @@ const typeOptions: {
   },
   {
     value: "government",
-    label: "Government",
+    label: "รัฐบาล",
   },
   {
     value: "internal",
-    label: "Internal",
+    label: "ภายใน",
   }
   // {
   //   value: "tor_preparation",
@@ -337,19 +337,19 @@ const budgetOptions = [
   },
   {
     value: "under1m",
-    label: "ต่ำกว่า 1M",
+    label: "ต่ำกว่า 1 ล้านบาท",
   },
   {
     value: "1m-10m",
-    label: "1M - 10M",
+    label: "1 - 10 ล้านบาท",
   },
   {
     value: "10m-100m",
-    label: "10M - 100M",
+    label: "10 - 100 ล้านบาท",
   },
   {
     value: "over100m",
-    label: "มากกว่า 100M",
+    label: "มากกว่า 100 ล้านบาท",
   },
 ];
 

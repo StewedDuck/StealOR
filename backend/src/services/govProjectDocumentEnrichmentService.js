@@ -15,6 +15,10 @@ const DEFAULT_POST_PASS_COOLDOWN_MS = 60_000;
 const MAX_POST_PASS_COOLDOWN_MS = 600_000;
 const RATE_LIMIT_ERROR_CODE = "EGP_RATE_LIMITED";
 
+/**
+ * Convert a Mongoose document to a plain object; preserve ordinary objects and default
+ * missing values to an empty object.
+ */
 function asPlainObject(value) {
   if (!value || typeof value !== "object") return {};
   return typeof value.toObject === "function"
@@ -22,6 +26,10 @@ function asPlainObject(value) {
     : value;
 }
 
+/**
+ * Normalize dates and object key order, excluding internal IDs and undefined fields for
+ * stable comparisons.
+ */
 function normalizeForComparison(value) {
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map(normalizeForComparison);
@@ -36,6 +44,9 @@ function normalizeForComparison(value) {
   return value;
 }
 
+/**
+ * Compare persistable reference fields rather than transient discovery details.
+ */
 function referencesEqual(left, right) {
   return isDeepStrictEqual(
     normalizeForComparison(persistableDocumentReference(left)),
@@ -43,6 +54,9 @@ function referencesEqual(left, right) {
   );
 }
 
+/**
+ * Validate the inter-project discovery delay.
+ */
 function boundedDelay(value = DEFAULT_DELAY_MS) {
   const delay = Number(value);
   if (!Number.isInteger(delay) || delay < 0 || delay > MAX_DELAY_MS) {
@@ -51,6 +65,9 @@ function boundedDelay(value = DEFAULT_DELAY_MS) {
   return delay;
 }
 
+/**
+ * Validate the cooldown before retrying rate-limited observations.
+ */
 function boundedPostPassCooldown(value = DEFAULT_POST_PASS_COOLDOWN_MS) {
   const delay = Number(value);
   if (
@@ -65,6 +82,11 @@ function boundedPostPassCooldown(value = DEFAULT_POST_PASS_COOLDOWN_MS) {
   return delay;
 }
 
+/**
+ * Merge stored and discovered references using the document policy, recalculate selection
+ * and prepare changed fields. Guard updates with the original timestamp or snapshot so
+ * concurrent changes become conflicts.
+ */
 function buildProjectEnrichmentPlan(projectInput, discovery) {
   const project = asPlainObject(projectInput);
   const projectId = String(project.project_id || "").trim();
@@ -141,6 +163,9 @@ function buildProjectEnrichmentPlan(projectInput, discovery) {
   };
 }
 
+/**
+ * Initialize enrichment totals and per-category observation/action counters.
+ */
 function createSummary(total) {
   return {
     existing: total,
@@ -156,10 +181,16 @@ function createSummary(total) {
   };
 }
 
+/**
+ * Increment a summary counter, initializing it when absent.
+ */
 function increment(target, key) {
   target[key] = (target[key] || 0) + 1;
 }
 
+/**
+ * Describe a planned update or unchanged project without executing its database operation.
+ */
 function createPlanReport(plan) {
   return {
     projectId: plan.projectId,
@@ -171,6 +202,9 @@ function createPlanReport(plan) {
   };
 }
 
+/**
+ * Recalculate totals and category counters from the current plans and failure reports.
+ */
 function summarizePlans(total, plans, reports) {
   const summary = createSummary(total);
   summary.processed = plans.length;
@@ -189,6 +223,10 @@ function summarizePlans(total, plans, reports) {
   return summary;
 }
 
+/**
+ * Discover references sequentially with an inter-project delay, isolate project failures
+ * and return plans/reports without database writes.
+ */
 async function planDocumentEnrichment(projects, options = {}, dependencies = {}) {
   if (!Array.isArray(projects)) throw new TypeError("projects must be an array");
   const discover = dependencies.discoverProjectDocuments || discoverProjectDocuments;
@@ -239,6 +277,9 @@ async function planDocumentEnrichment(projects, options = {}, dependencies = {})
   return { plans, reports, summary, delayMs, discoveriesByProjectId };
 }
 
+/**
+ * Find categories whose discovery failed specifically with the e-GP rate-limit code.
+ */
 function rateLimitedCategories(discovery) {
   const documents = asPlainObject(discovery?.documents);
   return DOCUMENT_KEYS.filter((category) => {
@@ -250,10 +291,18 @@ function rateLimitedCategories(discovery) {
   });
 }
 
+/**
+ * Recognize a retry observation with a reported non-error status, including confirmed
+ * absence.
+ */
 function isRecoveredObservation(observed) {
   return Boolean(observed?.status) && observed.status !== "error";
 }
 
+/**
+ * After cooldown, retry affected projects and replace only previously rate-limited
+ * categories that recovered. Preserve other observations and rebuild plans and totals.
+ */
 async function runRateLimitPostPass(
   planned,
   projects,
@@ -347,6 +396,10 @@ async function runRateLimitPostPass(
   };
 }
 
+/**
+ * Execute each nonempty guarded update through the supplied database function; count
+ * unmatched records as concurrency conflicts.
+ */
 async function applyDocumentEnrichmentPlans(plans, dependencies = {}) {
   if (!Array.isArray(plans)) throw new TypeError("plans must be an array");
   const updateOne = dependencies.updateOne;

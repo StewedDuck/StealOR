@@ -1,3 +1,4 @@
+const activeAccount = require("./activeAccount");
 const crypto = require("crypto");
 
 function profileAuth(req, res, next) {
@@ -35,7 +36,7 @@ function profileAuth(req, res, next) {
     }
 
     req.profileEmail = email;
-    next();
+    return activeAccount(email, res, next);
 }
 
 module.exports = profileAuth;

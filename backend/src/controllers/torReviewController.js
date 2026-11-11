@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Tor = require("../models/Tor");
+const { logActivity } = require('../utils/logger');
 
 // เอกสารเก่าที่ไม่มีเลขฉบับถือเป็นฉบับ 1; เงื่อนไขนี้ป้องกันการตัดสินทับการแก้ไขพร้อมกัน
 function versionFilter(version) {
@@ -8,6 +9,11 @@ function versionFilter(version) {
     : { contentVersion: version };
 }
 
+/**
+ * Submit an owned draft for review and record its submitted content version.
+ * Uses a conditional update to reject concurrent changes or duplicate submission.
+ * A draft with requested changes must be edited and saved before resubmission.
+ */
 async function submitTorReview(req, res) {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ success: false, error: "Invalid TOR id" });
@@ -26,6 +32,7 @@ async function submitTorReview(req, res) {
       ] }],
     }, { $set: { reviewStatus: "pending", contentVersion: version, submittedVersion: version, submittedForReviewAt: new Date() } }, { new: true, runValidators: true });
     if (!tor) return res.status(409).json({ success: false, error: "TOR เปลี่ยนแปลงหรือส่งตรวจแล้ว กรุณาโหลดใหม่" });
+    await logActivity('tor', req.ownerId, 'ส่งตรวจ TOR', `โครงการ: ${tor.projectName} (Version ${version})`);
     return res.json({ success: true, data: tor });
   } catch (error) {
     console.error("Submit TOR review error:", error);
@@ -33,6 +40,11 @@ async function submitTorReview(req, res) {
   }
 }
 
+/**
+ * Validate an admin decision and atomically save it with a review-history entry.
+ * Only the pending, submitted content version can be reviewed; a changed
+ * version returns a conflict so an admin cannot approve unseen edits.
+ */
 async function reviewTor(req, res) {
   try {
     const { decision, comment = "", version } = req.body;
@@ -50,6 +62,8 @@ async function reviewTor(req, res) {
       $push: { reviewHistory: { decision, comment: comment.trim(), reviewedBy: req.adminEmail, reviewedAt: new Date(), version } },
     }, { new: true, runValidators: true });
     if (!tor) return res.status(409).json({ success: false, error: "TOR ไม่ได้รอตรวจหรือเลขฉบับเปลี่ยน กรุณาโหลดใหม่" });
+    const actionText = decision === 'approved' ? 'อนุมัติ TOR' : 'ตีกลับ/ขอให้แก้ไข TOR';
+    await logActivity('tor', req.adminEmail || 'Admin', actionText, `โครงการ: ${tor.projectName} | ความเห็น: ${comment.trim() || 'ไม่มี'}`);
     return res.json({ success: true, data: tor });
   } catch (error) {
     console.error("Review TOR error:", error);

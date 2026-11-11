@@ -1,6 +1,10 @@
 const { isDeepStrictEqual } = require("node:util");
 const { validateAnalysisForImport } = require("./analysisValidation");
 
+/**
+ * Normalize dates and object order, excluding internal IDs/undefined fields for stable
+ * comparisons.
+ */
 function normalizeCanonical(value) {
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map(normalizeCanonical);
@@ -13,10 +17,17 @@ function normalizeCanonical(value) {
   return value;
 }
 
+/**
+ * Compare normalized values so object key order does not create false changes.
+ */
 function canonicallyEqual(left, right) {
   return isDeepStrictEqual(normalizeCanonical(left), normalizeCanonical(right));
 }
 
+/**
+ * Keep the amount and currency only when analysis reports a found price; otherwise use
+ * null.
+ */
 function amountValue(result) {
   return {
     amount: result?.status === "found" ? result.amount : null,
@@ -24,12 +35,19 @@ function amountValue(result) {
   };
 }
 
+/**
+ * Convert summary items into trimmed, nonempty text values for database storage.
+ */
 function summaryValues(items) {
   return Array.isArray(items)
     ? items.map((item) => String(item?.text || "").trim()).filter(Boolean)
     : [];
 }
 
+/**
+ * Validate analysis against the expected project and authoritative documents, then select
+ * the database fields. Reject unsuitable analysis before building a write.
+ */
 function sanitizeAnalysisForMongo(analysis, options = {}) {
   const validation = validateAnalysisForImport(analysis, options.expectedProjectId, {
     authoritativeDocuments: options.authoritativeDocuments,
@@ -64,6 +82,9 @@ function sanitizeAnalysisForMongo(analysis, options = {}) {
   return JSON.parse(JSON.stringify(sanitized));
 }
 
+/**
+ * List IDs occurring more than once using the supplied ID selector.
+ */
 function duplicateIds(items, selector) {
   const counts = new Map();
   for (const item of items) {
@@ -73,6 +94,10 @@ function duplicateIds(items, selector) {
   return [...counts].filter(([, count]) => count > 1).map(([id]) => id).sort();
 }
 
+/**
+ * Match local analyses with existing projects, reject duplicates/invalid records and skip
+ * unchanged values. Prepare guarded updates plus reports without writing the database.
+ */
 function buildImportPlan(localAnalyses, projects) {
   if (!Array.isArray(localAnalyses) || !Array.isArray(projects)) throw new TypeError("localAnalyses and projects must be arrays");
   const duplicateLocalProjectIds = duplicateIds(localAnalyses, (item) => String(item.analysis?.projectId || item.projectId || ""));
@@ -143,6 +168,10 @@ function buildImportPlan(localAnalyses, projects) {
   };
 }
 
+/**
+ * Execute planned updates, capturing individual write errors and unmatched-record
+ * conflicts.
+ */
 async function applyImportPlans(plans, updateOne) {
   const results = [];
   for (const plan of plans) {
@@ -156,6 +185,9 @@ async function applyImportPlans(plans, updateOne) {
   return results;
 }
 
+/**
+ * Read imported records and compare stored analysis with the intended sanitized values.
+ */
 async function verifyImportPlans(plans, findOne) {
   const results = [];
   for (const plan of plans) {
@@ -165,6 +197,10 @@ async function verifyImportPlans(plans, findOne) {
   return results;
 }
 
+/**
+ * Validate backup structure and restore prior analysis only for records still matching the
+ * imported analysis. Build guarded rollback operations without executing them.
+ */
 function buildRollbackPlans(backup, projects) {
   if (backup?.type !== "procurement-analysis-backup" || backup?.schemaVersion !== 1 || !Array.isArray(backup.records)) {
     throw new Error("Invalid procurement-analysis backup file");

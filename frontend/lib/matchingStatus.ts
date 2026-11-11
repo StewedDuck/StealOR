@@ -49,7 +49,7 @@ export function shouldShowMatchingCard(matching: MatchingData | null | undefined
 }
 
 export function getMatchingRefreshLabel(matching: MatchingData) {
-    if (matching.isCachedSnapshot) return 'ผลที่บันทึกไว้ — กำลังตรวจสอบข้อมูลล่าสุด';
+    if (matching.isCachedSnapshot) return 'ผลที่บันทึกไว้ - กำลังตรวจสอบข้อมูลล่าสุด';
     if (matching.scoringStatus === 'saved_snapshot') return 'ผล Matching ณ วันที่บันทึก';
     switch (matching.analysisPipelineStatus) {
         case 'waiting_data': return 'รอข้อมูล TOR';

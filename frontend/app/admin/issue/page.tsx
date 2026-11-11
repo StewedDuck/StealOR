@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import TorReviewPanel, { reviewLabels } from "@/components/TorReviewPanel";
 import TorDetailModal from "@/components/TORDetail";
+import FilterDropdown from "@/components/FilterDropdown";
 import Sidebar from "@/components/sideBarAdmin";
 import { getAdminTors } from "@/lib/adminApi";
 import { type Tor } from "@/types/tor";
@@ -57,10 +58,9 @@ export default function AdminTorsPage() {
                     </header>
                     <div className="admin-users-filters">
                         <input aria-label="ค้นหาชื่อโครงการหรือหน่วยงาน" placeholder="ค้นหาชื่อโครงการหรือหน่วยงาน..." value={query} onChange={e => setQuery(e.target.value)} />
-                        <select aria-label="สถานะ TOR" value={status} onChange={e => setStatus(e.target.value)}>
-                            <option value="all">ทุกสถานะ</option>
-                            {Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                        </select>
+                        <FilterDropdown value={status} onChange={setStatus}
+                            options={[{ value: "all", label: "ทุกสถานะ" },
+                                ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))]} />
                         <button type="button" onClick={load} disabled={loading}>รีเฟรช</button>
                     </div>
                     <section className="admin-users-card" aria-busy={loading}>

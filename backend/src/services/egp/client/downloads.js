@@ -20,6 +20,9 @@ const { parseLegacyDraftFileName } = require("./legacyDraft");
 
 const MAX_CHUNK_COUNT = 100;
 
+/**
+ * Create a consistent invalid-response error for malformed chunk metadata or data.
+ */
 function invalidChunkDocument(message) {
   return new EgpServiceError(message, 502, {
     code: "EGP_INVALID_CHUNK_DOCUMENT",
@@ -27,6 +30,9 @@ function invalidChunkDocument(message) {
   });
 }
 
+/**
+ * Resolve the maximum allowed download size and require a positive safe integer.
+ */
 function downloadLimit(options) {
   const maxBytes = Number(options.maxBytes || DEFAULT_MAX_DOWNLOAD_BYTES);
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
@@ -35,6 +41,10 @@ function downloadLimit(options) {
   return maxBytes;
 }
 
+/**
+ * Fetch chunk metadata for a project/document UUID. Validate ownership, ZIP type, chunk
+ * count and declared size before downloading bytes.
+ */
 async function getChunkedDocumentInfo(projectId, documentId, options = {}) {
   const safeProjectId = validateProjectId(projectId);
   const safeDocumentId = validateUuidDocumentId(documentId);
@@ -98,6 +108,10 @@ async function getChunkedDocumentInfo(projectId, documentId, options = {}) {
   };
 }
 
+/**
+ * Decode one base64 chunk while checking its format and the remaining declared byte
+ * budget.
+ */
 function decodeChunkData(value, remainingBytes) {
   const encoded = String(value || "");
   if (
@@ -115,6 +129,10 @@ function decodeChunkData(value, remainingBytes) {
   return chunk;
 }
 
+/**
+ * Fetch document chunks in order, validate their identifiers and total size, and return a
+ * buffer with a ZIP signature. Reject a changed stored filename.
+ */
 async function downloadChunkedZip(metadata, options = {}) {
   const info = await getChunkedDocumentInfo(
     metadata?.projectId,
@@ -178,6 +196,10 @@ async function downloadChunkedZip(metadata, options = {}) {
   return buffer;
 }
 
+/**
+ * Identify errors that allow the caller to rediscover a stored locator; access-denied and
+ * rate-limit errors do not qualify.
+ */
 function isStaleDocumentReferenceError(error) {
   return (
     error?.code === "EGP_INVALID_FILE_ID" ||
@@ -187,6 +209,10 @@ function isStaleDocumentReferenceError(error) {
   );
 }
 
+/**
+ * Download by file ID, enforce the byte limit and ZIP signature, and return the original
+ * archive buffer.
+ */
 async function downloadZip(fileId, options = {}) {
   const safeFileId = validateFileId(fileId);
   const url = new URL("/egp-upload-service/v1/downloadFileTest", EGP_BASE_URL);
@@ -214,6 +240,10 @@ async function downloadZip(fileId, options = {}) {
   return buffer;
 }
 
+/**
+ * Download a price archive using a validated project-specific legacy filename; enforce the
+ * byte limit and ZIP signature.
+ */
 async function downloadLegacyZip(projectId, fileName, options = {}) {
   const safeProjectId = validateProjectId(projectId);
   const safeFileName = validateLegacyFileName(fileName, safeProjectId);
@@ -238,6 +268,10 @@ async function downloadLegacyZip(projectId, fileName, options = {}) {
   return buffer;
 }
 
+/**
+ * Validate the legacy draft filename, item number and supported transfer type; return
+ * normalized transfer fields.
+ */
 function validateLegacyDraftDownloadMetadata(metadata) {
   const projectId = validateProjectId(metadata?.projectId);
   const fileName = parseLegacyDraftFileName(metadata?.fileName, projectId).fileName;
@@ -264,6 +298,10 @@ function validateLegacyDraftDownloadMetadata(metadata) {
   return { projectId, fileName, legacyItemNo, type };
 }
 
+/**
+ * Submit the legacy draft transfer form and return bounded ZIP bytes; reject responses
+ * without a ZIP signature.
+ */
 async function downloadLegacyDraftZip(metadata, options = {}) {
   const { projectId, fileName, legacyItemNo, type } =
     validateLegacyDraftDownloadMetadata(metadata);

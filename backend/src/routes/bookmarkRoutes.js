@@ -1,3 +1,4 @@
+const checkActiveAccount = require("../middleware/activeAccount").fromRequest;
 const express = require("express")
 
 const {
@@ -9,9 +10,9 @@ const {
 
 const router = express.Router();
 
-router.post("/", createBookmark);
-router.get("/", getBookmarks);
-router.delete("/:userId/:projectId", deleteBookmark);
-router.delete("/internal/:userId/:torId", deleteInternalBookmark);
+router.post("/", checkActiveAccount, createBookmark);
+router.get("/", checkActiveAccount, getBookmarks);
+router.delete("/:userId/:projectId", checkActiveAccount, deleteBookmark);
+router.delete("/internal/:userId/:torId", checkActiveAccount, deleteInternalBookmark);
 
 module.exports = router;

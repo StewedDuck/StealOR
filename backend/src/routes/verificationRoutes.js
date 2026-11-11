@@ -1,3 +1,4 @@
+const checkActiveAccount = require("../middleware/activeAccount").fromRequest;
 const express = require("express");
 
 const {
@@ -18,10 +19,10 @@ const router = express.Router();
 
 
 // Submit verification
-router.post( "/", verificationUpload.single("document"), submitVerification);
+router.post( "/", verificationUpload.single("document"), checkActiveAccount, submitVerification);
 
 // Get Project Owner verification status
-router.get("/me/:userId", getMyVerification);
+router.get("/me/:userId", checkActiveAccount, getMyVerification);
 
 // Admin
 // Get all verification requests

@@ -1,5 +1,7 @@
 "use client";
 
+import type { UserDistribution } from "@/types/adminDashboard";
+
 import {
     PieChart,
     Pie,
@@ -9,21 +11,6 @@ import {
     ResponsiveContainer,
 } from "recharts";
 
-const userDistributionData = [
-    {
-        name: "ผู้รับจ้าง",
-        value: 201,
-    },
-    {
-        name: "เจ้าของโครงการที่ยืนยันแล้ว",
-        value: 44,
-    },
-    {
-        name: "ผู้ดูแลระบบ",
-        value: 3,
-    },
-];
-
 const COLORS = [
     "#4E82BD",
     "#9FB8D3",
@@ -31,7 +18,7 @@ const COLORS = [
 ];
 
 
-export default function UserDistributionChart() {
+export default function UserDistributionChart({ data }: { data: UserDistribution[] }) {
     return (
         <div className="admin-chart-card">
             <div className="chart-header">
@@ -42,10 +29,10 @@ export default function UserDistributionChart() {
             </div>
 
             <div className="user-chart-container">
-                <ResponsiveContainer width="100%" height="100%">
+                {data.every(row => row.value === 0) ? <p>ยังไม่มีบัญชีผู้ใช้</p> : <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
-                            data={userDistributionData}
+                            data={data}
                             dataKey="value"
                             nameKey="name"
                             cx="50%"
@@ -55,7 +42,7 @@ export default function UserDistributionChart() {
                             paddingAngle={3}
                             labelLine={false}
                         >
-                            {userDistributionData.map((entry, index) => (
+                            {data.map((entry, index) => (
                                 <Cell
                                     key={`cell-${index}`}
                                     fill={COLORS[index]}
@@ -70,7 +57,7 @@ export default function UserDistributionChart() {
                             height={50}
                         />
                     </PieChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer>}
             </div>
         </div>
     );

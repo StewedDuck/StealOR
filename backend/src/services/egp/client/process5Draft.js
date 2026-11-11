@@ -14,6 +14,10 @@ const {
   createAmbiguousMetadata,
 } = require("./metadata");
 
+/**
+ * Cache a Process 5 lookup by project, endpoint and revision; remove failed requests so
+ * later calls can retry.
+ */
 async function requestDraftPayload(projectId, endpoint, itemNo, options) {
   const cache = options.metadataCache instanceof Map ? options.metadataCache : null;
   const cacheKey = `process5-draft:${projectId}:${endpoint}:${itemNo ?? ""}`;
@@ -29,6 +33,9 @@ async function requestDraftPayload(projectId, endpoint, itemNo, options) {
   }
 }
 
+/**
+ * Request and parse one Process 5 metadata response, optionally selecting an item number.
+ */
 async function requestDraftPayloadUncached(projectId, endpoint, itemNo, options) {
   const url = new URL(`${APPROVAL_COMMON_PATH}/${endpoint}`, EGP_BASE_URL);
   url.searchParams.set("projectId", projectId);
@@ -46,6 +53,10 @@ async function requestDraftPayloadUncached(projectId, endpoint, itemNo, options)
   return readMetadataJson(response, "draft e-bidding");
 }
 
+/**
+ * Validate the project/revision filename and convert its Buddhist Era date into a sortable
+ * calendar key.
+ */
 function parseProcess5BuildDate(projectId, fileName, revision) {
   const escapedProjectId = projectId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const suffix = revision === 0 ? "" : `_${revision}`;
@@ -71,6 +82,10 @@ function parseProcess5BuildDate(projectId, fileName, revision) {
   return year * 10_000 + month * 100 + day;
 }
 
+/**
+ * Require a complete project/revision locator and valid filename date; return normalized
+ * fields or null.
+ */
 function normalizeDraftCandidate(projectId, record, revision, lookupMethod) {
   if (
     !record?.zipId ||
@@ -95,6 +110,10 @@ function normalizeDraftCandidate(projectId, record, revision, lookupMethod) {
   };
 }
 
+/**
+ * Convert a timestamp into a sortable date key in Bangkok time; return null for invalid
+ * dates.
+ */
 function bangkokDateKey(value) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return null;
@@ -114,6 +133,9 @@ function bangkokDateKey(value) {
   );
 }
 
+/**
+ * Create an error when official evidence is insufficient to verify a draft revision.
+ */
 function draftRevisionVerificationError(message) {
   return new EgpServiceError(message, 502, {
     code: "EGP_DRAFT_REVISION_UNVERIFIED",
@@ -121,6 +143,10 @@ function draftRevisionVerificationError(message) {
   });
 }
 
+/**
+ * Check that a public record belongs to the project, announcement type and active
+ * publication state.
+ */
 function activePublicRecord(record, projectId, announceType) {
   return (
     String(record?.projectId || "").trim() === projectId &&
@@ -129,6 +155,10 @@ function activePublicRecord(record, projectId, announceType) {
   );
 }
 
+/**
+ * Select the latest valid active B0/B3 draft publication with template type D1; reject
+ * incomplete evidence.
+ */
 function authoritativeDraftPublication(projectId, publicDocuments) {
   const records = publicDocuments
     .filter((record) => {
@@ -150,6 +180,10 @@ function authoritativeDraftPublication(projectId, publicDocuments) {
   return records.sort((left, right) => right.dateKey - left.dateKey)[0];
 }
 
+/**
+ * Compare file ID, filename and template ID so a partial match cannot establish document
+ * identity.
+ */
 function sameCompleteLocator(candidate, record) {
   return (
     candidate.fileId === String(record?.zipId || "").trim() &&
@@ -158,6 +192,11 @@ function sameCompleteLocator(candidate, record) {
   );
 }
 
+/**
+ * Check candidates against the official draft publication date. Remove later candidates
+ * only when their complete locator matches the final invitation; reject unexplained later
+ * files.
+ */
 async function verifyDraftCandidates(
   projectId,
   candidates,
@@ -220,10 +259,17 @@ async function verifyDraftCandidates(
   return verified;
 }
 
+/**
+ * Normalize the upstream response code to a string for consistent comparisons.
+ */
 function responseCode(payload) {
   return String(payload?.response?.responseCode ?? "");
 }
 
+/**
+ * Recognize the explicit missing-data response; other failures must not be treated as
+ * document absence.
+ */
 function isConfirmedProcess5Absence(payload) {
   const code = responseCode(payload);
   const messageCode = String(payload?.response?.messageCode ?? "");
@@ -234,6 +280,10 @@ function isConfirmedProcess5Absence(payload) {
   );
 }
 
+/**
+ * Distinguish supported available/absent responses and throw for unexpected codes or data
+ * shapes.
+ */
 function assertSupportedProcess5DraftPayload(payload, { allowArray }) {
   if (isConfirmedProcess5Absence(payload)) return "not_found";
   if (responseCode(payload) !== "0") {
@@ -254,6 +304,10 @@ function assertSupportedProcess5DraftPayload(payload, { allowArray }) {
   });
 }
 
+/**
+ * Select the unique highest revision, rejecting conflicts or an exhausted revision scan.
+ * Fetch a comment deadline only for a revision-specific template.
+ */
 async function selectDraftCandidate(projectId, candidates, reachedRevisionLimit, options) {
   if (candidates.length === 0) {
     return createNotFoundMetadata(
@@ -314,6 +368,10 @@ async function selectDraftCandidate(projectId, candidates, reachedRevisionLimit,
   });
 }
 
+/**
+ * Discover the initial draft and contiguous adjusted revisions up to a bounded limit,
+ * verify their publication evidence, and return selected metadata with lookup attempts.
+ */
 async function getDraftEbiddingMetadata(projectId, options, publicDocuments) {
   const candidates = [];
   const attempts = [];

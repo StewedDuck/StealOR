@@ -1,3 +1,4 @@
+const activeAccount = require("./activeAccount");
 const crypto = require("crypto");
 
 function torOwnerAuth(req, res, next) {
@@ -36,7 +37,7 @@ function torOwnerAuth(req, res, next) {
     }
 
     req.ownerId = email;
-    next();
+    return activeAccount(email, res, next);
 }
 
 module.exports = torOwnerAuth;

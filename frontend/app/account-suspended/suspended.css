@@ -1,0 +1,107 @@
+.suspension-page {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background: var(--paper, #f5f5f2);
+  color: #1f2f3c;
+}
+
+.suspension-card {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 56px;
+  border: 2px solid #dfe3e8;
+  border-radius: 28px;
+  background: #fcfcfa;
+  text-align: center;
+}
+
+.suspension-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.suspension-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 24px;
+  border-radius: 50%;
+  background: #e0e9f5;
+  color: #18558f;
+}
+
+.suspension-shield { width: 56px; height: 56px; }
+.suspension-lock { position: absolute; width: 22px; height: 22px; top: 33px; left: 33px; }
+
+.suspension-status {
+  display: inline-block;
+  padding: 6px 22px;
+  border-radius: 999px;
+  background: #e0eaf7;
+  color: #245c98;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.suspension-card h1 {
+  margin: 20px 0 24px;
+  color: #1f2f3c;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: -1px;
+}
+
+.suspension-description {
+  color: #344454;
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.suspension-description span { display: block; }
+
+.suspension-home-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 12px 24px;
+  border-radius: var(--radius, 10px);
+  background: #4B7DB8;
+  color: #FCFCFA;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-decoration: none;
+  transition: box-shadow 150ms ease;
+}
+
+.suspension-home-button:hover {
+  box-shadow: 0 4px 12px rgb(75 125 184 / 25%);
+}
+
+.suspension-home-button:focus-visible {
+  outline: 3px solid #4B7DB8;
+  outline-offset: 4px;
+}
+
+@media (max-width: 600px) {
+  .suspension-page { padding: 24px 16px; }
+  .suspension-card { padding: 48px 24px; border-radius: 22px; }
+  .suspension-card h1 { font-size: 28px; letter-spacing: -.5px; }
+}
