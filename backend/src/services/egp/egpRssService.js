@@ -9,11 +9,9 @@ const RSS_BASE_URL =
  * Example link: http://.../FPROP9955AttachServ?projectId=61057000335&filename=...
  */
 function extractProjectIdFromLink(link = "", description = "") {
-  // 1. Try URL parameters
-  const match = link.match(/[?&]projectId=([0-9a-zA-Z_-]+)/i);
+  const match = String(link).match(/[?&](?:projectId|pid)=([0-9]{11})/i);
   if (match) return match[1];
 
-  // 2. Fall back to description field (manual shows description starts with 11-digit project ID)
   const descMatch = String(description).match(/\b(\d{11})\b/);
   if (descMatch) return descMatch[1];
 
@@ -58,7 +56,21 @@ async function fetchEgpRssAnnouncements(options = {}) {
     );
   }
 
-  const xmlText = await response.text();
+  const iconv = require("iconv-lite");
+
+  // 1. Get the raw binary buffer instead of letting fetch guess the text encoding
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  
+  // 2. Decode the buffer from Windows-874 to standard UTF-8
+  const xmlText = iconv.decode(buffer, "win874");
+  
+  // 🔴 +++ พ่น Log ออกมาดูให้เห็นกับตา +++ 🔴
+  console.log(`\n[DEBUG] URL ที่ยิงไป: ${url}`);
+  console.log(`[DEBUG] HTTP Status: ${response.status}`);
+  console.log(`[DEBUG] ขนาดข้อมูลดิบที่ได้: ${xmlText.length} ตัวอักษร`);
+  console.log(`[DEBUG] ตัวอย่างข้อมูลดิบ 300 ตัวอักษรแรก:\n${xmlText.substring(0, 300)}\n`);
+
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "@_",
@@ -69,17 +81,25 @@ async function fetchEgpRssAnnouncements(options = {}) {
   const channel = parsed?.rss?.channel || {};
   let items = channel.item || [];
 
-  // fast-xml-parser returns an object instead of array if there's only 1 item
   if (!Array.isArray(items)) {
     items = [items];
   }
+  
+  console.log(`[DEBUG] จำนวน Item ที่อ่านเจอใน XML: ${items.length} รายการ`);
 
   const results = [];
   for (const item of items) {
     const link = item.link || "";
     const title = item.title || "";
     const pubDate = item.pubDate || item.pubdate || null;
-    const projectId = extractProjectIdFromLink(link);
+    const description = item.description || "";
+    
+    // 🟢 แก้ให้ดึงข้อมูล description ไปด้วยตามโครงสร้างที่ถูกต้อง
+    const projectId = extractProjectIdFromLink(link, description);
+
+    if (!projectId && title) {
+        console.log(`[DEBUG] ⚠️ ข้ามโครงการ (หาเลข ID 11 หลักไม่เจอ): ${title.substring(0, 50)}...`);
+    }
 
     if (projectId) {
       results.push({
