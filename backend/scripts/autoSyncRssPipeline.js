@@ -46,12 +46,15 @@ async function isTargetITProjectByAI(projectName) {
       ชื่อโครงการ: "${projectName}"
     `;
     
-    // +++ เปลี่ยนวิธีส่งคำสั่งให้เป็นท่าของ Vertex AI +++
     const request = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
     const result = await aiModel.generateContent(request);
     
-    // ดึงข้อความตอบกลับจาก Vertex AI
-    const responseText = result.response.candidates[0].content.parts[0].text;
+    // 🟢 เปลี่ยนจาก const เป็น let เพื่อให้แก้ไขค่าได้
+    let responseText = result.response.candidates[0].content.parts[0].text;
+    
+    // 🟢 เพิ่มบรรทัดนี้: ลบสัญลักษณ์ ```json หรือ ``` ที่ AI ชอบแถมมาทิ้งไปก่อน
+    responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    
     const parsed = JSON.parse(responseText);
     return parsed.isIT;
     
@@ -63,21 +66,24 @@ async function isTargetITProjectByAI(projectName) {
 
 async function pollOnce() {
   const dateStr = getTodayCE();
-  console.log(`\n📡 [RSS Poller] เริ่มดึงข้อมูลประกาศของวันที่: ${dateStr}`);
+  console.log(`\n📡 [RSS Poller] เริ่มดึงข้อมูลประกาศ...`);
 
   try {
-    // เพิ่ม Log แจ้งการดึง Bo
     console.log(`  🔍 1/2 กำลังค้นหา 'ร่างประกาศ' (ประเภท Bo)...`);
-    const draftTors = await fetchEgpRssAnnouncements({ anounceType: "Bo", announceDate: dateStr }).catch((err) => {
-        console.error(`  ⚠️ ดึงร่างประกาศ (Bo) ไม่สำเร็จ:`, err.message);
+    
+    // 🔴 ของเดิม: await fetchEgpRssAnnouncements({ anounceType: "Bo", announceDate: dateStr })
+    // 🟢 ของใหม่: เพิ่ม deptId: "0304" และลบ announceDate ออกเพื่อกวาดข้อมูลย้อนหลังมาเทส
+    const draftTors = await fetchEgpRssAnnouncements({ deptId: "0706", anounceType: "B0" }).catch((err) => {
+        console.error(`  ⚠️ ดึงร่างประกาศ (B0) ไม่สำเร็จ:`, err.message);
         return [];
     });
-    console.log(`  👉 พบร่างประกาศ (Bo): ${draftTors.length} โครงการ`);
+    console.log(`  👉 พบร่างประกาศ (B0): ${draftTors.length} โครงการ`);
 
-    // เพิ่ม Log แจ้งการดึง Do
-    console.log(`  🔍 2/2 กำลังค้นหา 'ประกาศเชิญชวน' (ประเภท Do)...`);
-    const invitations = await fetchEgpRssAnnouncements({ anounceType: "Do", announceDate: dateStr }).catch((err) => {
-        console.error(`  ⚠️ ดึงประกาศเชิญชวน (Do) ไม่สำเร็จ:`, err.message);
+    console.log(`  🔍 2/2 กำลังค้นหา 'ประกาศเชิญชวน' (ประเภท D0)...`);
+    
+    // 🟢 เปลี่ยนจาก Do เป็น D0 (เลขศูนย์) และลองดึงของกรมทางหลวง (0706)
+    const invitations = await fetchEgpRssAnnouncements({ deptId: "0706", anounceType: "D0" }).catch((err) => {
+        console.error(`  ⚠️ ดึงประกาศเชิญชวน (D0) ไม่สำเร็จ:`, err.message);
         return [];
     });
     console.log(`  👉 พบประกาศเชิญชวน (Do): ${invitations.length} โครงการ`);
