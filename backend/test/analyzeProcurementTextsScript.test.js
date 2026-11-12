@@ -484,6 +484,7 @@ test("whole-document request has no fixed TOR candidate cap and has a larger out
 
 test("Vertex schema exposes only the final bid deadline and validation rejects other procurement dates", () => {
   assert.deepEqual(Object.keys(CANDIDATE_SCHEMA.properties), [
+    "is_bangkok_area",
     "referencePriceEstimate",
     "allocatedBudget",
     "torSummaryItems",
@@ -662,6 +663,7 @@ test("in-memory analysis produces two prices, Thai TOR sections, and the bidding
   const client = fakeClient(async ({ contents }) => {
     if (contents.includes("DOCUMENT_ID: price:one")) {
       return response({
+        is_bangkok_area: true,
         referencePriceEstimate: [{ amountText: "๓,๕๗๕,๐๘๑.๘๖", currencyText: "บาท", originalThaiText: "๓,๕๗๕,๐๘๑.๘๖ บาท", quote: "๔. ราคากลาง (ราคาอ้างอิง)\nเป็นเงิน ๓,๕๗๕,๐๘๑.๘๖ บาท" }],
         allocatedBudget: [{ amountText: "๕,๒๐๑,๔๐๐", currencyText: "บาท", originalThaiText: "๕,๒๐๑,๔๐๐ บาท", quote: "๓. วงเงินงบประมาณที่ได้รับจัดสรร ๕,๒๐๑,๔๐๐ บาท" }],
       });
@@ -692,6 +694,7 @@ test("in-memory analysis produces two prices, Thai TOR sections, and the bidding
   };
   const result = await analyzeProcurementInput(input, { client, config: CONFIG });
   assert.equal(result.schemaVersion, 3);
+  assert.equal(result.is_bangkok_area, true);
   assert.equal(result.prices.referencePriceEstimate.amount, 3575081.86);
   assert.equal(result.prices.allocatedBudget.amount, 5201400);
   assert.equal(result.deadlines.biddingClosingDate.closingDateTime, "2024-05-23T12:00:00+07:00");

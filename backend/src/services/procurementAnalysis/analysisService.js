@@ -547,11 +547,11 @@ async function analyzeProcurementInput(input, options = {}) {
             tokenUsage: diagnostics.tokenUsage,
             outcome: diagnostics.outcome,
           });
-          if (response.is_bangkok_area === true) {
-          isBangkokArea = true;
-      }
         },
       });
+      if (response.is_bangkok_area === true) {
+        isBangkokArea = true;
+      }
       for (const fieldName of PRICE_FIELDS) {
         for (const raw of response[fieldName]) {
           const candidate = verifyPriceCandidate(document, fieldName, raw);
