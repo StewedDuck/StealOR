@@ -1,0 +1,43 @@
+.admin-activity-page .admin-users-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px auto;
+  align-items: center;
+}
+
+.admin-activity-page .admin-users-filters > input {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  box-sizing: border-box;
+}
+
+.admin-activity-page .admin-users-filters > button {
+  height: 48px;
+  padding: 0 20px;
+  border: 1px solid #dce2e7;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #34414d;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.admin-activity-page .admin-users-filters > button:hover:not(:disabled) {
+  background: #f1f4f6;
+}
+
+.admin-activity-page .admin-users-filters > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .admin-activity-page .admin-users-filters {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .admin-activity-page .admin-users-filters > input {
+    grid-column: 1 / -1;
+  }
+}
