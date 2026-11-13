@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import FilterDropdown from "@/components/FilterDropdown";
 import Sidebar from "@/components/sideBarAdmin";
 import "../manageUser/users.css"; 
+import "./activity.css";
 
 export type ActivityLog = {
     _id: string;
