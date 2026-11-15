@@ -930,3 +930,32 @@
         grid-template-columns: 1fr;
     }
 }
+
+.review-item .review-delete-button {
+    display: flex;
+    width: fit-content;
+    margin-left: auto;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    margin-top: 10px;
+    padding: 7px 12px;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    background: #fff1f2;
+    color: #b91c1c;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+.review-item .review-delete-button:hover {
+    background: #fee2e2;
+    border-color: #f87171;
+}
+.review-item .review-delete-button:focus-visible {
+    outline: 2px solid #dc2626;
+    outline-offset: 3px;
+}

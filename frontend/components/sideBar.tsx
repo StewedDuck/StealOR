@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useAccountRoleLabel } from "@/hooks/useAccountRoleLabel";
 import { usePathname } from "next/navigation";
 import {
     LayoutDashboard,
@@ -189,6 +190,7 @@ export default function Sidebar () {
     const pathname = usePathname();
     const router = useRouter();
     const { data: session } = useSession();
+    const accountRoleLabel = useAccountRoleLabel(session?.user?.email);
     const [displayName, setDisplayName] = useState("");
     const [notificationCount, setNotificationCount] = useState(0);
     const userName = displayName || session?.user?.name || "ผู้ใช้";
@@ -362,10 +364,7 @@ export default function Sidebar () {
                 <div className="user-info">
                     <div className="user-name">{userName}</div>
                     <div className="user-role">
-                        {isProjectOwner
-                            ? "เจ้าของโครงการ"
-                            : "ผู้รับจ้าง"
-                        }
+                        {accountRoleLabel}
                     </div>
                 </div>
 

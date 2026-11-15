@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useAccountRoleLabel } from "@/hooks/useAccountRoleLabel";
 import { usePathname } from "next/navigation";
 import {
     LayoutDashboard,
@@ -66,6 +67,7 @@ const menuItems: MenuSection[] = [
 export default function SidebarAdmin () {
     const pathname = usePathname();
         const { data: session } = useSession();
+    const accountRoleLabel = useAccountRoleLabel(session?.user?.email);
     
         const userName = session?.user?.name ?? "ผู้ใช้";
         const initials = userName
@@ -143,7 +145,7 @@ export default function SidebarAdmin () {
 
                 <div className="user-info">
                     <div className="user-name">{userName}</div>
-                    <div className="user-role">แอดมิน</div>
+                    <div className="user-role">{accountRoleLabel}</div>
                 </div>
 
                 <button
