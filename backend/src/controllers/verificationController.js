@@ -1,4 +1,5 @@
 const fs = require("fs/promises");
+const { logActivity } = require("../utils/logger");
 
 const User = require("../models/User");
 const IdentityVerification = require("../models/IdentityVerification");
