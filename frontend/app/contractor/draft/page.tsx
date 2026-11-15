@@ -789,6 +789,7 @@ export default function ContractorDraftTOR() {
                                         {session?.user?.email === review.userId && (
                                             <button
                                                 type="button"
+                                                className="review-delete-button"
                                                 onClick={async () => {
                                                     try {
                                                         await deleteComment(
@@ -813,7 +814,7 @@ export default function ContractorDraftTOR() {
                                                     }
                                                 }}
                                             >
-                                                ลบ
+                                                ลบความคิดเห็น
                                             </button>
                                         )}
                                     </div>
