@@ -16,6 +16,7 @@ function setup() {
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../src/controllers", name), "utf8"), {
       module: mod, console,
       require(dep) {
+      if (dep === "../utils/logger") return { logActivity: async () => {} };
         if (dep === "mongoose") return require("mongoose");
         if (dep === "../models/Tor") return model;
         if (dep === "../models/User") return {

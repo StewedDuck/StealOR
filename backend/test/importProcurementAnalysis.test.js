@@ -254,7 +254,7 @@ test("rollback is guarded by the imported fingerprint and restores absence with 
 });
 
 test("mocked apply writes backup first and verifies the stored analysis", async () => {
-  const analysis = validAnalysis();
+  const analysis = validAnalysis({ is_bangkok_area: true });
   const events = [];
   let stored;
   const collection = {

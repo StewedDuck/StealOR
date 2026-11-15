@@ -19,6 +19,7 @@ function setup() {
     module: moduleStub, console,
     require: (name) => {
       if (name === "./torReviewController") return require("../src/controllers/torReviewController");
+      if (name === "../utils/logger") return { logActivity: async () => {} };
       if (name === "mongoose") return require("mongoose");
       if (name === "../models/Tor") return torModel;
       if (name === "../models/Bookmark") return { find: () => ({ lean: async () => [] }) };
