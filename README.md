@@ -1,327 +1,180 @@
-# TOR Platform
+# StealOR — TOR Aggregation & AI Matching Platform
 
-A web-based platform for collecting, discovering, and matching software-related Terms of Reference (TOR) projects.
-
-The platform aggregates TOR data from multiple public-sector sources into a unified marketplace, leveraging AI to automatically evaluate contractor qualifications against project requirements.
+A full-stack web platform for collecting, discovering, and matching software-related Terms of Reference (TOR) projects. StealOR aggregates public-sector procurement data (e-GP / GovSpending) alongside internal organization TORs into a unified marketplace, leveraging Google Vertex AI / Gemini to extract requirements and automatically score contractor qualifications.
 
 ---
 
-## 🛠️ Tech Stack
+## 🏗️ Architecture & Tech Stack
 
-* **Frontend:** Next.js, React, TypeScript
-* **Backend:** Node.js, Next.js API Routes
-* **Database:** MongoDB Atlas
-* **AI Engine:** Google Vertex AI
-* **Auth:** Google OAuth
+This repository is structured as a single Git repository containing two applications:
+
+* **`frontend/`** — Next.js 15, React, TypeScript, NextAuth (Google OAuth) running on port `3000`
+* **`backend/`** — Node.js + Express REST API & document pipeline running on port `5000`
+* **Database:** MongoDB Atlas (cloud-hosted)
+* **AI Engine:** Google Vertex AI / Gemini (TOR classification, extraction, and matching analysis)
+
+> 📚 **Full Documentation:** Detailed architecture diagrams, role workflows, coding standards, and complete API specs live in the **[GitHub Wiki](../../wiki)**:
+> * **[Wiki Home](../../wiki)** — System roles, sequence diagrams, Scrum workflow, and developer standards
+> * **[Backend API Reference](../../wiki/Backend-API-Documentation)** — Express endpoints, proxy headers, and payloads
+> * **[Frontend API Reference](../../wiki/Frontend-API-Documentation)** — Next.js proxy routes, client helpers, and caching
 
 ---
 
 ## ✨ Core Features
 
-* **TOR Aggregation & Marketplace:** Centralized source for public sector software contracts.
-* **AI-Powered Matching:** Intelligent extraction of TOR requirements and automated qualification match scoring.
-* **Role-Based Workflows:** Tailored dashboards for Contractors, Project Owners, and Admins.
+* **Unified TOR Marketplace:** Aggregates filtered government e-GP software projects with verified internal organization TORs.
+* **Automated Document & AI Pipeline:** Downloads e-GP archives, extracts PDF text, and parses structured requirements, budgets, and deadlines via Gemini.
+* **AI Qualification Matching:** Evaluates contractor profiles against mandatory and weighted TOR criteria with detailed match breakdowns and dashboard analytics.
+* **Role-Based Workflows:** Dedicated interfaces and access controls for **Contractors**, **Project Owners** (drafting, review, KYC verification, publishing), and **Admins**.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Prerequisites
 
-### Prerequisites
-* **Node.js** (v18+) & **npm**
-* Access to **MongoDB Atlas** and **Google Cloud (Vertex AI / OAuth)**
-
-### Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd <project-folder>
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Configure Environment Variables:**
-   Create a `.env.local` file in the root directory:
-   ```env
-   MONGODB_URI=your_mongodb_uri
-   GOOGLE_CLIENT_ID=your_client_id
-   GOOGLE_CLIENT_SECRET=your_client_secret
-
-   GOOGLE_CLOUD_PROJECT=your_project_id
-   GOOGLE_CLOUD_LOCATION=your_location
-   VERTEX_AI_MODEL=your_model
-   ```
-
-4. **Run the Development Server:**
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000) in your browser.
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/) *(recommended)* **or** Node.js `v18+` & `npm`
+* **MongoDB Atlas** cluster with a valid connection string (`MONGODB_URI`)
+* **Google Cloud Console** project with:
+  * **OAuth 2.0 Client ID** (for NextAuth Google sign-in)
+  * **Vertex AI / Gemini** enabled with a service account JSON key
 
 ---
 
-## 👥 Contributing Guidelines
+## ⚙️ Environment Configuration
 
-To keep our codebase clean, please follow these basic rules:
+### 1. Google OAuth Setup
+In **Google Cloud Console → APIs & Services → Credentials**, configure your OAuth 2.0 Client ID:
 
-* **Branching:** Use category prefixes (e.g., `feat/`, `fix/`, `frontend/`, `backend/`). Direct pushes to `main` are strictly prohibited.
-* **Commits:** Follow Conventional Commits (e.g., `feat: add matching engine`, `fix: tor filter bug`).
-* **Pull Requests:** All PRs require at least 1 approval before merging.
+* **Authorized JavaScript origins:**
+  ```text
+  http://localhost:3000
+  ```
+  *(If you access the app via `127.0.0.1`, register `http://127.0.0.1:3000` separately.)*
 
-> 📄 **See the full [Developer Guidelines & Code Standards in the Wiki](./WIKI.md#developer-guide--standards)** for PR templates, naming conventions, and API standards.
+* **Authorized redirect URIs:**
+  ```text
+  http://localhost:3000/api/auth/callback/google
+  ```
+  *(Do not add port `5000` — OAuth callbacks route through Next.js on port `3000`.)*
 
----
-
-## 👥 Contributors
-
-* Sorasit Kateratorn
-* Jongchana Khachatrokphai
-* Patthiaon Panitanont
-
----
-
-## 📜 License
-
-This project is intended for educational and research purposes.
-
----
-
-# Docker Setup
-
-This repository contains one Git repository with two separate applications:
-
-* `frontend/` — Next.js 15 application (port 3000)
-* `backend/` — Node.js + Express application (port 5000)
-
-Docker Compose runs both applications together for local development.
-
-External services are **not** containerized:
-
-* MongoDB Atlas — cloud-hosted, connected via `MONGODB_URI`
-* Google Vertex AI — cloud-hosted, connected via GCP credentials
-
-### Government document enrichment
-
-The backend can enrich one MongoDB `GovProject` by downloading its official
-e-GP price-document archive, extracting text from contained PDFs, and saving
-the document information and text under `documentExtraction`:
-
-```http
-POST /api/gov-projects/:projectId/enrich
-```
-
-The project must already exist in MongoDB. This endpoint does not use Vertex AI.
-Image-only scanned PDFs are recorded as failed with a clear no-text message;
-OCR is intentionally deferred to a later milestone. This initial source is
-stored as `sourceDocumentType: "price_estimate"`; the service does not claim
-that a price document contains every field from the complete TOR.
-
-### Local procurement analysis
-
-`npm run analyze:procurement` reads each project's existing classification
-manifests and selects supported, non-`JUNK` TXT documents. Each selected TXT is
-read in full and sent to Gemini in exactly one request. The analyzer does not
-split, overlap, retry, or automatically shorten a document. If a whole document
-cannot be processed (including a model input/output limit or invalid response),
-the failure is recorded for that document and processing continues with the
-remaining documents.
-
-The structured response keeps the seven TOR section codes and evidence rules.
-The former ten-item TOR ceiling has been removed, and the request uses a
-16,384-token output budget. Exact quotations are still verified against the
-original full TXT before a candidate can be accepted. Generated `analysis.json`
-remains schema version 3; `summary.md` is its human-readable view.
-
----
-
-## Prerequisites
-
-* [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-* MongoDB Atlas cluster configured with a valid connection string
-* Google Cloud OAuth 2.0 credentials (for NextAuth Google login)
-* `frontend/.env.local` file created from `frontend/.env.example` with real credentials filled in
-
-### Google OAuth Setup
-
-In Google Cloud Console, open **APIs & Services → Credentials**, select the
-OAuth 2.0 Client ID used by the frontend, and configure both sections below.
-
-#### Authorized JavaScript origins
-
-For local development (including Docker when the browser opens the application
-through `localhost`), add:
-
-```text
-http://localhost:3000
-```
-
-If a developer opens the application through `127.0.0.1` instead, that origin
-must be registered separately:
-
-```text
-http://127.0.0.1:3000
-```
-
-#### Authorized redirect URIs
-
-Add the Auth.js/NextAuth Google callback URL for every base URL that the team
-actually uses. For local development and Docker through `localhost`, add:
-
-```text
-http://localhost:3000/api/auth/callback/google
-```
-
-If the application is also opened through `127.0.0.1`, add this as a second
-redirect URI:
-
-```text
-http://127.0.0.1:3000/api/auth/callback/google
-```
-
-When the application is deployed, add its production origin and callback as
-additional entries, replacing the placeholder with the real HTTPS domain:
-
-```text
-https://your-domain.example
-https://your-domain.example/api/auth/callback/google
-```
-
-Google requires an exact match, including protocol, hostname, port, path, and
-trailing slash. Do not add the Express backend (`http://localhost:5000`) as an
-OAuth redirect URI because Google returns to the Next.js authentication route.
-
-### Frontend Environment
-
-Copy the example file and fill in your credentials:
+### 2. Frontend Environment (`frontend/.env.local`)
+Copy the example file and populate your credentials:
 
 ```bash
 cp frontend/.env.example frontend/.env.local
 ```
-
-Then edit `frontend/.env.local`:
 
 ```env
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 AUTH_SECRET=generate-with-openssl-rand-base64-32
 NEXTAUTH_URL=http://localhost:3000
+
+INTERNAL_API_URL=http://backend:5000
 NEXT_PUBLIC_API_URL=http://localhost:5000
+TOR_PROXY_SECRET=your-shared-proxy-secret
 ```
 
-Generate `AUTH_SECRET`:
-
+Generate `AUTH_SECRET` and `TOR_PROXY_SECRET`:
 ```bash
 openssl rand -base64 32
 ```
 
-Each developer should keep real values in `frontend/.env.local`; never commit
-or send that file through Git. The team may use the same development Google
-OAuth client, but an exposed `GOOGLE_CLIENT_SECRET` must be rotated in Google
-Cloud before it is used again. Restart the frontend after changing environment
-variables.
-
-### Backend Environment
-
-The `backend/.env` file already exists. Verify it contains a valid `MONGODB_URI`.
-
----
-
-## Google Cloud Credentials (Vertex AI)
-
-If you are testing Vertex AI features:
-
-1. Download your GCP service account JSON key from Google Cloud Console
-2. Place it at:
-
-```
-backend/config/gcp-service-account.json
-```
-
-3. Uncomment the volume mount in `docker-compose.yml`:
-
-```yaml
-- ./backend/config/gcp-service-account.json:/app/config/gcp-service-account.json:ro
-```
-
-4. Update `GOOGLE_APPLICATION_CREDENTIALS` in `backend/.env`:
+### 3. Backend Environment (`backend/.env` & GCP Credentials)
+Ensure `backend/.env` contains your MongoDB connection string and matching proxy secret:
 
 ```env
+PORT=5000
+MONGODB_URI=your_mongodb_atlas_uri
+TOR_PROXY_SECRET=your-shared-proxy-secret
 GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-service-account.json
 ```
 
-The JSON key file is excluded from Git by `.gitignore`.
+To enable Vertex AI / Gemini features:
+1. Place your GCP service account key at `backend/config/gcp-service-account.json` *(excluded from Git via `.gitignore`)*.
+2. Uncomment the volume mount in `docker-compose.yml`:
+   ```yaml
+   - ./backend/config/gcp-service-account.json:/app/config/gcp-service-account.json:ro
+   ```
+
+> ⚠️ **Security:** Never commit `.env`, `.env.local`, or `gcp-service-account.json` to Git. If any secret is exposed, rotate it immediately.
 
 ---
 
-## Docker Commands
+## 🐳 Running with Docker Compose (Recommended)
 
-Build both images:
-
-```bash
-docker compose build
-```
-
-Start both services:
+Source code is bind-mounted into both containers with hot-reload enabled (Next.js Turbopack on frontend, `node --watch` on backend).
 
 ```bash
-docker compose up
-```
-
-Build and start in one command:
-
-```bash
+# Build and start both frontend and backend
 docker compose up --build
-```
 
-Start in the background:
-
-```bash
+# Run in background (detached mode)
 docker compose up -d
-```
 
-Stop and remove containers:
+# View live logs (all services or specific service)
+docker compose logs -f
+docker compose logs -f frontend
+docker compose logs -f backend
 
-```bash
+# Stop and remove containers
 docker compose down
 ```
 
-View live logs:
-
-```bash
-docker compose logs -f
-```
-
-View logs for a specific service:
-
-```bash
-docker compose logs -f frontend
-docker compose logs -f backend
-```
-
----
-
-## Access the Application
+### Local Service URLs
 
 | Service | URL |
-|---|---|
-| Frontend | http://localhost:3000 |
-| Backend API | http://localhost:5000 |
-| Backend Health | http://localhost:5000/health |
+| :--- | :--- |
+| **Frontend App** | [http://localhost:3000](http://localhost:3000) |
+| **Backend API** | [http://localhost:5000](http://localhost:5000) |
+| **Backend Health Check** | [http://localhost:5000/health](http://localhost:5000/health) |
 
 ---
 
-## Development Workflow
+## 🛠️ Running Without Docker (Manual Local Setup)
 
-Source code is bind-mounted into the containers, so changes are reflected without rebuilding:
-
-* Frontend — Next.js Turbopack hot reload is active
-* Backend — Node.js `--watch` mode restarts on file changes
-
-To rebuild after changing `package.json` or `Dockerfile`:
+If running services directly on your host machine, set `INTERNAL_API_URL=http://localhost:5000` in `frontend/.env.local`, then run each app in a separate terminal:
 
 ```bash
-docker compose up --build
+# Terminal 1 — Backend
+cd backend
+npm install
+npm run dev
+
+# Terminal 2 — Frontend
+cd frontend
+npm install
+npm run dev
 ```
+
+---
+
+## 📄 Procurement Document Pipeline
+
+* **Single-Project Price Document Enrichment:**
+  `POST /api/gov-projects/:projectId/enrich` downloads the official e-GP price-estimate archive for an existing MongoDB `GovProject`, extracts PDF text, and stores metadata under `documentExtraction` (`sourceDocumentType: "price_estimate"`). Scanned image-only PDFs are flagged with a clear no-text status (OCR is deferred to a future milestone).
+* **Batch AI Procurement Analysis:**
+  Run `npm run analyze:procurement` inside `backend/` to process non-`JUNK` extracted TXT files through Gemini in a single pass per document (16,384-token output budget, schema v3), verifying exact source quotations before generating `analysis.json` and `summary.md`.
+
+---
+
+## 👥 Contributing & Workflow
+
+* **Branching:** Direct pushes to `main` are prohibited. Create feature branches using `<category>/<sub-issue>` (e.g., `frontend/tor_market`, `backend/matching_api`, `ai/tor_extraction`).
+* **Commits:** Follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`).
+* **Pull Requests:** All PRs require at least **1 team approval** before merging.
+
+See the **[Developer Guide & Standards](../../wiki#developer-guide--standards)** in the Wiki for full PR templates and naming rules.
+
+---
+
+## 👥 Contributors
+
+* **Sorasit Kateratorn**
+* **Jongchana Khachatrokphai**
+* **Patthiaon Panitanont**
+
+---
+
+## 📜 License
+
+This project is developed for educational and research purposes.
