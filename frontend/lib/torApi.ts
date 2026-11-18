@@ -468,6 +468,7 @@ export async function updateUserProfile(
     body: JSON.stringify(data),
   });
   invalidateList(`profile:${_email}`);
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('stealor:profile-updated'));
   return updated;
 }
 

@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import {
     ChangeEvent,
     FormEvent,
@@ -203,7 +205,7 @@ export default function VerificationPage() {
             <Sidebar />
             <main className="verification-main">
                 {/* HEADER */}
-                <header className="verification-header">
+                <header className="app-page-header verification-header"><div className="app-page-heading">
                     <div>
                         <h1>
                             ยืนยันตัวตน
@@ -212,7 +214,7 @@ export default function VerificationPage() {
                             ยืนยันข้อมูลเจ้าของโครงการก่อนเผยแพร่ TOR
                         </p>
                     </div>
-                </header>
+                </div><div className="app-page-controls"><HeaderActions /></div></header>
 
                 <div className="verification-page-content">
                     {loading ? (

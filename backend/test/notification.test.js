@@ -151,3 +151,19 @@ test('notification list batches TOR lookups and excludes bulky raw imported data
     assert.equal(res.body.data[0].torName, 'Gov project');
     assert.equal(res.body.data[2].torName, 'Internal project');
 });
+
+test('an opted-out queued email is terminally skipped while its in-app event remains', async () => {
+    const delivery = memoryDelivery();
+    let webEvents = 0;
+    const service = createDeliveryService({ delivery,
+        logs: { findOneAndUpdate: async () => { webEvents++; }, updateOne: async () => {} },
+        send: async () => ({ skipped: true }),
+    });
+    await service.notify({ key: 'opted-out', user: { email: 'user@test.com' }, source: 'internal', torId: 'tor', type: 'new_matching', title: 'Match', message: 'New match' });
+    await service.flush(new Date(Date.now() + 1000));
+    assert.equal(webEvents, 1);
+    assert.equal(delivery.rows.get('opted-out').state, 'skipped');
+    assert.equal(delivery.rows.get('opted-out').sentAt, null);
+    await service.flush(new Date(Date.now() + 2000));
+    assert.equal(delivery.rows.get('opted-out').attempts, 1);
+});

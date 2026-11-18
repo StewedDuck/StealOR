@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Sidebar from "@/components/sideBar";
@@ -25,5 +27,5 @@ export default function EditDraftTOR() {
     }).catch((err) => setError(err instanceof Error ? err.message : "โหลด TOR ไม่สำเร็จ"));
   }, [id]);
 
-  return <div className="createTOR-layout"><Sidebar /><main className="createTOR-main"><div className="createTOR-header"><div><p>TOR ร่างของฉัน</p><h1>แก้ไข TOR</h1><span>การแก้ไขจะยกเลิกผลอนุมัติเดิม และต้องส่งตรวจใหม่</span></div></div>{error ? <div className="draftTOR-error">{error}</div> : data ? <TorForm initialData={data} submitLabel="บันทึกการแก้ไข" onSubmit={async (formData) => { await updateTor(id, formData); showToast("แก้ไข TOR สำเร็จ"); router.push("/project_own/draft_TOR"); }} /> : <div className="draftTOR-state">กำลังโหลดข้อมูล...</div>}</main></div>;
+  return <div className="createTOR-layout"><Sidebar /><main className="createTOR-main"><header className="app-page-header createTOR-header"><div className="app-page-heading"><div><p>TOR ร่างของฉัน</p><h1>แก้ไข TOR</h1><span>การแก้ไขจะยกเลิกผลอนุมัติเดิม และต้องส่งตรวจใหม่</span></div></div><div className="app-page-controls"><HeaderActions /></div></header>{error ? <div className="draftTOR-error">{error}</div> : data ? <TorForm initialData={data} submitLabel="บันทึกการแก้ไข" onSubmit={async (formData) => { await updateTor(id, formData); showToast("แก้ไข TOR สำเร็จ"); router.push("/project_own/draft_TOR"); }} /> : <div className="draftTOR-state">กำลังโหลดข้อมูล...</div>}</main></div>;
 }

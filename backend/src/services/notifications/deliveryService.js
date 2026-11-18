@@ -36,8 +36,8 @@ function createDeliveryService({ delivery = Delivery, logs = NotificationLog, se
             try {
                 // Upgrade unsent legacy plain HTML too, without resending delivered emails.
                 const html = row.html?.includes('sTealORs') ? row.html : messageEmail(row.subject, row.text || '', process.env.APP_URL || 'http://localhost:3000').html;
-                await send({ to: row.to, subject: row.subject, text: row.text, html });
-                await delivery.updateOne({ _id: row._id, token }, { $set: { state: 'sent', sentAt: new Date() }, $unset: { token: '', leaseUntil: '' } });
+                const result = await send({ to: row.to, subject: row.subject, text: row.text, html });
+                await delivery.updateOne({ _id: row._id, token }, { $set: { state: result?.skipped ? 'skipped' : 'sent', sentAt: result?.skipped ? null : new Date() }, $unset: { token: '', leaseUntil: '' } });
             } catch {
                 await delivery.updateOne({ _id: row._id, token }, {
                     $set: { state: row.attempts >= 5 ? 'failed' : 'pending', nextAttemptAt: new Date(now.getTime() + Math.min(60, 2 ** row.attempts) * 60000) },

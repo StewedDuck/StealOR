@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
@@ -119,7 +121,7 @@ export default function ProjectOwnerDashboard() {
 
             <main className="owner-dashboard-main">
                 {/* HEADER */}
-                <header className="owner-dashboard-header">
+                <header className="app-page-header owner-dashboard-header"><div className="app-page-heading">
                     <div>
                         <h1>แดชบอร์ด</h1>
                         <p>
@@ -128,16 +130,8 @@ export default function ProjectOwnerDashboard() {
                         </p>
                     </div>
 
-                    <div className="owner-header-actions">
-                        <Link href="/project_own/notifications" className="owner-notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
-                            <BellRing size={17} />
-                        </Link>
 
-                        <Link href="/contractor/account" className="owner-avatar header-action-link" aria-label="บัญชีของฉัน">
-                            {initials}
-                        </Link>
-                    </div>
-                </header>
+                </div><div className="app-page-controls"><HeaderActions /></div></header>
 
                 <div className="owner-dashboard-content">
                     {/* SUMMARY CARDS */}

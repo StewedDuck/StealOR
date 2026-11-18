@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useProfileIdentity } from "@/hooks/useProfileIdentity";
 import { useAccountRoleLabel } from "@/hooks/useAccountRoleLabel";
 import { usePathname } from "next/navigation";
 import {
@@ -69,14 +70,7 @@ export default function SidebarAdmin () {
         const { data: session } = useSession();
     const accountRoleLabel = useAccountRoleLabel(session?.user?.email);
     
-        const userName = session?.user?.name ?? "ผู้ใช้";
-        const initials = userName
-            .split(" ")
-            .map((w) => w[0])
-            .join("")
-            .toUpperCase()
-            .slice(0, 2)
-        ;
+    const { name: userName, initials } = useProfileIdentity();
 
     return (
         <aside className = "sidebar">

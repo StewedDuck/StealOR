@@ -17,6 +17,11 @@ async function sendEmail({ to, subject, text, html }) {
         throw new Error("Email recipient is required");
     }
 
+    // Recheck at send time so opting out also suppresses already queued mail.
+    const user = await require('../models/User').findOne({ email: String(to).trim().toLowerCase() })
+        .select('emailNotificationsEnabled').lean();
+    if (user?.emailNotificationsEnabled === false) return { skipped: true };
+
     const info = await transporter.sendMail({
         from: `"sTealORs" <${process.env.EMAIL_USER}>`,
         to,

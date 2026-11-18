@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import { CircleCheckBig, Clock, ClockPlus, Coins, BellRing } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
@@ -91,13 +93,10 @@ export default function DashboardPage() {
     return <div className="dashboard-layout">
         <Sidebar />
         <main className="dashboard-main-header">
-            <header className="dashboard-header">
+            <header className="app-page-header dashboard-header"><div className="app-page-heading">
                 <div><h1>แดชบอร์ด</h1><p>ภาพรวมกิจกรรมของ TOR ที่ตรงกับคุณสมบัติของคุณ</p></div>
-                <div className="dashboard-header-actions">
-                    <Link href="/contractor/notifications" className="notification-buttom header-action-link header-notification-link" aria-label="การแจ้งเตือน"><BellRing size={16} /></Link>
-                    <Link href="/contractor/account" className="user-avater header-action-link" aria-label="บัญชีของฉัน">{initials}</Link>
-                </div>
-            </header>
+
+            </div><div className="app-page-controls"><HeaderActions /></div></header>
             <div className="dashboard-main"><div className="dashboard-content">
                 {loading && <p className="dashboard-status" role="status">กำลังโหลดข้อมูลจริง… กำลังดึงผลที่บันทึกไว้</p>}
                 {data?.isCachedSnapshot && !error && <p className="dashboard-status" role="status">แสดงผลที่บันทึกไว้ · กำลังตรวจสอบข้อมูลล่าสุด</p>}

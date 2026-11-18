@@ -250,6 +250,7 @@ const legalEligibilitySchema = new mongoose.Schema(
 
 const userSchema = new mongoose.Schema(
     {
+        emailNotificationsEnabled: { type: Boolean, default: true },
         name: {
             type: String,
             required: true,

@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import TorReviewPanel from "@/components/TorReviewPanel";
@@ -119,7 +121,7 @@ export default function DraftTOR() {
         <div className="draftTOR-layout">
             <Sidebar />
             <main className="draftTOR-main">
-                <header className="draftTOR-header">
+                <header className="app-page-header draftTOR-header"><div className="app-page-heading">
                     <div>
                         <p>เจ้าของโครงการ</p>
                         
@@ -128,12 +130,12 @@ export default function DraftTOR() {
                         <span>จัดการและแก้ไข TOR ก่อนส่งตรวจสอบ</span>
                     </div>
 
-                    <button 
+
+                </div><div className="app-page-controls"><button
                         onClick={() => router.push("/project_own/create_TOR")}
                     >
                         <Plus size={17} /> สร้าง TOR
-                    </button>
-                </header>
+                    </button><HeaderActions /></div></header>
 
                 <div className="draftTOR-toolbar">
                     <Search size={17} />

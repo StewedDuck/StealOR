@@ -108,3 +108,21 @@ module.exports = {
     getNotifications,
     markNotificationAsRead,
 };
+async function getPreferences(req, res) {
+    try {
+        const user = await require('../models/User').findOne({ email: req.profileEmail }).select('emailNotificationsEnabled').lean();
+        if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+        return res.json({ success: true, data: { emailNotificationsEnabled: user.emailNotificationsEnabled !== false } });
+    } catch { return res.status(500).json({ success: false, error: 'Unable to load notification preferences' }); }
+}
+async function updatePreferences(req, res) {
+    if (typeof req.body.emailNotificationsEnabled !== 'boolean') return res.status(400).json({ success: false, error: 'emailNotificationsEnabled must be a boolean' });
+    try {
+        const user = await require('../models/User').findOneAndUpdate({ email: req.profileEmail },
+            { $set: { emailNotificationsEnabled: req.body.emailNotificationsEnabled } }, { new: true });
+        if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+        return res.json({ success: true, data: { emailNotificationsEnabled: user.emailNotificationsEnabled !== false } });
+    } catch { return res.status(500).json({ success: false, error: 'Unable to save notification preferences' }); }
+}
+module.exports.getPreferences = getPreferences;
+module.exports.updatePreferences = updatePreferences;

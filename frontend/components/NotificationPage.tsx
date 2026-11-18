@@ -1,6 +1,9 @@
 "use client";
 
-import Link from 'next/link';
+import NotificationSettings from "@/components/NotificationSettings";
+import HeaderActions from "@/components/HeaderActions";
+
+
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -13,7 +16,6 @@ import {
     getContractorNotifications,
     readNotificationSnapshot,
     markContractorNotificationAsRead,
-    getUserProfile,
 } from "@/lib/torApi";
 
 import {
@@ -130,7 +132,6 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
     const [notifications, setNotifications] = useState<ContractorNotification[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [displayName, setDisplayName] = useState("");
     const router = useRouter();
 
 
@@ -182,37 +183,6 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
         return () => { cancelled = true; clearInterval(timer); };
     }, [sessionStatus, session?.user?.email]);
 
-
-    /* Load user display name */
-    useEffect(() => {
-        const email =
-            session?.user?.email;
-
-        if (!email) {
-            return;
-        }
-
-        getUserProfile(email)
-            .then((profile) => {
-                setDisplayName(
-                    profile.name
-                );
-            })
-            .catch((error) => {
-                console.warn(
-                    "Failed to load notification profile:",
-                    error
-                );
-
-                setDisplayName(
-                    session?.user?.name ?? ""
-                );
-            });
-
-    }, [
-        session?.user?.email,
-        session?.user?.name,
-    ]);
 
     /* Mark notification as read */
     async function handleNotificationClick(
@@ -277,22 +247,6 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
         ).length;
 
 
-    /* Profile initials */
-    const userName =
-        displayName ||
-        session?.user?.name ||
-        session?.user?.email ||
-        "ผู้ใช้";
-
-
-    const initials = userName
-        .split(" ")
-        .map((word) => word[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-
-
     return (
         <div className="notification-layout">
 
@@ -303,7 +257,7 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
 
                 {/* Header */}
 
-                <header className="notification-header">
+                <header className="app-page-header notification-header"><div className="app-page-heading">
 
                     <div>
                         <h1>
@@ -316,28 +270,15 @@ export default function NotificationPage({ audience = 'contractor' }: { audience
                     </div>
 
 
-                    <div className="profile-header-actions">
-
-                        <div className="notification-header-icon">
-
-                            <Link href={audience === 'admin' ? '/admin/notifications' : audience === 'project_owner' ? '/project_own/notifications' : '/contractor/notifications'} className="notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
-                                <BellRing size={18} />
-                            </Link>
-                        </div>
 
 
-                        <Link href="/contractor/account" className="profile-circle header-action-link" aria-label="บัญชีของฉัน">
-                            {initials}
-                        </Link>
-
-                    </div>
-
-                </header>
+                </div><div className="app-page-controls"><HeaderActions /></div></header>
 
 
                 {/* Content */}
 
                 <div className="notification-content">
+                    <NotificationSettings />
 
                     {/* Loading */}
 

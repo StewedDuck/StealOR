@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -54,14 +56,14 @@ export default function AdminDashboard() {
             <main className="admin-main">
 
                 {/* HEADER */}
-                <header className="admin-header">
+                <header className="app-page-header admin-header"><div className="app-page-heading">
                     <div className="admin-header-content">
                         <h1>แดชบอร์ดผู้ดูแลระบบ</h1>
                         <p>
                             ภาพรวมระบบและรายการที่รอดำเนินการของผู้ดูแล
                         </p>
                     </div>
-                </header>
+                </div><div className="app-page-controls"><HeaderActions /></div></header>
 
 
                 {/* CONTENT */}

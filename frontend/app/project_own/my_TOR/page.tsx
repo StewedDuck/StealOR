@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import TorReviewPanel from "@/components/TorReviewPanel";
 
 import { useEffect, useMemo, useState } from "react";
@@ -298,13 +300,13 @@ export default function MyTORPage() {
             <Sidebar />
 
             <main className="myTOR-main">
-                <header className="myTOR-header">
+                <header className="app-page-header myTOR-header"><div className="app-page-heading">
                     <p>เจ้าของโครงการ</p>
                     <h1>TOR ของฉัน</h1>
                     <span>
                         จัดการ TOR ที่เผยแพร่และตรวจสอบโครงการที่ปิดรับแล้ว
                     </span>
-                </header>
+                </div><div className="app-page-controls"><HeaderActions /></div></header>
 
                 <section className="myTOR-content">
                     <div className="myTOR-toolbar">

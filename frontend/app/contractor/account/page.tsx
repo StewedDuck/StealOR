@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import Link from 'next/link';
 
 import { useEffect, useState } from "react";
@@ -620,7 +622,7 @@ export default function ProfilePage() {
             <main className="account-main">
                 {/* HEADER */}
 
-                <header className="profile-header">
+                <header className="app-page-header profile-header"><div className="app-page-heading">
                     <div>
                         <h1>โปรไฟล์</h1>
                         <p>
@@ -628,16 +630,8 @@ export default function ProfilePage() {
                         </p>
                     </div>
 
-                    <div className="profile-header-actions">
-                        <Link href={'/contractor/notifications'} className="notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
-                        <BellRing size={16}/>
-                        </Link>
 
-                        <Link href="/contractor/account" className="profile-circle header-action-link" aria-label="บัญชีของฉัน">
-                            {initials}
-                        </Link>
-                    </div>
-                </header>
+                </div><div className="app-page-controls"><HeaderActions /></div></header>
 
                 <div className="profile-content">
 
