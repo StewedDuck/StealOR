@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Tor = require('../src/models/Tor');
+const ActivityLog = require('../src/models/ActivityLog');
 const { marketTor } = require('../src/services/torMatchingCatalog');
 const { createTor } = require('../src/controllers/torController');
 const base = { ownerId: 'owner', projectName: 'Project', agencyName: 'Agency', budget: 1000000 };
@@ -19,7 +20,9 @@ test('matching catalog carries owner reference price without budget fallback', (
     assert.equal(marketTor({ ...base, _id: 'id', referencePriceEstimate: 850000.25 }, 'internal').referencePriceEstimate, 850000.25);
     assert.equal(marketTor({ ...base, _id: 'id' }, 'internal').referencePriceEstimate, null);
 });
-test('create API persists reference price and converts a cleared input to null', async () => {
+test('create API persists reference price and converts a cleared input to null', async t => {
+    // Exercise the real logger without buffering writes against an unconnected DB.
+    const activityWrites = t.mock.method(ActivityLog, 'create', async data => data);
     const original = Tor.create;
     const response = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
     try {
@@ -29,5 +32,10 @@ test('create API persists reference price and converts a cleared input to null',
         assert.equal(response.body.data.referencePriceEstimate, 750000.5);
         await createTor({ body: { ...base, referencePriceEstimate: '' }, ownerId: 'owner' }, response);
         assert.equal(response.body.data.referencePriceEstimate, null);
+        assert.equal(activityWrites.mock.callCount(), 2);
+        for (const call of activityWrites.mock.calls) {
+            assert.equal(call.arguments[0].category, 'tor');
+            assert.equal(call.arguments[0].actorName, 'owner');
+        }
     } finally { Tor.create = original; }
 });
