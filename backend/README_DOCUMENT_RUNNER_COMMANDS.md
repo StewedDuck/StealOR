@@ -6,6 +6,17 @@ This guide explains how to run **Phase A**: discovering National e-GP document m
 
 ---
 
+## Before you start
+
+1. From the repository root, run `cd backend`, then `npm install`.
+2. If `.env` does not exist, copy `.env.example` to `.env` and set a valid `MONGODB_URI`. Keep an existing `.env`.
+3. Make sure the target projects already exist in MongoDB. Phase A discovers documents for existing projects; it does not import new projects. For RSS discovery and project import, see the [RSS ingestion guide](./README_RSS_INGESTION.md).
+4. Replace the example Windows folder path and project IDs below with your own.
+
+Vertex AI credentials are not needed for Phase A or Phase B. They are needed for the later AI steps.
+
+---
+
 ## 1. What Phase A Does
 
 Phase A (`enrichGovProjectDocuments.js`) queries public e-GP APIs for existing MongoDB projects, finds their bidding documents, and saves normalized reference metadata into `GovProject.documents`.
