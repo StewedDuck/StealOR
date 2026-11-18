@@ -11,29 +11,18 @@ This document explains the end-to-end document processing pipeline, how e-GP dow
 The project processes government procurement documents in sequential, decoupled phases:
 
 ```text
- ┌────────────────────────────────────────────────────────┐
- │           Phase A: Metadata Enrichment (Runner)        │
- │  - Queries e-GP metadata APIs                          │
- │  - Saves ZIP references into MongoDB `GovProject`      │
- │  - Fast, metadata-only (no ZIP files downloaded)       │
- └───────────────────────────┬────────────────────────────┘
-                             │
-                             ▼
- ┌────────────────────────────────────────────────────────┐
- │           Phase B: ZIP-to-PDF Extraction (Runner)      │
- │  - Reads stored metadata from MongoDB                  │
- │  - Downloads ZIP archives into memory via e-GP adapter │
- │  - Validates '%PDF-' and extracts PDFs into temp/pdfs/ │
- │  - Writes verified `manifest.json` and deletes ZIP     │
- └───────────────────────────┬────────────────────────────┘
-                             │
-                             ▼
- ┌────────────────────────────────────────────────────────┐
- │           Phase C: PDF Text Extraction & OCR (Future)  │
- │  - Reads retained per-PDF files from temp/pdfs/        │
- │  - Extracts selectable text; applies OCR to scans      │
- └────────────────────────────────────────────────────────┘
+RSS discovery / project import
+  → Existing projects in MongoDB
+  → Phase A: discover document metadata → MongoDB documents field
+  → Phase B: download ZIPs and extract PDFs → temp/pdfs/
+  → Phase C: AI classification and text extraction → TXT files + manifest labels
+  → Phase D: procurement analysis → analysis.json + summary.md
+  → Phase E: import analysis → MongoDB procurementAnalysis field
 ```
+
+For RSS project discovery and import, start with the [RSS ingestion guide](./README_RSS_INGESTION.md). If projects already exist in MongoDB, start with the [Phase A runner guide](./README_DOCUMENT_RUNNER_COMMANDS.md),
+then the [Phase B extraction guide](./README_DOCUMENT_EXTRACTION_COMMANDS.md).
+The [remaining steps are below](#10-after-phase-b-classify-analyze-and-import).
 
 ---
 
@@ -181,5 +170,61 @@ async function downloadDocumentBuffer(projectId, category) {
 
 - 🔒 **Never expose e-GP credentials or API keys** to frontend or browser clients.
 - 🔒 **Never construct legacy POST forms in frontend code**; always let the backend handle it.
-- 🛡️ **Archives are validated before extraction**: zip traversal checks, max file limits (50 PDFs, 100 MiB total uncompressed PDF data), and `%PDF-` signature checks are enforced.
+- 🛡️ **Archives are validated before extraction**: zip traversal checks, Phase B limits (50 PDFs, 200 MiB total uncompressed PDF data), and `%PDF-` signature checks are enforced.
 - 🧹 **Zero leftovers**: Phase B removes temporary `.zip` files once PDFs are verified.
+
+
+---
+
+## 10. After Phase B: classify, analyze, and import
+
+Run these commands from `backend`. Complete the [Vertex AI setup](./README_VERTEX_AI_SETUP.md) first; classification, text extraction, and analysis send billable AI requests.
+
+### Phase C — Classify PDFs and extract text
+
+```powershell
+node scripts/classifyPdfs.js
+```
+
+This scans **all local project folders** under `temp/pdfs/`. It classifies PDF previews with Gemini, skips `JUNK` files, and extracts text from eligible PDFs in page batches. It writes TXT files beside the PDFs and updates each category's `manifest.json` with labels and text paths. Files already marked as complete are skipped.
+
+**This script currently has no project-ID filter.** Adding a project ID to the command does not restrict the scan. `runSafePipeline.js` also calls this script, so its classification step can process pending files from other local projects.
+
+### Phase D — Analyze the extracted text
+
+Replace the example ID with a project processed in the previous steps:
+
+```powershell
+npm run analyze:procurement -- --project-id 68109235287
+```
+
+Review the generated files:
+
+```text
+temp/procurement-analysis/68109235287/analysis.json
+temp/procurement-analysis/68109235287/summary.md
+```
+
+Check the evidence, coverage, and errors before importing. Analysis creates local results; it does not save them to MongoDB. See the [Vertex AI guide](./README_VERTEX_AI_SETUP.md#7-procurement-analysis) for analysis options.
+
+### Phase E — Import the analysis into MongoDB
+
+Preview the import first (no database writes):
+
+```powershell
+node scripts/importProcurementAnalysis.js --project-id 68109235287
+```
+
+After reviewing the preview, apply it:
+
+```powershell
+node scripts/importProcurementAnalysis.js --project-id 68109235287 --apply --confirm APPLY_PROCUREMENT_ANALYSIS_IMPORT
+```
+
+Verify the stored result:
+
+```powershell
+node scripts/importProcurementAnalysis.js --project-id 68109235287 --verify
+```
+
+The importer saves the structured analysis into the existing project's `procurementAnalysis` field. It does not import `summary.md` as the analysis object.

@@ -6,6 +6,13 @@ This guide explains how to run **Phase B**: reading stored document metadata fro
 
 ---
 
+## Before you start
+
+Complete [Phase A](./README_DOCUMENT_RUNNER_COMMANDS.md) first so MongoDB contains the document references.
+Install backend dependencies and configure `MONGODB_URI` in `backend/.env`. Run the commands below from `backend`, replacing the example Windows folder path and project IDs with your own.
+
+---
+
 ## 1. What Phase B Does
 
 Phase B (`extractGovProjectDocuments.js`) connects to MongoDB in **read-only** mode. For each project and each available document category (`priceEstimate`, `invitation`, `draftEbidding`):
@@ -147,7 +154,8 @@ backend/temp/
   "pdfs": [
     {
       "originalFileName": "Attach_TOR_1.pdf",
-      "artifactPath": "pdfs/68109235287/draftEbidding/files/Attach_TOR_1.pdf",
+      "artifactRelativePath": "files/Attach_TOR_1.pdf",
+      "localArtifactPath": "pdfs/68109235287/draftEbidding/files/Attach_TOR_1.pdf",
       "sha256": "4b92...",
       "sizeBytes": 104523,
       "status": "verified"
@@ -197,3 +205,10 @@ git check-ignore temp/pdfs/example.pdf
 | `metadata_refresh_required` | The stored file ID is stale or expired. | Rerun Phase A runner to refresh metadata. |
 | `e-GP ZIP download timed out` | The upstream stream exceeded the download timeout (independent of its size). | Retry with `--download-timeout-ms 900000` (15 minutes), up to `1800000`. |
 | `querySrv ECONNREFUSED` | Node.js DNS resolver issue on Windows. | The `node -e` commands already have DNS fix built in. |
+
+
+---
+
+## 8. Next: classify, analyze, and import
+
+After extraction, follow [the remaining pipeline steps](./README_DOCUMENT_DOWNLOADS.md#10-after-phase-b-classify-analyze-and-import) to classify PDFs, extract text, analyze it with Gemini, and import the results into MongoDB.

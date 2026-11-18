@@ -4,7 +4,9 @@ This guide explains only how to set up Vertex AI for the StealOR backend.
 
 ## 1. Google Cloud setup
 
-In the StealOR Google Cloud project:
+Open the [Vertex AI API page in Google Cloud Console](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com) and select your StealOR Google Cloud project.
+
+Then:
 
 1. Link an active billing account.
 2. Enable the **Vertex AI API** (`aiplatform.googleapis.com`).
@@ -44,7 +46,22 @@ The JSON file contains a private key, so do not paste it into GitHub, chat, emai
 
 ## 3. Configure `backend/.env`
 
-Add:
+From the repository root, open a terminal and run:
+
+```powershell
+cd backend
+```
+
+If `backend/.env` does not exist, copy `backend/.env.example` to `backend/.env`.
+You can copy it in your editor, or run this from the backend directory:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+On macOS/Linux, use `cp .env.example .env` instead. Keep your existing `.env` if you already have one.
+
+Add or update these settings in `backend/.env`:
 
 ```env
 VERTEX_AI_PROJECT_ID=YOUR_PROJECT_ID
@@ -156,7 +173,7 @@ request failure is recorded against that document and does not stop later
 documents from being processed.
 
 Whole-document extraction has no fixed TOR candidate-count ceiling (and keeps
-the same seven section codes) with a 16,384-token response budget. This removes
+the same seven section codes) with a 65,536-token response budget. This removes
 the old ten-candidate ceiling without changing field eligibility or evidence
 rules. Every returned quote must still verify against the original full TXT.
 
@@ -191,6 +208,11 @@ Usage starts when the backend actually sends a request to Vertex AI, for example
 ```powershell
 npm run smoke:vertex
 ```
+
+Automatic TOR analysis and contractor matching are enabled by default when the
+backend runs and can also send billable AI requests. Set
+`MATCHING_AUTOMATION_ENABLED=false` in `backend/.env` to pause automatic analysis.
+Manual AI actions can still send requests.
 
 Generated analysis should be reviewed together with its evidence and coverage
 status before production use.
