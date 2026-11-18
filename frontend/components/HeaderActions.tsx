@@ -48,7 +48,7 @@ export default function HeaderActions() {
             <button type="button" className="app-header-avatar" aria-label="เมนูโปรไฟล์" aria-expanded={open === 'profile'} aria-controls="header-profile" onClick={() => setOpen(open === 'profile' ? null : 'profile')}>{initials}</button>
             {open === 'profile' && <section id="header-profile" className="app-header-panel app-profile-panel" aria-label="โปรไฟล์">
                 <strong>{name}</strong><p>{email}</p>
-                <Link href="/contractor/account"><UserRound size={17} /> บัญชีของฉัน</Link>
+                {root !== "/admin" && <Link href="/contractor/account"><UserRound size={17} /> บัญชีของฉัน</Link>}
                 <Link href={`${root}/notifications?settings=true`}><Settings size={17} /> ตั้งค่าการแจ้งเตือน</Link>
                 <button type="button" onClick={() => void signOut({ callbackUrl: '/login' })}><LogOut size={17} /> ออกจากระบบ</button>
             </section>}
