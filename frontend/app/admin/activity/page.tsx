@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import FilterDropdown from "@/components/FilterDropdown";
 import Sidebar from "@/components/sideBarAdmin";
@@ -95,10 +97,10 @@ export default function AdminActivityPage() {
             <main className="admin-main">
                 <div className="admin-users-page admin-activity-page">
                     
-                    <header className="admin-users-header">
+                    <header className="app-page-header admin-users-header"><div className="app-page-heading">
                         <h1>บันทึกกิจกรรม</h1>
                         <p>ประวัติการทำงานของระบบอัตโนมัติและการดำเนินการของผู้ดูแลระบบ</p>
-                    </header>
+                    </div><div className="app-page-controls"><HeaderActions /></div></header>
 
                     <div className="admin-users-filters">
                         <input 

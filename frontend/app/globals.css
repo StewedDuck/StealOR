@@ -363,3 +363,111 @@ a.header-action-link:focus-visible {
   outline: 2px solid #4b7db8;
   outline-offset: 3px;
 }
+
+/* One header geometry across contractor, owner and admin pages. */
+.app-page-header.app-page-header {
+  box-sizing: border-box; display: flex; align-items: center; justify-content: space-between;
+  gap: 24px; width: 100%; min-height: 112px; height: auto; padding: 24px 32px;
+  margin: 0; background: #fcfcfa; border-bottom: 1px solid #dfe3e6;
+  position: relative; overflow: visible; flex-shrink: 0;
+}
+.app-page-header .app-page-heading { min-width: 0; flex: 1; }
+.app-page-header .app-page-heading h1 { margin: 0; color: #26323d; font-family: inherit; font-size: 26px; line-height: 1.4; font-weight: 700; letter-spacing: normal; }
+.app-page-header .app-page-heading p,
+.app-page-header .app-page-heading span { display: block; margin: 4px 0 0; color: #718096; font-size: 14px; line-height: 1.5; font-weight: 400; letter-spacing: normal; text-transform: none; }
+.app-page-heading > div > p:first-child:has(+ h1), .app-page-heading > p:first-child:has(+ h1) { display: none; }
+.app-page-controls { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.app-header-actions { display: flex; align-items: center; gap: 14px; }
+.app-header-popover { position: relative; }
+.app-page-header .app-header-actions button { font-family: inherit; cursor: pointer; margin: 0; }
+.app-page-header .app-header-bell, .app-page-header .app-header-avatar {
+  display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; min-width: 40px;
+  padding: 0; border: 1px solid #dfe3e6; border-radius: 10px; background: #fcfcfa; color: #26323d;
+}
+.app-page-header .app-header-avatar { border: 0; border-radius: 50%; background: #4b7db8; color: white; font-size: 14px; font-weight: 700; }
+.app-header-panel {
+  position: absolute; z-index: 100; top: 100%; right: 0; width: min(360px, calc(100vw - 32px));
+  padding: 18px; border: 1px solid #dfe3e6; border-radius: 12px; background: #fff;
+  color: #26323d; box-shadow: 0 12px 35px #26323d26; text-align: left;
+  max-height: min(480px, 75vh); overflow-y: auto; overflow-wrap: anywhere;
+}
+.app-header-panel a { display: flex; align-items: center; gap: 8px; padding: 10px 0; color: #315f8e; text-decoration: none; font-size: 14px; }
+.app-header-panel .app-header-notice { display: block; border-bottom: 1px solid #edf0f3; }
+.app-header-notice span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; }
+.app-header-notice small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #718096; }
+.app-header-panel p { margin: 8px 0; font-size: 13px; color: #718096; }
+.app-page-header .app-profile-panel button { display: flex; align-items: center; gap: 8px; border: 0; background: none; color: #a93636; padding: 10px 0; font-size: 14px; }
+.app-header-actions button:focus-visible, .app-header-panel a:focus-visible { outline: 2px solid #4b7db8; outline-offset: 3px; }
+.notification-settings { border: 1px solid #dfe3e6; border-radius: 12px; background: #fcfcfa; margin-bottom: 24px; }
+.notification-settings-heading { display: flex; align-items: center; gap: 10px; width: 100%; padding: 18px 20px; border: 0; background: none; color: #26323d; font-family: inherit; font-weight: 600; font-size: 16px; cursor: pointer; text-align: left; }
+.notification-settings-heading > span { margin-left: auto; }
+.notification-settings-content { padding: 0 20px 20px; }
+.notification-settings-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.notification-settings-row > div { flex: 1; min-width: 200px; }
+.notification-settings-row p { color: #718096; font-size: 14px; margin: 6px 0; }
+.notification-email-switch { display: flex; align-items: center; width: 46px; height: 26px; border: 0; border-radius: 20px; padding: 3px; background: #89949f; cursor: pointer; }
+.notification-email-switch span { width: 20px; height: 20px; border-radius: 50%; background: white; transition: transform .15s; }
+.notification-email-switch.enabled { background: #4b7db8; }
+.notification-email-switch.enabled span { transform: translateX(20px); }
+.notification-email-switch:disabled { opacity: .6; cursor: wait; }
+@media (max-width: 640px) {
+  .app-page-header.app-page-header { padding: 20px 16px; gap: 12px; min-height: 112px; }
+  .app-page-header .app-page-heading h1 { font-size: 22px; }
+  .app-page-header .app-page-heading p, .app-page-header .app-page-heading span { font-size: 12px; }
+  .app-page-controls { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .app-header-actions { gap: 8px; }
+  .app-header-panel { position: fixed; top: 96px; right: 16px; }
+}
+/* Remove page-specific offsets that previously moved the header baseline. */
+.tm-main:has(> .app-page-header), .dashboard-main-header:has(> .app-page-header) { margin-left: var(--sidebar-width, 260px); }
+.createTOR-main:has(> .app-page-header) { padding: 0 32px 60px; }
+.createTOR-main > .app-page-header.app-page-header { width: calc(100% + 64px); margin: 0 -32px 24px; }
+.admin-users-page:has(> .app-page-header) { padding: 0 32px 32px; }
+.admin-users-page > .app-page-header.app-page-header { width: calc(100% + 64px); margin: 0 -32px; }
+@media (max-width: 900px) {
+  .createTOR-main:has(> .app-page-header) { padding: 0 24px 50px; }
+  .createTOR-main > .app-page-header.app-page-header { width: calc(100% + 48px); margin: 0 -24px 24px; }
+}
+.myTOR-main:has(> .app-page-header) { margin-left: var(--sidebar-width, 260px); }
+.draftTOR-main:has(> .app-page-header) { padding: 0 32px 60px; }
+.draftTOR-main > .app-page-header.app-page-header { width: calc(100% + 64px); margin: 0 -32px 24px; }
+@media (max-width: 800px) {
+  .draftTOR-main:has(> .app-page-header) { padding: 0 24px 28px; }
+  .draftTOR-main > .app-page-header.app-page-header { width: calc(100% + 48px); margin: 0 -24px 24px; }
+}
+.app-page-header.app-page-header { flex-direction: row; }
+
+/* Admin pages share one sidebar boundary and header-to-content spacing.
+   Scope these rules above page styles to prevent navigation-dependent layout. */
+.admin-layout > .admin-sidebar {
+  width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
+}
+.admin-layout > .admin-main {
+  flex: 1 1 0%;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+.admin-main > .admin-content {
+  padding: 28px 32px 40px;
+}
+.admin-main > .admin-users-page:has(> .app-page-header) {
+  padding: 0 32px 40px;
+}
+.admin-main > .admin-users-page > .app-page-header.app-page-header {
+  width: calc(100% + 64px);
+  margin: 0 -32px 28px;
+}
+.admin-main > .admin-users-page > .app-page-header + .admin-users-filters {
+  margin-top: 0;
+}
+@media (max-width: 640px) {
+  .admin-main > .admin-content { padding: 24px 16px 32px; }
+  .admin-main > .admin-users-page:has(> .app-page-header) { padding: 0 16px 32px; }
+  .admin-main > .admin-users-page > .app-page-header.app-page-header {
+    width: calc(100% + 32px);
+    margin: 0 -16px 24px;
+  }
+}

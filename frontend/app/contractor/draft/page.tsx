@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import Link from 'next/link';
 
 import { useEffect, useMemo, useState } from "react";
@@ -514,22 +516,14 @@ export default function ContractorDraftTOR() {
             <Sidebar />
 
             <main className="draft-main">
-                <header className="draft-header">
+                <header className="app-page-header draft-header"><div className="app-page-heading">
                     <div className="draft-header-content">
                         <h1>TOR ฉบับร่าง</h1>
                         <p>อ่านและติดตาม TOR ที่เจ้าของโครงการกำลังจัดทำ ก่อนเปิดรับสมัครจริง</p>
                     </div>
 
-                    <div className="profile-header-actions">
-                        <Link href={'/contractor/notifications'} className="notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
-                        <BellRing size={16}/>
-                        </Link>
 
-                        <Link href="/contractor/account" className="profile-circle header-action-link" aria-label="บัญชีของฉัน">
-                            {initials}
-                        </Link>
-                    </div>
-                </header>
+                </div><div className="app-page-controls"><HeaderActions /></div></header>
 
                 <div className="draft-content">
 

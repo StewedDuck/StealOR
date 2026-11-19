@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/sideBar";
 import TorForm from "@/components/projectOwner/TorForm";
@@ -15,9 +17,9 @@ export default function CreateTOR() {
         <div className="createTOR-layout">
             <Sidebar />
             <main className="createTOR-main">
-                <div className="createTOR-header">
+                <header className="app-page-header createTOR-header"><div className="app-page-heading">
                     <div><p>เจ้าของโครงการ</p><h1>สร้าง TOR</h1><span>กรอกข้อมูลและบันทึกเป็นฉบับร่างเพื่อกลับมาแก้ไขภายหลัง</span></div>
-                </div>
+                </div><div className="app-page-controls"><HeaderActions /></div></header>
                 <TorForm onSubmit={async (data) => { await createTor(data); showToast("สร้าง TOR ฉบับร่างสำเร็จ"); router.push("/project_own/draft_TOR"); }} />
             </main>
         </div>

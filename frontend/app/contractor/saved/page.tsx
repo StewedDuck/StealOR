@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import Link from 'next/link';
 
 import { shouldShowMatchingCard, savedMatchingSnapshot } from '@/lib/matchingStatus';
@@ -792,21 +794,15 @@ export default function SavedPage() {
       <Sidebar />
 
       <main className="saved-main">
-        <header className="saved-header">
+        <header className="app-page-header saved-header"><div className="app-page-heading">
           <div>
             <h1>ดูภายหลัง</h1>
 
             <p>TOR ที่คุณบันทึกไว้จากตลาดหรือรายการที่ตรงกัน</p>
           </div>
 
-          <div className="saved-header-actions">
-            <Link href={'/contractor/notifications'} className="saved-notification-button header-action-link header-notification-link" aria-label="การแจ้งเตือน">
-              <BellRing size={16} />
-            </Link>
 
-            <Link href="/contractor/account" className="saved-profile-circle header-action-link" aria-label="บัญชีของฉัน">{initials}</Link>
-          </div>
-        </header>
+        </div><div className="app-page-controls"><HeaderActions /></div></header>
 
         <div className="saved-content">
           <section className="saved-toolbar">

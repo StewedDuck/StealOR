@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import {
     useCallback,
     useEffect,
@@ -319,7 +321,7 @@ export default function AdminVerificationPage() {
 
             <main className="admin-main">
 
-                <header className="admin-header">
+                <header className="app-page-header admin-header"><div className="app-page-heading">
 
                     <div className="admin-header-content">
 
@@ -333,7 +335,7 @@ export default function AdminVerificationPage() {
 
                     </div>
 
-                </header>
+                </div><div className="app-page-controls"><HeaderActions /></div></header>
 
 
                 <div className="admin-content">

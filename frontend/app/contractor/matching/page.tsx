@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import { getMatchingActivity, shouldShowMatchingCard } from '@/lib/matchingStatus';
 import { readMatchingSnapshot, writeMatchingSnapshot } from '@/lib/matchingSnapshot';
 
@@ -259,22 +261,15 @@ export default function TorMatchingPage() {
             <Sidebar />
 
             <main className="tm-main">
-                <header className="tm-header">
+                <header className="app-page-header tm-header"><div className="app-page-heading">
                     <div>
                     <h1>TOR ที่ตรงกับคุณ</h1>
                     <p>
                         ค้นหาและตรวจสอบ TOR ที่ตรงกับคุณสมบัติของคุณ
                     </p>
                     </div>
-                    <div className="tm-header-actions">
-                        <Link href="/contractor/notifications" className="tm-notification-button header-action-link" aria-label="การแจ้งเตือน">
-                            <BellRing size={16} />
-                        </Link>
-                        <Link href="/contractor/account" className="tm-profile-circle header-action-link" aria-label="บัญชีของฉัน">
-                            {initials}
-                        </Link>
-                    </div>
-                </header>
+
+                </div><div className="app-page-controls"><HeaderActions /></div></header>
 
                 <div className="tm-content">
                     <div className="tm-filters">

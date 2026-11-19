@@ -1,5 +1,7 @@
 "use client";
 
+import HeaderActions from "@/components/HeaderActions";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import TorReviewPanel, { reviewLabels } from "@/components/TorReviewPanel";
 import TorDetailModal from "@/components/TORDetail";
@@ -52,10 +54,10 @@ export default function AdminTorsPage() {
             <aside className="admin-sidebar"><Sidebar /></aside>
             <main className="admin-main">
                 <div className="admin-users-page admin-tors-page">
-                    <header className="admin-users-header">
+                    <header className="app-page-header admin-users-header"><div className="app-page-heading">
                         <h1>รายงาน / ร้องเรียน</h1>
                         <p>รายการ TOR ของเจ้าของโครงการทุกคนในระบบ</p>
-                    </header>
+                    </div><div className="app-page-controls"><HeaderActions /></div></header>
                     <div className="admin-users-filters">
                         <input aria-label="ค้นหาชื่อโครงการหรือหน่วยงาน" placeholder="ค้นหาชื่อโครงการหรือหน่วยงาน..." value={query} onChange={e => setQuery(e.target.value)} />
                         <FilterDropdown value={status} onChange={setStatus}

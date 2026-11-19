@@ -8,6 +8,8 @@ const {
 const router = express.Router();
 router.use(require("../middleware/profileAuth"));
 
+router.get("/preferences", require("../controllers/notificationController").getPreferences);
+router.patch("/preferences", require("../controllers/notificationController").updatePreferences);
 router.get("/", getNotifications);
 
 router.patch(

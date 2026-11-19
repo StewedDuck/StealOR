@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useProfileIdentity } from "@/hooks/useProfileIdentity";
 import { useAccountRoleLabel } from "@/hooks/useAccountRoleLabel";
 import { usePathname } from "next/navigation";
 import {
@@ -20,7 +21,7 @@ import {
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { getUserProfile, getContractorNotifications, } from "@/lib/torApi";
+import { getContractorNotifications, } from "@/lib/torApi";
 
 
 type MenuItem = {
@@ -191,16 +192,8 @@ export default function Sidebar () {
     const router = useRouter();
     const { data: session } = useSession();
     const accountRoleLabel = useAccountRoleLabel(session?.user?.email);
-    const [displayName, setDisplayName] = useState("");
     const [notificationCount, setNotificationCount] = useState(0);
-    const userName = displayName || session?.user?.name || "ผู้ใช้";
-    const initials = userName
-        .split(" ")
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    ;
+    const { name: userName, initials } = useProfileIdentity();
 
     const isProjectOwner =
     pathname.startsWith("/project_own/dashboard") ||
@@ -212,22 +205,6 @@ export default function Sidebar () {
     const menuItems = isProjectOwner
     ? projectOwnerMenuItems
     : contractorMenuItems;
-
-    useEffect(() => {
-        const email = session?.user?.email;
-      
-        if (!email) return;
-      
-        getUserProfile(email)
-          .then((profile) => {
-            setDisplayName(profile.name);
-          })
-          .catch((error) => {
-            console.warn("Failed to load sidebar profile:", error);
-      
-            setDisplayName(session?.user?.name ?? "");
-          });
-    }, [session?.user?.email, session?.user?.name]);
 
     useEffect(() => {
         const email = session?.user?.email;
