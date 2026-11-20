@@ -42,10 +42,12 @@ export function savedMatchingSnapshot(tor: SavedTor): MatchingData | undefined {
     };
 }
 
-export function shouldShowMatchingCard(matching: MatchingData | null | undefined): matching is MatchingData {
+export function shouldShowMatchingCard(matching: MatchingData | null | undefined, minimumPercentage?: number): matching is MatchingData {
     return !!matching && matching.analysisPipelineStatus !== 'waiting_data' &&
         typeof matching.matchingPercentage === 'number' &&
-        Number.isFinite(matching.matchingPercentage) && matching.matchingPercentage > 39;
+        Number.isFinite(matching.matchingPercentage) &&
+        (minimumPercentage === undefined ? matching.matchingPercentage > 39 :
+            Number.isFinite(minimumPercentage) && minimumPercentage >= 0 && minimumPercentage <= 100 && matching.matchingPercentage >= minimumPercentage);
 }
 
 export function getMatchingRefreshLabel(matching: MatchingData) {

@@ -1,5 +1,6 @@
 "use client";
 
+import DraftComments from "@/components/DraftComments";
 import HeaderActions from "@/components/HeaderActions";
 
 import { useEffect, useMemo, useState } from "react";
@@ -20,11 +21,9 @@ import {
 import {
     deleteTor,
     getDraftTors,
-    getComments,
     submitTorReview,
 } from "@/lib/torApi";
 
-import type { Comment } from "@/lib/torApi";
 import type { Tor } from "@/types/tor";
 import "./draft_TOR.css";
 import { getDeadlineInfo } from "@/lib/torDeadline";
@@ -56,9 +55,6 @@ export default function DraftTOR() {
     const [submittingId, setSubmittingId] = useState("");
     const [deletingId, setDeletingId] = useState("");
     const [commentTor, setCommentTor] = useState<Tor | null>(null);
-    const [comments, setComments] = useState<Comment[]>([]);
-    const [commentLoading, setCommentLoading] = useState(false);
-    const [commentError, setCommentError] = useState("");
 
     useEffect(() => {
         getDraftTors().then(setTors).catch((err) => setError(err instanceof Error ? err.message : "โหลดรายการไม่สำเร็จ")).finally(() => setLoading(false));
@@ -97,25 +93,7 @@ export default function DraftTOR() {
         }
     }
 
-    async function handleViewComments(tor: Tor) {
-        setCommentTor(tor);
-        setComments([]);
-        setCommentError("");
-        setCommentLoading(true);
-    
-        try {
-            const data = await getComments(tor._id);
-            setComments(data);
-        } catch (err) {
-            setCommentError(
-                err instanceof Error
-                    ? err.message
-                    : "ไม่สามารถโหลดความคิดเห็นได้"
-            );
-        } finally {
-            setCommentLoading(false);
-        }
-    }
+    function handleViewComments(tor: Tor) { setCommentTor(tor); }
 
     return (
         <div className="draftTOR-layout">
@@ -334,71 +312,7 @@ export default function DraftTOR() {
 
                         </div>
 
-                        <div className="comment-modal-body">
-
-                            {commentError && (
-                                <div className="draftTOR-error">
-                                    {commentError}
-                                </div>
-                            )}
-
-                            {commentLoading ? (
-                                <div className="comment-empty">
-                                    กำลังโหลดความคิดเห็น...
-                                </div>
-                            ) : comments.length === 0 ? (
-                                <div className="comment-empty">
-                                    <MessageCircle size={32} />
-                                    <p>ยังไม่มีความคิดเห็น</p>
-                                </div>
-                            ) : (
-                                <div className="comment-list">
-
-                                    {comments.map((comment) => (
-                                        <div
-                                            key={comment._id}
-                                            className="comment-item"
-                                        >
-                                            <div className="comment-avatar">
-                                                {comment.userName
-                                                    .charAt(0)
-                                                    .toUpperCase()}
-                                            </div>
-
-                                            <div className="comment-content">
-
-                                                <div className="comment-item-header">
-                                                    <strong>
-                                                        {comment.userName}
-                                                    </strong>
-
-                                                    <span>
-                                                        {new Intl.DateTimeFormat(
-                                                            "th-TH",
-                                                            {
-                                                                dateStyle: "medium",
-                                                                timeStyle: "short",
-                                                            }
-                                                        ).format(
-                                                            new Date(
-                                                                comment.createdAt
-                                                            )
-                                                        )}
-                                                    </span>
-                                                </div>
-
-                                                <p>
-                                                    {comment.content}
-                                                </p>
-
-                                            </div>
-                                        </div>
-                                    ))}
-
-                                </div>
-                            )}
-
-                        </div>
+                        <div className="comment-modal-body"><DraftComments key={commentTor._id} projectId={commentTor._id} /></div>
 
                         <div className="comment-modal-footer">
                             <button

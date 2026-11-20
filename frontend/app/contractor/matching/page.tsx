@@ -65,6 +65,7 @@ export default function TorMatchingPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [query, setQuery] = useState("");
+    const [minimumPercentage, setMinimumPercentage] = useState(40);
     const [sourceFilter, setSourceFilter] = useState("all");
     const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -185,7 +186,7 @@ export default function TorMatchingPage() {
                 deadline: getTorDisplayDeadline(item.tor, publicationStatus) } };
         })
         .filter(({ tor, matching }) => {
-            if (!shouldShowMatchingCard(matching)) return false;
+            if (!shouldShowMatchingCard(matching, minimumPercentage)) return false;
             if (
                 sourceFilter !== "all" &&
                 tor.source !== sourceFilter
@@ -230,9 +231,10 @@ export default function TorMatchingPage() {
         statusFilter,
         sortOrder,
         publicationStatuses,
+        minimumPercentage,
     ]);
 
-    useEffect(() => setVisibleCount(20), [query, sourceFilter, statusFilter, sortOrder]);
+    useEffect(() => setVisibleCount(20), [query, sourceFilter, statusFilter, sortOrder, minimumPercentage]);
 
     async function viewDetails(tor: MarketTor) {
         const id = tor.projectId ?? tor.id;
@@ -280,6 +282,16 @@ export default function TorMatchingPage() {
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
                             />
+                        </label>
+
+                        <label className="tm-minimum-match">
+                            <span>Match ขั้นต่ำ</span>
+                            <input aria-label="Matching ขั้นต่ำ (%)" type="number" min={0} max={100} step={1} value={minimumPercentage}
+                                onChange={event => {
+                                    const value = Number(event.target.value);
+                                    if (Number.isFinite(value)) setMinimumPercentage(Math.min(100, Math.max(0, value)));
+                                }} />
+                            <span className="tm-minimum-unit" aria-hidden="true">%</span>
                         </label>
 
                         <FilterDropdown
@@ -335,7 +347,7 @@ export default function TorMatchingPage() {
                             {sortOrder === "desc"
                                 ? "มาก → น้อย"
                                 : "น้อย → มาก"}{" "}
-                            · แสดงเฉพาะคะแนนมากกว่า 39%
+                            · แสดงคะแนนตั้งแต่ {minimumPercentage}% ขึ้นไป
                         </small>
                     </div>
 
@@ -360,12 +372,8 @@ export default function TorMatchingPage() {
                         filteredItems.length === 0 && (
                         <div className="tm-message">
                             <div>
-                                <p>{query || sourceFilter !== 'all' || statusFilter !== 'all'
-                                    ? 'ไม่พบ TOR คะแนนมากกว่า 39% ที่ตรงกับตัวกรอง'
-                                    : pending > 0
-                                        ? 'ยังไม่มีผลคะแนนมากกว่า 39% ให้แสดง ระบบกำลังประเมิน TOR เพิ่มเติม'
-                                        : 'ยังไม่มี TOR ที่มีคะแนนมากกว่า 39%'}</p>
-                                <p>รายการที่รอข้อมูล ยังไม่มีคะแนน หรือคะแนนไม่เกิน 39% อยู่ใน TOR Market และบันทึกไว้ รายการที่ได้คะแนนมากกว่า 39% จะแสดงที่นี่อัตโนมัติ</p>
+                                <p>ไม่พบ TOR ที่มีคะแนนตั้งแต่ {minimumPercentage}% ขึ้นไปที่ตรงกับตัวกรอง</p>
+                                <p>{pending > 0 ? 'ระบบกำลังประเมิน TOR เพิ่มเติม · ' : ''}ลองลดเปอร์เซ็นต์ขั้นต่ำหรือเปลี่ยนตัวกรอง รายการที่ยังไม่มีคะแนนจะอยู่ใน TOR Market</p>
                                 <Link className="tm-empty-market-link" href="/contractor/market">ดู TOR ทั้งหมดใน Market</Link>
                             </div>
                         </div>

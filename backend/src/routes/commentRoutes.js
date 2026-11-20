@@ -5,7 +5,7 @@ const { getComments, createComment, deleteComment } = require("../controllers/co
 const router = express.Router();
 
 router.get("/:projectId", checkActiveAccount, getComments);
-router.post("/", checkActiveAccount, createComment);
-router.delete("/:commentId", checkActiveAccount, deleteComment);
+router.post("/", require("../middleware/profileAuth"), createComment);
+router.delete("/:commentId", require("../middleware/profileAuth"), deleteComment);
 
 module.exports = router;

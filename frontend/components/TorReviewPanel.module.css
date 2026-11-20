@@ -435,3 +435,10 @@
 
 
 }
+
+/* Compact review summary within the owner's project list. */
+.panel.compact { margin: 0; padding: 14px 16px; border-radius: 10px; }
+.panel.compact .statusBar { padding: 0; gap: 12px; }
+.panel.compact .statusLabel { gap: 10px; font-size: 13px; }
+.panel.compact p { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: #607386; }
+.panel.compact .historyButton { padding: 7px 10px; font-size: 12px; }

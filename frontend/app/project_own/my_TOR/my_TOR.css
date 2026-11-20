@@ -576,3 +576,20 @@
     padding-right: 18px;
   }
 }
+/* Clear hierarchy: project + actions, key facts, then review summary. */
+.myTOR-card .myTOR-card-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px 28px; }
+.myTOR-card .myTOR-card-info h2 { max-width: 70ch; margin: 10px 0 6px; font-size: 18px; line-height: 1.6; overflow-wrap: anywhere; }
+.myTOR-card .myTOR-actions { align-self: start; gap: 8px; }
+.myTOR-card .myTOR-actions button { font-size: 13px; white-space: nowrap; }
+.myTOR-card .myTOR-meta { margin-top: 20px; padding-top: 16px; gap: 16px 32px; }
+.myTOR-review { margin-top: 16px; }
+@media (max-width: 1100px) {
+  .myTOR-card .myTOR-card-top { grid-template-columns: 1fr; gap: 16px; }
+  .myTOR-card .myTOR-actions { justify-content: flex-start; }
+}
+@media (max-width: 520px) {
+  .myTOR-card { padding: 16px; }
+  .myTOR-card .myTOR-card-info h2 { font-size: 16px; }
+  .myTOR-card .myTOR-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .myTOR-card .myTOR-actions button { padding: 8px; }
+}

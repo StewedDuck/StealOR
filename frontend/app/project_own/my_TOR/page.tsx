@@ -397,7 +397,6 @@ export default function MyTORPage() {
                                                     </p>
                                             </div>
 
-                                            <TorReviewPanel tor={tor} role="owner" onUpdated={updated => setTors(current => current.map(item => item._id === updated._id ? updated : item))} />
                                             <div className="myTOR-actions">
                                                 <button
                                                     onClick={() => handleView(tor)}
@@ -418,7 +417,7 @@ export default function MyTORPage() {
                                                         }}
                                                     >
                                                         <Send size={16} />
-                                                        เปิดเป็น Publish
+                                                        เผยแพร่ TOR
                                                     </button>
                                                 )}
 
@@ -490,6 +489,9 @@ export default function MyTORPage() {
                                                     )}
                                                 </strong>
                                             </div>
+                                        </div>
+                                        <div className="myTOR-review">
+                                            <TorReviewPanel tor={tor} role="owner" compact onUpdated={updated => setTors(current => current.map(item => item._id === updated._id ? updated : item))} />
                                         </div>
                                     </article>
                                 );

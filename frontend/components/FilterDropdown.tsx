@@ -24,6 +24,7 @@ type FilterDropdownProps<T extends string = string> = {
     options: FilterDropdownOption<T>[];
     onChange: (value: T) => void;
     className?: string;
+    ariaLabel?: string;
 };
 
 export default function FilterDropdown<
@@ -33,6 +34,7 @@ export default function FilterDropdown<
     options,
     onChange,
     className = "",
+    ariaLabel,
 }: FilterDropdownProps<T>) {
 
     const [open, setOpen] = useState(false);
@@ -103,6 +105,7 @@ export default function FilterDropdown<
                 onClick={() =>
                     setOpen((previous) => !previous)
                 }
+                aria-label={ariaLabel}
                 aria-expanded={open}
             >
                 <span className="filter-dropdown-label">

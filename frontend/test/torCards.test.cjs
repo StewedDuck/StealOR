@@ -424,3 +424,21 @@ test('list mutation invalidates old in-flight responses without losing the updat
     assert.equal(readListSnapshot('notifications:mutation')[0].read, true);
     invalidateList('notifications:');
 });
+
+test('contractor matching minimum is inclusive and can show scores below the old fixed threshold', () => {
+    const { shouldShowMatchingCard } = load('lib/matchingStatus');
+    const score = value => ({ ...matching, matchingPercentage: value });
+    assert.equal(shouldShowMatchingCard(score(20), 20), true);
+    assert.equal(shouldShowMatchingCard(score(19.99), 20), false);
+    assert.equal(shouldShowMatchingCard(score(0), 0), true);
+    assert.equal(shouldShowMatchingCard(score(100), 100), true);
+    assert.equal(shouldShowMatchingCard(score(99.99), 100), false);
+    assert.equal(shouldShowMatchingCard(score(null), 0), false);
+    assert.equal(shouldShowMatchingCard(score(NaN), 0), false);
+    assert.equal(shouldShowMatchingCard({ ...score(80), analysisPipelineStatus: 'waiting_data' }, 0), false);
+    assert.equal(shouldShowMatchingCard(score(80), NaN), false);
+    assert.equal(shouldShowMatchingCard(score(80), -1), false);
+    assert.equal(shouldShowMatchingCard(score(80), 101), false);
+    assert.equal(shouldShowMatchingCard(score(39)), false);
+    assert.equal(shouldShowMatchingCard(score(39.01)), true);
+});

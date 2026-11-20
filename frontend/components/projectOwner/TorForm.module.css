@@ -150,8 +150,9 @@
     min-width: 0;
 }
 
-.categoryField select {
-    width: min(100%, 360px);
+.categoryDropdown {
+    width: 360px;
+    max-width: 100%;
     min-width: 0;
     font-size: 13px;
 }
@@ -239,6 +240,11 @@
         display: grid;
         flex: 1;
     }
-    .categoryField select { width: 100%; }
+    .categoryDropdown { width: 100%; }
     .removeRequirement { justify-self: end; }
 }
+
+.categoryField > span { flex-shrink: 0; white-space: nowrap; color: var(--text-mid); font-size: 12px; font-weight: 600; }
+.categoryDropdown :global(.filter-dropdown-trigger) { box-sizing: border-box; min-height: 42px; height: auto; padding: 10px 16px; background: #fff; }
+.categoryDropdown :global(.filter-dropdown-chevron) { flex: 0 0 16px; margin-inline-start: 8px; }
+.categoryDropdown :global(.filter-dropdown-label) { white-space: normal; line-height: 1.5; }

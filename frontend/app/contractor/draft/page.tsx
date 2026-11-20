@@ -1,5 +1,6 @@
 "use client";
 
+import DraftComments from "@/components/DraftComments";
 import HeaderActions from "@/components/HeaderActions";
 
 import Link from 'next/link';
@@ -10,9 +11,6 @@ import { useToast } from "@/components/toast/ToastProvider";
 import {
     getSharedDraftTors,
     readSharedDraftSnapshot,
-    getComments,
-    createComment,
-    deleteComment,
     getBookmarks,
     createInternalBookmark,
     deleteInternalBookmark,
@@ -31,7 +29,6 @@ import {
 import "./draft.css";
 import TorDetailModal from "@/components/TORDetail";
 import { useSession } from "next-auth/react";
-import type { Comment } from "@/lib/torApi";
 import FilterDropdown from "@/components/FilterDropdown";
 import TorDeadline from "@/components/TorDeadlineBadge";
 import "@/components/TorBadges.css";
@@ -47,19 +44,6 @@ function formatDate(value: string | null) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "ไม่ระบุ";
     return dateFormatter.format(date);
-}
-
-function formatReviewDate(value: string) {
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return "ไม่ระบุวันที่";
-    }
-
-    return new Intl.DateTimeFormat("th-TH", {
-        dateStyle: "medium",
-        timeStyle: "short",
-    }).format(date);
 }
 
 type BudgetFilter =
@@ -139,10 +123,6 @@ export default function ContractorDraftTOR() {
     const [error, setError] = useState("");
     const [activeTor, setActiveTor] = useState<Tor | null>(null);
     const [reviewTor, setReviewTor] = useState<Tor | null>(null);
-    const [reviewText, setReviewText] = useState("");
-    const [reviews, setReviews] = useState<Comment[]>([]);
-    const [reviewLoading, setReviewLoading] = useState(false);
-    const [reviewError, setReviewError] = useState("");
     const [savedTorIds, setSavedTorIds] = useState<string[]>([]);
     const [bookmarkLoading, setBookmarkLoading] = useState<string | null>(null);
 
@@ -267,27 +247,6 @@ export default function ContractorDraftTOR() {
             .catch((err) => setError(err instanceof Error ? err.message : "โหลดรายการไม่สำเร็จ"))
             .finally(() => setLoading(false));
     }, []);
-
-    useEffect(() => {
-        if (!reviewTor) return;
-    
-        setReviewLoading(true);
-        setReviewError("");
-    
-        getComments(reviewTor._id)
-            .then(setReviews)
-            .catch((error) => {
-                console.error("Load comments error:", error);
-                setReviewError(
-                    error instanceof Error
-                        ? error.message
-                        : "ไม่สามารถโหลดความคิดเห็นได้"
-                );
-            })
-            .finally(() => {
-                setReviewLoading(false);
-            });
-    }, [reviewTor]);
 
     const visibleTors = useMemo(() => {
         let result = [...tors];
@@ -749,149 +708,7 @@ export default function ContractorDraftTOR() {
                             {reviewTor.projectName}
                         </p>
 
-                        <div className="review-list">
-                            <h3>ความคิดเห็น</h3>
-
-                            {reviewLoading ? (
-                                <p className="no-review">
-                                    กำลังโหลดความคิดเห็น...
-                                </p>
-                            ) : reviews.length === 0 ? (
-                                <p className="no-review">
-                                    ยังไม่มีความคิดเห็น
-                                </p>
-                            ) : (
-                                reviews.map((review) => (
-                                    <div
-                                        className="review-item"
-                                        key={review._id}
-                                    >
-                                        <div className="review-item-header">
-                                            <strong>
-                                                {review.userName}
-                                            </strong>
-
-                                            <span>
-                                                {formatReviewDate(
-                                                    review.createdAt
-                                                )}
-                                            </span>
-                                        </div>
-
-                                        <p>{review.content}</p>
-
-                                        {session?.user?.email === review.userId && (
-                                            <button
-                                                type="button"
-                                                className="review-delete-button"
-                                                onClick={async () => {
-                                                    try {
-                                                        await deleteComment(
-                                                            review._id,
-                                                            review.userId
-                                                        );
-
-                                                        setReviews((prev) =>
-                                                            prev.filter(
-                                                                (item) =>
-                                                                    item._id !==
-                                                                    review._id
-                                                            )
-                                                        );
-                                                        showToast("ลบความคิดเห็นสำเร็จ");
-                                                    } catch (error) {
-                                                        const message = error instanceof Error
-                                                            ? error.message
-                                                            : "ไม่สามารถลบความคิดเห็นได้";
-                                                        setReviewError(message);
-                                                        showToast(message, "error");
-                                                    }
-                                                }}
-                                            >
-                                                ลบความคิดเห็น
-                                            </button>
-                                        )}
-                                    </div>
-                                ))
-                            )}
-                        </div>
-
-                        {reviewError && (
-                            <p className="review-error">
-                                {reviewError}
-                            </p>
-                        )}
-
-                        <textarea
-                            value={reviewText}
-                            onChange={(e) => setReviewText(e.target.value)}
-                            placeholder="เขียนความคิดเห็นของคุณ..."
-                            rows={5}
-                        />
-
-                        <div className="review-modal-actions">
-                            <button
-                                className="review-cancel"
-                                onClick={() => {
-                                    setReviewText("");
-                                    setReviewTor(null);
-                                }}
-                            >
-                                ยกเลิก
-                            </button>
-
-                            <button
-                                className="review-submit"
-                                onClick={async () => {
-                                    const userId = session?.user?.email;
-                                    const userName =
-                                        session?.user?.name ||
-                                        session?.user?.email ||
-                                        "";
-
-                                    if (!userId || !reviewTor) {
-                                        const message = "กรุณาเข้าสู่ระบบก่อนแสดงความคิดเห็น";
-                                        setReviewError(message);
-                                        showToast(message, "error");
-                                        return;
-                                    }
-
-                                    if (!reviewText.trim()) return;
-
-                                    try {
-                                        setReviewLoading(true);
-                                        setReviewError("");
-
-                                        const newComment = await createComment(
-                                            userId,
-                                            userName,
-                                            reviewTor._id,
-                                            reviewText
-                                        );
-
-                                        setReviews((prev) => [
-                                            newComment,
-                                            ...prev,
-                                        ]);
-
-                                        setReviewText("");
-                                        showToast("ส่งความคิดเห็นสำเร็จ");
-                                    } catch (error) {
-                                        console.error("Create comment error:", error);
-
-                                        const message = error instanceof Error
-                                            ? error.message
-                                            : "ไม่สามารถเพิ่มความคิดเห็นได้";
-                                        setReviewError(message);
-                                        showToast(message, "error");
-                                    } finally {
-                                        setReviewLoading(false);
-                                    }
-                                }}
-                            >
-                                ส่งความคิดเห็น
-                            </button>
-                        </div>
+                        <DraftComments key={reviewTor._id} projectId={reviewTor._id} />
                     </div>
                 </div>
             )}

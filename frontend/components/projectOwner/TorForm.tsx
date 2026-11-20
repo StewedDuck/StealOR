@@ -5,6 +5,7 @@ import { Plus, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/components/toast/ToastProvider";
 import { REQUIREMENT_CATEGORIES, type TorFormData, type TorRequirementCategory } from "@/types/tor";
 import { normalizeTorRequirements } from "@/lib/torRequirements";
+import FilterDropdown from "@/components/FilterDropdown";
 import styles from "./TorForm.module.css";
 
 type TorFormProps = {
@@ -205,13 +206,16 @@ export default function TorForm({ initialData = emptyTorForm, submitLabel = "บ
               {/* แยกหมวดหมู่ไว้แถวบน เพื่อไม่ให้เบียดพื้นที่พิมพ์รายละเอียด */}
               <div className={styles.requirementHeader}>
                 <span className={styles.requirementNumber}>ข้อ {index + 1}</span>
-                <label className={styles.categoryField}>
-                  หมวดหมู่
-                  <select aria-label={`หมวดหมู่ข้อ ${index + 1}`} value={requirement.category ?? "projectSpecific"}
-                  onChange={(e) => setForm((current) => ({ ...current, requirements: current.requirements.map((item, i) => i === index ? { ...item, category: e.target.value as TorRequirementCategory } : item) }))}>
-                  {Object.entries(REQUIREMENT_CATEGORIES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
-                </label>
+                <div className={styles.categoryField}>
+                  <span>หมวดหมู่</span>
+                  <FilterDropdown<TorRequirementCategory>
+                    className={styles.categoryDropdown}
+                    ariaLabel={`หมวดหมู่ข้อ ${index + 1}`}
+                    value={requirement.category ?? "projectSpecific"}
+                    options={Object.entries(REQUIREMENT_CATEGORIES).map(([value, label]) => ({ value: value as TorRequirementCategory, label }))}
+                    onChange={(category) => setForm((current) => ({ ...current, requirements: current.requirements.map((item, i) => i === index ? { ...item, category } : item) }))}
+                  />
+                </div>
               </div>
               <div className={styles.requirementFields}>
               <label className={styles.descriptionField}>
