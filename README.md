@@ -185,6 +185,17 @@ npm run dev
 
 ---
 
+## Admin Access
+
+After configuring Google OAuth, add the same lowercase Google account email to the `ADMIN_GMAILS` array in both files:
+
+- [`frontend/lib/auth.ts`](frontend/lib/auth.ts) routes the account to the admin dashboard.
+- [`backend/src/controllers/userController.js`](backend/src/controllers/userController.js) assigns the account the `admin` role when it signs in.
+
+For Docker Compose, run `docker compose restart backend frontend` after editing the lists. Then sign in with that Google account at [http://localhost:3000/login](http://localhost:3000/login). If you're already signed in, sign out first so the backend can sync your role at the next sign-in. After sign-in, the app opens `/admin/dashboard`.
+
+---
+
 ## 📄 Procurement Document Pipeline
 
 * **Single-Project Price Document Enrichment:**
