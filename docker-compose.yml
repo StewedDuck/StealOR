@@ -12,8 +12,8 @@
 #
 # Prerequisites:
 #   1. Copy frontend/.env.example → frontend/.env.local and fill in credentials
-#   2. Ensure backend/.env has a valid MONGODB_URI
-#   3. (Optional) Place GCP service account JSON and uncomment the volume below
+#   2. Copy backend/.env.example → backend/.env and fill in values, including MONGODB_URI
+#   3. For Vertex AI, save the service-account key at backend/keys/sa-key.json
 #
 # =============================================================================
 

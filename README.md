@@ -17,6 +17,7 @@ This repository is structured as a single Git repository containing two applicat
 > * **[Wiki Home](../../wiki)** — System roles, sequence diagrams, Scrum workflow, and developer standards
 > * **[Backend API Reference](../../wiki/Backend-API-Documentation)** — Express endpoints, proxy headers, and payloads
 > * **[Frontend API Reference](../../wiki/Frontend-API-Documentation)** — Next.js proxy routes, client helpers, and caching
+> * **[Vertex AI Setup](backend/README_VERTEX_AI_SETUP.md)** — Google Cloud setup, service-account credentials, and a Gemini smoke test
 
 ---
 
@@ -31,7 +32,7 @@ This repository is structured as a single Git repository containing two applicat
 
 ## 🚀 Prerequisites
 
-* [Docker Desktop](https://www.docker.com/products/docker-desktop/) *(recommended)* **or** Node.js `v18+` & `npm`
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/) *(recommended)* **or** Node.js `20.19+` (Node.js 24 recommended) and `npm`
 * **MongoDB Atlas** cluster with a valid connection string (`MONGODB_URI`)
 * **Google Cloud Console** project with:
   * **OAuth 2.0 Client ID** (for NextAuth Google sign-in)
@@ -48,61 +49,95 @@ In **Google Cloud Console → APIs & Services → Credentials**, configure your 
   ```text
   http://localhost:3000
   ```
-  *(If you access the app via `127.0.0.1`, register `http://127.0.0.1:3000` separately.)*
 
 * **Authorized redirect URIs:**
   ```text
   http://localhost:3000/api/auth/callback/google
   ```
-  *(Do not add port `5000` — OAuth callbacks route through Next.js on port `3000`.)*
+  If you use `127.0.0.1` for manual development, register the same origin and callback with that hostname and update `NEXTAUTH_URL` to match.
 
 ### 2. Frontend Environment (`frontend/.env.local`)
-Copy the example file and populate your credentials:
+For a fresh setup, run the copy commands from the repository root. If you already have an environment file, add missing values from the corresponding example to your existing file.
 
 ```bash
 cp frontend/.env.example frontend/.env.local
 ```
 
+Use [`frontend/.env.example`](frontend/.env.example) as the template.
+
 ```env
+# NextAuth v5 - Google OAuth Provider
+# Get these from: Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-AUTH_SECRET=generate-with-openssl-rand-base64-32
+
+# Auth.js v5 secret — generate with: openssl rand -base64 32
+AUTH_SECRET=your-auth-secret
+
+# NextAuth URL — base URL of the Next.js app
+# For local development: http://localhost:3000
+# For Docker:            http://localhost:3000
 NEXTAUTH_URL=http://localhost:3000
 
-INTERNAL_API_URL=http://backend:5000
+# Express backend URL used by client-side TOR CRUD requests
 NEXT_PUBLIC_API_URL=http://localhost:5000
-TOR_PROXY_SECRET=your-shared-proxy-secret
+
+TOR_PROXY_SECRET=YOUR_EXISTING_BACKEND_SECRET
+INTERNAL_API_URL=http://localhost:5000
 ```
 
-Generate `AUTH_SECRET` and `TOR_PROXY_SECRET`:
+Run `openssl rand -base64 32` twice to generate separate values for `AUTH_SECRET` and `TOR_PROXY_SECRET`. Use the same `TOR_PROXY_SECRET` in both apps. Docker Compose sets `INTERNAL_API_URL=http://backend:5000` inside the frontend container.
+
+### 3. Backend Environment (`backend/.env`)
+
 ```bash
-openssl rand -base64 32
+cp backend/.env.example backend/.env
 ```
 
-### 3. Backend Environment (`backend/.env` & GCP Credentials)
-Ensure `backend/.env` contains your MongoDB connection string and matching proxy secret:
+Use [`backend/.env.example`](backend/.env.example) as the template.
 
 ```env
+# Server Configuration
 PORT=5000
-MONGODB_URI=your_mongodb_atlas_uri
-TOR_PROXY_SECRET=your-shared-proxy-secret
-GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-service-account.json
+
+# MongoDB Atlas Connection
+# Replace <username>, <password>, and <cluster-url> with your actual MongoDB Atlas details
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-url>.mongodb.net/stealor_db?retryWrites=true&w=majority
+
+# Google Cloud / Vertex AI (TOR analysis, contractor matching, and smoke test)
+# Store the downloaded service-account key under backend/keys/; never commit it.
+VERTEX_AI_PROJECT_ID=YOUR_PROJECT_ID
+VERTEX_AI_LOCATION=global
+VERTEX_AI_MODEL=gemini-2.5-flash
+GOOGLE_APPLICATION_CREDENTIALS=./keys/sa-key.json
+
+# Public e-GP project-service fallback used when the primary price ZIP lookup is empty
+EGP_PROJECT_SERVICE_API_KEY=replace-with-current-egp-project-service-key
+
+# email notification
+EMAIL_USER=
+EMAIL_APP_PASSWORD=
+APP_URL=http://localhost:3000
+# Automatic in-system TOR analysis and contractor matching (default: enabled).
+# Scans every 60 seconds, analyzes at most 2 TORs per tick, shares the AI concurrency limit.
+# Set false to pause automatic analysis; opening Matching can still refresh existing analyses.
+MATCHING_AUTOMATION_ENABLED=true
+TOR_PROXY_SECRET=YOUR_BACKEND_SECRET
 ```
 
-To enable Vertex AI / Gemini features:
-1. Place your GCP service account key at `backend/config/gcp-service-account.json` *(excluded from Git via `.gitignore`)*.
-2. Uncomment the volume mount in `docker-compose.yml`:
-   ```yaml
-   - ./backend/config/gcp-service-account.json:/app/config/gcp-service-account.json:ro
-   ```
+Set `MONGODB_URI` for your MongoDB Atlas database. Set `EGP_PROJECT_SERVICE_API_KEY` for the e-GP document fallback and `EMAIL_USER` and `EMAIL_APP_PASSWORD` for email delivery. `APP_URL` is the frontend URL used in email links.
 
-> ⚠️ **Security:** Never commit `.env`, `.env.local`, or `gcp-service-account.json` to Git. If any secret is exposed, rotate it immediately.
+For TOR analysis and matching, follow the [Vertex AI setup guide](backend/README_VERTEX_AI_SETUP.md). Save the service-account key at `backend/keys/sa-key.json`. Docker Compose already mounts the keys directory at `/app/keys`, so `GOOGLE_APPLICATION_CREDENTIALS=./keys/sa-key.json` works with both launch methods. Set `MATCHING_AUTOMATION_ENABLED=false` if you want to pause background AI requests during local testing.
+
+After installing backend dependencies, check the Vertex AI connection with `cd backend && npm run smoke:vertex` from the repository root. The smoke test sends a small request to Gemini.
+
+> ⚠️ **Security:** Never commit `.env`, `.env.local`, or the service-account JSON key to Git. If any secret is exposed, rotate it immediately.
 
 ---
 
 ## 🐳 Running with Docker Compose (Recommended)
 
-Source code is bind-mounted into both containers with hot-reload enabled (Next.js Turbopack on frontend, `node --watch` on backend).
+Source code is bind-mounted into both containers. The frontend uses Next.js Turbopack for hot reload. After editing backend source, run `docker compose restart backend`.
 
 ```bash
 # Build and start both frontend and backend
@@ -130,19 +165,21 @@ docker compose down
 
 ---
 
+The backend health endpoint returns HTTP 200 when Express is running. Check for `mongoState: 1` in the response to confirm MongoDB is connected.
+
 ## 🛠️ Running Without Docker (Manual Local Setup)
 
-If running services directly on your host machine, set `INTERNAL_API_URL=http://localhost:5000` in `frontend/.env.local`, then run each app in a separate terminal:
+Set `INTERNAL_API_URL=http://localhost:5000` in `frontend/.env.local`, then run each set of commands from the repository root in a separate terminal.
 
 ```bash
 # Terminal 1 — Backend
 cd backend
-npm install
+npm ci
 npm run dev
 
 # Terminal 2 — Frontend
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
