@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const cron = require("node-cron");
-
+const { startRssAutoSync } = require("./services/egp/rssAutoSyncService");
 
 
 // Import Routes
@@ -49,6 +49,7 @@ app.use("/api/verifications", verificationRoutes);
 app.use("/api/admin/dashboard", require("./routes/adminDashboardRoutes"));
 app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/admin/tors", require("./routes/adminTorRoutes"));
+app.use("/api/admin/rss-departments", require("./routes/adminRssRoutes"));
 
 app.post(
   "/api/test/deadline-reminders",
@@ -91,6 +92,7 @@ mongoose
     .then(() => {
         console.log("MongoDB Atlas connected");
         startAutomaticMatching();
+        startRssAutoSync();
         require('./services/notifications/verificationNotificationService').initializeNotifications()
             .catch(() => console.warn('[NOTIFICATION] Activation initialization deferred'));
 
