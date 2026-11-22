@@ -519,7 +519,10 @@ export default function ProfilePage() {
                     pastProjects,
                     certificationDetails,
                     legalEligibility,
-                    teamQualifications,
+                    teamQualifications: teamQualifications.map((team) => ({
+                        ...team,
+                        skills: team.skills.map((skill) => skill.trim()).filter(Boolean),
+                    })),
                 });
 
                 console.log("Backend returned pastProjects:", updated.pastProjects);
@@ -1985,7 +1988,7 @@ export default function ProfilePage() {
                                             <div className="profile-field">
                                                 <label>Skills (คั่นด้วย comma)</label>
                                                 <input
-                                                    value={team.skills.join(", ")}
+                                                    value={team.skills.join(",")}
                                                     onChange={(e) =>
                                                         setTeamQualification(index, {
                                                             skills: e.target.value.split(","),

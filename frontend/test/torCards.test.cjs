@@ -336,6 +336,19 @@ test('mandatory modal shows Thai insufficient-data labels and per-condition prof
     assert.match(markup, /ยังไม่ได้ระบุ/);
 });
 
+test('single-condition requirements show one status and evidence without a repeated summary', () => {
+    const data = { ...matching,
+        mandatorySummary: { total: 1, passed: 1, failed: 0, unknown: 0 },
+        mandatoryResults: [{ requirementId: 'registered', text: 'ลงทะเบียน e-GP', status: 'pass',
+            reason: 'Redundant summary', conditionDetails: [{ field: 'registered', label: 'ข้อมูลการลงทะเบียน',
+                status: 'pass', actual: 'ใช่', expected: 'ใช่', reason: 'ตรวจสอบข้อมูลการลงทะเบียนแล้ว' }] }],
+    };
+    const markup = renderToStaticMarkup(React.createElement(MatchingModal, { item: { tor, matching: data }, onClose() {} }));
+    assert.equal((markup.match(/class="tm-result-badge tm-pass"/g) || []).length, 1);
+    assert.match(markup, /ตรวจสอบข้อมูลการลงทะเบียนแล้ว/);
+    assert.doesNotMatch(markup, /Redundant summary/);
+});
+
 test('failed API message stays readable and keeps diagnostic metadata separate', async t => {
     const { getContractorNotifications } = load('lib/torApi');
     t.mock.method(global, 'fetch', async () => new Response(JSON.stringify({ success: false, error: 'Cannot connect to backend' }), { status: 502, headers: { 'content-type': 'application/json' } }));

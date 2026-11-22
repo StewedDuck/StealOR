@@ -987,10 +987,14 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 8px 12px;
-  padding: 12px 14px;
-  border: 1px solid #e1e7ec;
-  border-radius: 10px;
-  background: #f7fafc;
+  padding: 10px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.tm-condition-detail + .tm-condition-detail {
+  border-top: 1px solid #e1e7ec;
 }
 
 .tm-condition-detail p {
