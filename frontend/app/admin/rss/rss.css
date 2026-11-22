@@ -1,0 +1,70 @@
+.admin-rss-page .admin-rss-form {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.admin-rss-page .admin-rss-form > input {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  box-sizing: border-box;
+}
+
+.admin-rss-page .admin-rss-btn {
+  height: 48px;
+  padding: 0 20px;
+  border: 1px solid #dce2e7;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #34414d;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.admin-rss-page .admin-rss-btn:hover:not(:disabled) {
+  background: #f1f4f6;
+}
+
+.admin-rss-page .admin-rss-btn.primary {
+  background: #26323d;
+  border-color: #26323d;
+  color: #ffffff;
+}
+
+.admin-rss-page .admin-rss-btn.primary:hover:not(:disabled) {
+  background: #344454;
+}
+
+.admin-rss-page .admin-rss-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-rss-page .admin-rss-notice {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #53815d;
+}
+
+.admin-rss-page .admin-rss-delete-btn {
+  color: #b35c55;
+  border-color: #e6c5c2;
+}
+
+.admin-rss-page .admin-rss-delete-btn:hover:not(:disabled) {
+  background: #f9e8e6;
+}
+
+@media (max-width: 900px) {
+  .admin-rss-page .admin-rss-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-rss-page .admin-rss-form > input:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+}

@@ -11,6 +11,7 @@ import {
     RotateCcwClock,
     Siren,
     BellRing,
+    Rss,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 
@@ -24,8 +25,7 @@ type MenuItem = {
 type MenuSection = {
     label: string;
     items: MenuItem[];
-}
-
+};
 
 const menuItems: MenuSection[] = [
     {
@@ -57,6 +57,11 @@ const menuItems: MenuSection[] = [
                 icon: "RotateCcwClock",
             },
             {
+                name: "จัดการ RSS",
+                href: "/admin/rss",
+                icon: "Rss",
+            },
+            {
                 name: "รายงาน / ร้องเรียน",
                 href: "/admin/issue",
                 icon: "Siren",
@@ -65,15 +70,15 @@ const menuItems: MenuSection[] = [
     },
 ];
 
-export default function SidebarAdmin () {
+export default function SidebarAdmin() {
     const pathname = usePathname();
-        const { data: session } = useSession();
+    const { data: session } = useSession();
     const accountRoleLabel = useAccountRoleLabel(session?.user?.email);
-    
+
     const { name: userName, initials } = useProfileIdentity();
 
     return (
-        <aside className = "sidebar">
+        <aside className="sidebar">
             {/* Logo */}
             <div className="sidebar-brand">
                 <div className="sidebar-Logo">
@@ -84,7 +89,7 @@ export default function SidebarAdmin () {
                     <div className="brand-name">
                         sTealORs
                     </div>
-                    <div className = "brand-sub">
+                    <div className="brand-sub">
                         ค้นหา TOR · กรุงเทพฯ
                     </div>
                 </div>
@@ -102,20 +107,21 @@ export default function SidebarAdmin () {
                             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                             return (
                                 <Link
-                                    key = {item.name}
-                                    href = {item.href}
-                                    className = {`nav-item ${isActive ? "active" : ""}`}
+                                    key={item.name}
+                                    href={item.href}
+                                    className={`nav-item ${isActive ? "active" : ""}`}
                                 >
                                     <span className="nav-item-icon">
-                                        {item.icon === "LayoutDashboard" && <LayoutDashboard size={20}/>}
-                                        {item.icon === "Users" && <Users size={20}/>}
-                                        {item.icon === "ShieldCheck" && <ShieldCheck size={20}/>}
-                                        {item.icon === "RotateCcwClock" && <RotateCcwClock size={20}/>}
-                                        {item.icon === "BellRing" && <BellRing size={20}/>}
-                                        {item.icon === "Siren" && <Siren size={20}/>}
+                                        {item.icon === "LayoutDashboard" && <LayoutDashboard size={20} />}
+                                        {item.icon === "Users" && <Users size={20} />}
+                                        {item.icon === "ShieldCheck" && <ShieldCheck size={20} />}
+                                        {item.icon === "RotateCcwClock" && <RotateCcwClock size={20} />}
+                                        {item.icon === "BellRing" && <BellRing size={20} />}
+                                        {item.icon === "Rss" && <Rss size={20} />}
+                                        {item.icon === "Siren" && <Siren size={20} />}
                                     </span>
 
-                                    <span className = "nav-item-name">
+                                    <span className="nav-item-name">
                                         {item.name}
                                     </span>
 
@@ -131,8 +137,8 @@ export default function SidebarAdmin () {
                 ))}
             </nav>
 
-             {/* User */}
-             <div className="sidebar-user">
+            {/* User */}
+            <div className="sidebar-user">
                 <div className="user-avatar">
                     {initials}
                 </div>
@@ -153,7 +159,7 @@ export default function SidebarAdmin () {
                 >
                     ออกจากระบบ
                 </button>
-             </div>
+            </div>
         </aside>
     );
 }
