@@ -1,4 +1,16 @@
 const Comment = require("../models/Comment");
+const Tor = require("../models/Tor");
+const mongoose = require("mongoose");
+async function ownerEmail(projectId) {
+    if (!mongoose.isValidObjectId(projectId)) return null;
+    const tor = await Tor.findById(projectId).select('ownerId').lean();
+    // Ownership comes from the creator saved on this TOR, regardless of role.
+    return tor?.ownerId?.trim().toLowerCase() || null;
+}
+function withOwner(comment, owner) {
+    const value = comment.toObject ? comment.toObject() : comment;
+    return { ...value, isTorOwner: !!owner && String(value.userId).trim().toLowerCase() === owner };
+}
 
 // get comment
 async function getComments(req, res) {
@@ -18,9 +30,10 @@ async function getComments(req, res) {
             .sort({ createdAt: -1 })
             .lean();
   
+        const owner = await ownerEmail(projectId);
         return res.json({
             success: true,
-            data: comments,
+            data: comments.map(comment => withOwner(comment, owner)),
         });
     } catch (error) {
         console.error("Get comments error:", error);
@@ -40,13 +53,15 @@ async function createComment(req, res) {
             userName,
             projectId,
             content,
+            parentId = null,
         } = req.body;
+        const authorId = req.profileEmail || userId;
     
         if (
-            !userId ||
+            !authorId ||
             !userName ||
             !projectId ||
-            !content?.trim()
+            typeof content !== "string" || !content.trim() || content.trim().length > 1000
         ) {
             return res.status(400).json({
             success: false,
@@ -54,8 +69,15 @@ async function createComment(req, res) {
             });
         }
     
+        if (parentId) {
+            if (!mongoose.isValidObjectId(parentId)) return res.status(400).json({ success: false, error: "Invalid parent comment ID" });
+            const parent = await Comment.findOne({ _id: parentId, projectId });
+            if (!parent) return res.status(404).json({ success: false, error: "ไม่พบความคิดเห็นต้นทางใน TOR นี้" });
+        }
+        const owner = await ownerEmail(projectId);
         const comment = await Comment.create({
-            userId,
+            userId: authorId,
+            parentId,
             userName,
             projectId,
             content: content.trim(),
@@ -63,7 +85,7 @@ async function createComment(req, res) {
     
         return res.status(201).json({
             success: true,
-            data: comment,
+            data: withOwner(comment, owner),
         });
     } catch (error) {
         console.error("Create comment error:", error);
@@ -79,7 +101,7 @@ async function createComment(req, res) {
 async function deleteComment(req, res) {
     try {
         const { commentId } = req.params;
-        const { userId } = req.body;
+        const userId = req.profileEmail || req.body.userId;
     
         if (!commentId || !userId) {
             return res.status(400).json({

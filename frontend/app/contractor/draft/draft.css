@@ -592,8 +592,8 @@
 /* Review Modal */
 .review-modal {
     position: relative;
-    width: 560px;
-    max-width: 90%;
+    width: 860px;
+    max-width: calc(100vw - 48px);
     max-height: 85vh;
     overflow-y: auto;
     background: #FCFCFA;

@@ -16,7 +16,8 @@ export const reviewLabels = {
 };
 
 // ใช้ร่วมกันเฉพาะหน้าเจ้าของ/แอดมิน ไม่ปะปนกับความคิดเห็นผู้รับจ้าง
-export default function TorReviewPanel({ tor, role, onUpdated, historyOnly = false }: {
+export default function TorReviewPanel({ tor, role, onUpdated, historyOnly = false, compact = false }: {
+    compact?: boolean;
     // หน้าร่างแสดงเฉพาะแถบสถานะและประวัติ โดยใช้ปุ่มส่งตรวจเดิมในการ์ด
     historyOnly?: boolean;
     tor: Tor; role: "owner" | "admin"; onUpdated: (tor: Tor) => void;
@@ -93,7 +94,7 @@ export default function TorReviewPanel({ tor, role, onUpdated, historyOnly = fal
     </div>;
     if (historyOnly && role === "admin") return legacyHistory ? <div className={styles.history}>{legacyHistory}</div> : null;
     if (historyOnly) return <div className={styles.history}>{statusBar}{history}</div>;
-    return <section className={styles.panel} aria-label="การตรวจสอบ TOR" aria-busy={busy}>
+    return <section className={`${styles.panel} ${compact ? styles.compact : ""}`} aria-label="การตรวจสอบ TOR" aria-busy={busy}>
         {role === "admin" ? <div className={styles.panelHeader}>
             <h3>การตรวจสอบ TOR</h3>
             <div className={styles.currentStatus}>สถานะปัจจุบัน: <span className={styles.badge} data-status={status}>
@@ -109,7 +110,7 @@ export default function TorReviewPanel({ tor, role, onUpdated, historyOnly = fal
             {/* ขอแก้ไขต้องแก้เนื้อหาจริงก่อน ไม่ให้กดส่งฉบับเดิมซ้ำ */}
             {status === "changes_requested" && <p>กรุณาแก้ไขและบันทึก TOR ก่อนส่งตรวจอีกครั้ง</p>}
             {status === "pending" && <p>ส่งตรวจแล้ว ระหว่างนี้ยังแก้ไขไม่ได้ กรุณารีเฟรชหน้าเพื่อดูผลตรวจล่าสุด</p>}
-            {status === "approved" && <><p>พร้อมเผยแพร่ หากแก้ไขเนื้อหาจะต้องส่งตรวจใหม่</p><Link href="/project_own/my_TOR">ไปเผยแพร่ TOR</Link></>}
+            {status === "approved" && <><p>พร้อมเผยแพร่ หากแก้ไขเนื้อหาจะต้องส่งตรวจใหม่</p>{!compact && <Link href="/project_own/my_TOR">ไปเผยแพร่ TOR</Link>}</>}
         </>}
         {role === "admin" && tor.status === "draft" && status === "pending" && <>
             <label>ผลการตรวจ / เหตุผลที่ขอแก้ไข <span className={styles.labelHint}>(กรุณาระบุข้อเสนอแนะเพื่อให้ผู้จัดทำแก้ไขได้อย่างถูกต้อง)</span>

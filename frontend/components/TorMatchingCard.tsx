@@ -301,14 +301,16 @@ export function MatchingModal({item, onClose,}: {item: MatchedTor; onClose: () =
                                                 {r.conditionDetails.map((condition, i) => (
                                                     <div key={condition.field || i} className="tm-condition-detail">
                                                         <strong>{condition.label}</strong>
-                                                        <span className={`tm-result-badge tm-${condition.status}`}>{statusLabel(condition.status)}</span>
+                                                        {(r.conditionDetails?.length ?? 0) > 1 && (
+                                                            <span className={`tm-result-badge tm-${condition.status}`}>{statusLabel(condition.status)}</span>
+                                                        )}
                                                         <p>ข้อมูลในโปรไฟล์: {condition.actual} · TOR กำหนด: {condition.expected}</p>
                                                         <p>{condition.reason}</p>
                                                     </div>
                                                 ))}
                                             </div>
                                         )}
-                                        {r.reason && (
+                                        {r.reason && !r.conditionDetails?.length && (
                                             <p>
                                                 <b>เหตุผล:</b> {r.reason}
                                             </p>

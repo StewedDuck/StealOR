@@ -44,7 +44,7 @@ async function request<T>(
   init?: RequestInit
 ): Promise<T> {
   const url =
-    path === "/api/profile" || path.startsWith("/api/profile?") || path.startsWith('/api/notifications')
+    path === "/api/profile" || path.startsWith("/api/profile?") || path.startsWith('/api/notifications') || path.startsWith('/api/comments')
       ? path
       : path.startsWith("/api/tors") &&
           !path.startsWith("/api/tors/market") &&
@@ -265,6 +265,8 @@ export async function deleteInternalBookmark(
 }
 
 export type Comment = {
+  parentId?: string | null;
+  isTorOwner?: boolean;
   _id: string;
   userId: string;
   userName: string;
@@ -286,7 +288,8 @@ export async function createComment(
   userId: string,
   userName: string,
   projectId: string,
-  content: string
+  content: string,
+  parentId?: string
 ): Promise<Comment> {
   return request<Comment>("/api/comments", {
     method: "POST",
@@ -295,6 +298,7 @@ export async function createComment(
       userName,
       projectId,
       content,
+      parentId,
     }),
   });
 }
