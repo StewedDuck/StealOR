@@ -125,13 +125,26 @@ MATCHING_AUTOMATION_ENABLED=true
 TOR_PROXY_SECRET=YOUR_BACKEND_SECRET
 ```
 
-Set `MONGODB_URI` for your MongoDB Atlas database. Set `EGP_PROJECT_SERVICE_API_KEY` for the e-GP document fallback and `EMAIL_USER` and `EMAIL_APP_PASSWORD` for email delivery. `APP_URL` is the frontend URL used in email links.
+Follow the [MongoDB Atlas setup](#mongodb-atlas-setup) to set `MONGODB_URI`. Set `EGP_PROJECT_SERVICE_API_KEY` for the e-GP document fallback and `EMAIL_USER` and `EMAIL_APP_PASSWORD` for email delivery. `APP_URL` is the frontend URL used in email links.
 
 For TOR analysis and matching, follow the [Vertex AI setup guide](backend/README_VERTEX_AI_SETUP.md). Save the service-account key at `backend/keys/sa-key.json`. Docker Compose already mounts the keys directory at `/app/keys`, so `GOOGLE_APPLICATION_CREDENTIALS=./keys/sa-key.json` works with both launch methods. Set `MATCHING_AUTOMATION_ENABLED=false` if you want to pause background AI requests during local testing.
 
 After installing backend dependencies, check the Vertex AI connection with `cd backend && npm run smoke:vertex` from the repository root. The smoke test sends a small request to Gemini.
 
 > ⚠️ **Security:** Never commit `.env`, `.env.local`, or the service-account JSON key to Git. If any secret is exposed, rotate it immediately.
+
+---
+
+## MongoDB Atlas Setup
+
+The backend uses MongoDB Atlas for both Docker and manual development. Docker Compose starts the frontend and backend, and the backend connects to Atlas.
+
+1. Create an Atlas cluster or use an existing one. Give the application's database user read and write access to the database you plan to use.
+2. Add the public IP your backend connects from to the Atlas project's IP access list. For local development, use your network's public IP.
+3. Copy the cluster's driver connection string into `MONGODB_URI` in `backend/.env`. Fill in the database user's credentials and put the database name in the URI path before the query parameters. The example uses `stealor_db`. Use your existing database name if you want to access existing records. [MongoDB Atlas connection guide](https://www.mongodb.com/docs/atlas/driver-connection/)
+4. After starting the backend, run `curl http://localhost:5000/health` and check for `"mongoState":1`.
+
+To inspect matching results in Atlas, open the `precomputed_matching` collection in the database named in your URI. Filter by `contractorId` and `torId` to find a specific match. Check `computedAt` for when it was saved and `result.matchingPercentage` for its score.
 
 ---
 
