@@ -455,3 +455,16 @@ test('contractor matching minimum is inclusive and can show scores below the old
     assert.equal(shouldShowMatchingCard(score(39)), false);
     assert.equal(shouldShowMatchingCard(score(39.01)), true);
 });
+
+test('detail modal derives Draft progress when its caller omits progressStatus', () => {
+    const Detail = load('components/TORDetail').default;
+    for (const status of ['draft', 'pending_verification']) {
+        const markup = renderToStaticMarkup(React.createElement(Detail, {
+            tor: { ...tor, source: 'internal', status, submissionDeadline: '2000-01-01', requirements: [], objectives: [], scopeOfWork: [] },
+            onClose() {},
+        }));
+        assert.match(markup, /tor-progress-status-draft/);
+        assert.match(markup, /tor-progress-draft[^\"]*current/);
+        assert.doesNotMatch(markup, /Unknown/);
+    }
+});

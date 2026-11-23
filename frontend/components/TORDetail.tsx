@@ -7,7 +7,7 @@ import { normalizeTorRequirements } from "@/lib/torRequirements";
 import "./TORDetail.css"
 import TorStatusProgress from "@/components/TorStatusProgress";
 import { getTorDisplayDeadline } from '@/lib/torDeadline';
-import { isTorCommentClosed } from '@/lib/torPublicationStatus';
+import { getTorProgressStatus, isTorCommentClosed } from '@/lib/torPublicationStatus';
 import TorCommentClosedBadge from '@/components/TorCommentClosedBadge';
 
 type TorDetailModalProps = {
@@ -49,7 +49,7 @@ function formatDate(value: string | null) {
 export default function TorDetailModal({
     tor,
     onClose,
-    progressStatus = "unknown",
+    progressStatus: suppliedProgressStatus,
     publicationStatus,
     showAdminMetadata = false,
     reviewPanel,
@@ -58,6 +58,11 @@ export default function TorDetailModal({
 
     // ข้อมูลรัฐใช้กลุ่มข้อความเดิม ส่วน TOR ภายในจัดหมวดจากรายการที่มีน้ำหนัก
     const isGovernment = "source" in tor && tor.source === "government";
+    const progressStatus = suppliedProgressStatus ?? getTorProgressStatus({
+        ...tor,
+        source: isGovernment ? 'government' : 'internal',
+        deadline: tor.submissionDeadline,
+    }, publicationStatus);
     const qualifications = isGovernment && "contractorQualifications" in tor ? tor.contractorQualifications : undefined;
     const generalLegal = isGovernment ? qualifications?.generalLegal ?? [] : [];
     const projectSpecific = isGovernment ? qualifications?.projectSpecific ?? [] : [];
