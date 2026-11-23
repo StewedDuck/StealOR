@@ -4,7 +4,7 @@ A full-stack web platform for collecting, discovering, and matching software-rel
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+##  Architecture & Tech Stack
 
 This repository is structured as a single Git repository containing two applications:
 
@@ -15,15 +15,14 @@ This repository is structured as a single Git repository containing two applicat
 
 > 📚 **Full Documentation:** Detailed architecture diagrams, role workflows, coding standards, and complete API specs live in the **[GitHub Wiki](../../wiki)**:
 > * **[Wiki Home](../../wiki)** — System roles, sequence diagrams, Scrum workflow, and developer standards
-> * **[Installation & Setup Guide](../../wiki/Installation-Guide)** — Step-by-step setup, troubleshooting, and walkthrough references
-> * **[Role Guides](../../wiki/User-and-Admin-Guide)** — Detailed workflows for Contractors, Project Owners, and Admins
-> * **[Backend API Reference](../../wiki/Backend-API-Documentation)** — Express endpoints, proxy headers, and payloads
-> * **[Frontend API Reference](../../wiki/Frontend-API-Documentation)** — Next.js proxy routes, client helpers, and caching
-> * **[Vertex AI Setup](backend/README_VERTEX_AI_SETUP.md)** — Google Cloud setup, service-account credentials, and a Gemini smoke test
+> * **[Backend API Reference](../../wiki/API-document)** — Express endpoints, proxy headers, and payloads
+> * **[Frontend API Reference](../../wiki/API-document)** — Next.js proxy routes, client helpers, and caching
+> * **[Vertex AI Setup](../../wiki/Vertex-AI-Setup)** — Google Cloud setup, service-account credentials, and a Gemini smoke test
+> * **[Environment Configuration](../../wiki/Environment-Configuration)** — Setup .env for frontend/backend
 
 ---
 
-## ✨ Core Features
+##  Core Features
 
 * **Unified TOR Marketplace:** Aggregates filtered government e-GP software projects with verified internal organization TORs.
 * **Automated Document & AI Pipeline:** Downloads e-GP archives, extracts PDF text, and parses structured requirements, budgets, and deadlines via Gemini.
@@ -32,7 +31,7 @@ This repository is structured as a single Git repository containing two applicat
 
 ---
 
-## 🚀 Prerequisites
+##  Prerequisites
 
 * [Docker Desktop](https://www.docker.com/products/docker-desktop/) *(recommended)* **or** Node.js `20.19+` (Node.js 24 recommended) and `npm`
 * **MongoDB Atlas** cluster with a valid connection string (`MONGODB_URI`)
@@ -47,23 +46,21 @@ This repository is structured as a single Git repository containing two applicat
 Follow the setup steps below
 
 1. **Google OAuth Setup:** Create an OAuth 2.0 Client ID and configure callback URLs — see [Google OAuth Setup](../../wiki/Google-Sign-In-Setup-Guide) or watch the **[OAuth Setup Video](https://youtu.be/qvvXBzdTTwE?si=tfnRrG7pHchbtqlU)**.
-2. **MongoDB Atlas Setup:** Provision a cluster, database user, and IP access list — see [MongoDB Atlas Setup](#mongodb-atlas-setup) or watch the **[MongoDB Setup Video)](https://youtu.be/jHJ_nUYFxpc)**.
-3. **Vertex AI / Gemini Setup:** Enable Vertex AI and place your service account key under `backend/keys/` — see [Vertex AI Setup](backend/README_VERTEX_AI_SETUP.md) or watch the **[AI Setup Video](https://youtu.be/tOHYyQhqm3k)**.
-4. **Environment Variables:** Copy `.env.example` / `.env.local` templates and fill in secrets — see [Environment Configuration](#%EF%B8%8F-environment-configuration) or view the **[`.env` Setup Screenshots](PASTE_ENV_SCREENSHOT_LINK)**.
-5. **Start the App:** Run with [Docker Compose](#%EF%B8%8F-running-with-docker-compose-recommended) *(recommended)* or [Without Docker](#%EF%B8%8F-running-without-docker-manual-local-setup).
+2. **MongoDB Atlas Setup:** Provision a cluster, database user, and IP access list — see [MongoDB Atlas Setup](../../wiki/MongoDB-Atlas-Setup) or watch the **[MongoDB Setup Video)](https://youtu.be/jHJ_nUYFxpc)**.
+3. **Vertex AI / Gemini Setup:** Enable Vertex AI and place your service account key under `backend/keys/` — see [Vertex AI Setup](../../wiki/Vertex-AI-Setup) or watch the **[AI Setup Video](https://youtu.be/tOHYyQhqm3k)**.
+4. **Environment Variables:** Copy `.env.example` / `.env.local` templates and fill in secrets — see [Environment Configuration](../../wiki/Environment-Configuration)
+5. **Start the App:** Run with [Docker Compose](#%EF%B8%8F-running-with-docker-compose)
 
 ---
 
 ## How Each Role Works
-
-For full step-by-step walkthroughs, diagrams, see the **[Wiki Role Guides](../../wiki/User-and-Admin-Guide)**:
 
 * **Contractor & Project Owner** *(Walkthrough: **[User Usage Video](https://youtu.be/V99CVdXb8Bo?si=kUzFpMaGxoUmaQCT)**)*
   * **Contractors** complete their profile, skills, budget range, and qualifications to browse TORs, inspect AI match scores/breakdowns, bookmark projects, and comment.
   * **Project Owners** submit identity verification (KYC), create and edit draft TORs, submit drafts for admin review, and publish approved TORs to the marketplace.
 * **Admin** *(Walkthrough: **[Admin Usage Video](https://www.youtube.com/watch?v=DUwN77QWzpU)**)*
   * **Admins** monitor platform metrics on the admin dashboard, approve or reject KYC verifications, review and approve/request changes on submitted TORs, manage user accounts/suspensions, configure monitored e-GP RSS departments, and review system activity logs.
-
+  * **SET EMAIL AS ADMIN** [Admin Access](#Admin-Access)
 ---
 
 ## ⚙️ Environment Configuration
@@ -151,30 +148,13 @@ MATCHING_AUTOMATION_ENABLED=true
 TOR_PROXY_SECRET=YOUR_BACKEND_SECRET
 ```
 
-Follow the [MongoDB Atlas setup](#mongodb-atlas-setup) to set `MONGODB_URI`. Set `EGP_PROJECT_SERVICE_API_KEY` for the e-GP document fallback and `EMAIL_USER` and `EMAIL_APP_PASSWORD` for email delivery. `APP_URL` is the frontend URL used in email links.
-
 For TOR analysis and matching, follow the [Vertex AI setup guide](backend/README_VERTEX_AI_SETUP.md). Save the service-account key at `backend/keys/sa-key.json`. Docker Compose already mounts the keys directory at `/app/keys`, so `GOOGLE_APPLICATION_CREDENTIALS=./keys/sa-key.json` works with both launch methods. Set `MATCHING_AUTOMATION_ENABLED=false` if you want to pause background AI requests during local testing.
 
 After installing backend dependencies, check the Vertex AI connection with `cd backend && npm run smoke:vertex` from the repository root. The smoke test sends a small request to Gemini.
 
-> ⚠️ **Security:** Never commit `.env`, `.env.local`, or the service-account JSON key to Git. If any secret is exposed, rotate it immediately.
-
 ---
 
-## MongoDB Atlas Setup
-
-The backend uses MongoDB Atlas for both Docker and manual development. Docker Compose starts the frontend and backend, and the backend connects to Atlas.
-
-1. Create an Atlas cluster or use an existing one. Give the application's database user read and write access to the database you plan to use.
-2. Add the public IP your backend connects from to the Atlas project's IP access list. For local development, use your network's public IP.
-3. Copy the cluster's driver connection string into `MONGODB_URI` in `backend/.env`. Fill in the database user's credentials and put the database name in the URI path before the query parameters. The example uses `stealor_db`. Use your existing database name if you want to access existing records. [MongoDB Atlas connection guide](https://www.mongodb.com/docs/atlas/driver-connection/)
-4. After starting the backend, run `curl http://localhost:5000/health` and check for `"mongoState":1`.
-
-To inspect matching results in Atlas, open the `precomputed_matching` collection in the database named in your URI. Filter by `contractorId` and `torId` to find a specific match. Check `computedAt` for when it was saved and `result.matchingPercentage` for its score.
-
----
-
-## 🐳 Running with Docker Compose (Recommended)
+## Running with Docker Compose
 
 Source code is bind-mounted into both containers. The frontend uses Next.js Turbopack for hot reload. After editing backend source, run `docker compose restart backend`.
 
@@ -206,22 +186,6 @@ docker compose down
 
 The backend health endpoint returns HTTP 200 when Express is running. Check for `mongoState: 1` in the response to confirm MongoDB is connected.
 
-## 🛠️ Running Without Docker (Manual Local Setup)
-
-Set `INTERNAL_API_URL=http://localhost:5000` in `frontend/.env.local`, then run each set of commands from the repository root in a separate terminal.
-
-```bash
-# Terminal 1 — Backend
-cd backend
-npm ci
-npm run dev
-
-# Terminal 2 — Frontend
-cd frontend
-npm ci
-npm run dev
-```
-
 ---
 
 ## Admin Access
@@ -235,7 +199,7 @@ For Docker Compose, run `docker compose restart backend frontend` after editing 
 
 ---
 
-## 📄 Procurement Document Pipeline
+## Procurement Document Pipeline
 
 * **Single-Project Price Document Enrichment:**
   `POST /api/gov-projects/:projectId/enrich` downloads the official e-GP price-estimate archive for an existing MongoDB `GovProject`, extracts PDF text, and stores metadata under `documentExtraction` (`sourceDocumentType: "price_estimate"`). Scanned image-only PDFs are flagged with a clear no-text status (OCR is deferred to a future milestone).
@@ -244,7 +208,7 @@ For Docker Compose, run `docker compose restart backend frontend` after editing 
 
 ---
 
-## 👥 Contributing & Workflow
+## Contributing & Workflow
 
 * **Branching:** Direct pushes to `main` are prohibited. Create feature branches using `<category>/<sub-issue>` (e.g., `frontend/tor_market`, `backend/matching_api`, `ai/tor_extraction`).
 * **Commits:** Follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`).
