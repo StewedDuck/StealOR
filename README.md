@@ -18,6 +18,7 @@ This repository is structured as a single Git repository containing two applicat
 > * **[Backend API Reference](../../wiki/API-document)** — Express endpoints, proxy headers, and payloads
 > * **[Frontend API Reference](../../wiki/API-document)** — Next.js proxy routes, client helpers, and caching
 > * **[Vertex AI Setup](../../wiki/Vertex-AI-Setup)** — Google Cloud setup, service-account credentials, and a Gemini smoke test
+> * **[MongoDB Atlas Setup](../../wiki/MongoDB-Atlas-Setup)** — MongoDB Atlas Setup, Configure network access for database 
 > * **[Environment Configuration](../../wiki/Environment-Configuration)** — Setup .env for frontend/backend
 
 ---
