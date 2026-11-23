@@ -44,9 +44,9 @@ This repository is structured as a single Git repository containing two applicat
 
 ## Installation Guideline
 
-Follow the setup steps below or see the full guide in the **[Wiki Installation Guide](../../wiki/Installation-Guide)**:
+Follow the setup steps below
 
-1. **Google OAuth Setup:** Create an OAuth 2.0 Client ID and configure callback URLs — see [Google OAuth Setup](#1-google-oauth-setup) or watch the **[OAuth Setup Video](https://youtu.be/qvvXBzdTTwE?si=tfnRrG7pHchbtqlU)**.
+1. **Google OAuth Setup:** Create an OAuth 2.0 Client ID and configure callback URLs — see [Google OAuth Setup](../../Google-Sign-In-Setup-Guide) or watch the **[OAuth Setup Video](https://youtu.be/qvvXBzdTTwE?si=tfnRrG7pHchbtqlU)**.
 2. **MongoDB Atlas Setup:** Provision a cluster, database user, and IP access list — see [MongoDB Atlas Setup](#mongodb-atlas-setup) or watch the **[MongoDB Setup Video)](https://youtu.be/jHJ_nUYFxpc)**.
 3. **Vertex AI / Gemini Setup:** Enable Vertex AI and place your service account key under `backend/keys/` — see [Vertex AI Setup](backend/README_VERTEX_AI_SETUP.md) or watch the **[AI Setup Video](https://youtu.be/tOHYyQhqm3k)**.
 4. **Environment Variables:** Copy `.env.example` / `.env.local` templates and fill in secrets — see [Environment Configuration](#%EF%B8%8F-environment-configuration) or view the **[`.env` Setup Screenshots](PASTE_ENV_SCREENSHOT_LINK)**.
