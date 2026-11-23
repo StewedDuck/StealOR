@@ -15,6 +15,8 @@ This repository is structured as a single Git repository containing two applicat
 
 > 📚 **Full Documentation:** Detailed architecture diagrams, role workflows, coding standards, and complete API specs live in the **[GitHub Wiki](../../wiki)**:
 > * **[Wiki Home](../../wiki)** — System roles, sequence diagrams, Scrum workflow, and developer standards
+> * **[Installation & Setup Guide](../../wiki/Installation-Guide)** — Step-by-step setup, troubleshooting, and walkthrough references
+> * **[Role Guides](../../wiki/User-and-Admin-Guide)** — Detailed workflows for Contractors, Project Owners, and Admins
 > * **[Backend API Reference](../../wiki/Backend-API-Documentation)** — Express endpoints, proxy headers, and payloads
 > * **[Frontend API Reference](../../wiki/Frontend-API-Documentation)** — Next.js proxy routes, client helpers, and caching
 > * **[Vertex AI Setup](backend/README_VERTEX_AI_SETUP.md)** — Google Cloud setup, service-account credentials, and a Gemini smoke test
@@ -37,6 +39,30 @@ This repository is structured as a single Git repository containing two applicat
 * **Google Cloud Console** project with:
   * **OAuth 2.0 Client ID** (for NextAuth Google sign-in)
   * **Vertex AI / Gemini** enabled with a service account JSON key
+
+---
+
+## Installation Guideline
+
+Follow the setup steps below or see the full guide in the **[Wiki Installation Guide](../../wiki/Installation-Guide)**:
+
+1. **Google OAuth Setup:** Create an OAuth 2.0 Client ID and configure callback URLs — see [Google OAuth Setup](#1-google-oauth-setup) or watch the **[OAuth Setup Video](https://youtu.be/qvvXBzdTTwE?si=tfnRrG7pHchbtqlU)**.
+2. **MongoDB Atlas Setup:** Provision a cluster, database user, and IP access list — see [MongoDB Atlas Setup](#mongodb-atlas-setup) or watch the **[MongoDB Setup Video)](https://youtu.be/jHJ_nUYFxpc)**.
+3. **Vertex AI / Gemini Setup:** Enable Vertex AI and place your service account key under `backend/keys/` — see [Vertex AI Setup](backend/README_VERTEX_AI_SETUP.md) or watch the **[AI Setup Video](https://youtu.be/tOHYyQhqm3k)**.
+4. **Environment Variables:** Copy `.env.example` / `.env.local` templates and fill in secrets — see [Environment Configuration](#%EF%B8%8F-environment-configuration) or view the **[`.env` Setup Screenshots](PASTE_ENV_SCREENSHOT_LINK)**.
+5. **Start the App:** Run with [Docker Compose](#%EF%B8%8F-running-with-docker-compose-recommended) *(recommended)* or [Without Docker](#%EF%B8%8F-running-without-docker-manual-local-setup).
+
+---
+
+## How Each Role Works
+
+For full step-by-step walkthroughs, diagrams, see the **[Wiki Role Guides](../../wiki/User-and-Admin-Guide)**:
+
+* **Contractor & Project Owner** *(Walkthrough: **[User Usage Video](https://youtu.be/V99CVdXb8Bo?si=kUzFpMaGxoUmaQCT)**)*
+  * **Contractors** complete their profile, skills, budget range, and qualifications to browse TORs, inspect AI match scores/breakdowns, bookmark projects, and comment.
+  * **Project Owners** submit identity verification (KYC), create and edit draft TORs, submit drafts for admin review, and publish approved TORs to the marketplace.
+* **Admin** *(Walkthrough: **[Admin Usage Video](https://www.youtube.com/watch?v=DUwN77QWzpU)**)*
+  * **Admins** monitor platform metrics on the admin dashboard, approve or reject KYC verifications, review and approve/request changes on submitted TORs, manage user accounts/suspensions, configure monitored e-GP RSS departments, and review system activity logs.
 
 ---
 
