@@ -21,7 +21,7 @@ This repository is structured as a single Git repository containing two applicat
 > * **[MongoDB Atlas Setup](../../wiki/MongoDB-Atlas-Setup)** — MongoDB Atlas Setup, Configure network access for database 
 > * **[Environment Configuration](../../wiki/Environment-Configuration)** — Setup .env for frontend/backend
 > * **[SRS Document](../../wiki/Software-Requirements-Specification)** — Software Requirements Specification
-> * **[Software Maintenance Document](../../wiki/Software-Maintenance)**
+> * **[Software Maintenance Document](../../wiki/Software-Maintenance)** — Service Level Agreement
 ---
 
 ##  Core Features
