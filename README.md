@@ -20,7 +20,8 @@ This repository is structured as a single Git repository containing two applicat
 > * **[Vertex AI Setup](../../wiki/Vertex-AI-Setup)** — Google Cloud setup, service-account credentials, and a Gemini smoke test
 > * **[MongoDB Atlas Setup](../../wiki/MongoDB-Atlas-Setup)** — MongoDB Atlas Setup, Configure network access for database 
 > * **[Environment Configuration](../../wiki/Environment-Configuration)** — Setup .env for frontend/backend
-
+> * **[SRS Document](../../wiki/Software-Requirements-Specification)** — Software Requirements Specification
+> * **[Software Maintenance Document](../../wiki/Software-Maintenance)**
 ---
 
 ##  Core Features
