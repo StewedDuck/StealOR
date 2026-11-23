@@ -50,7 +50,7 @@ Follow the setup steps below
 2. **MongoDB Atlas Setup:** Provision a cluster, database user, and IP access list — see [MongoDB Atlas Setup](../../wiki/MongoDB-Atlas-Setup) or watch the **[MongoDB Setup Video)](https://youtu.be/jHJ_nUYFxpc)**.
 3. **Vertex AI / Gemini Setup:** Enable Vertex AI and place your service account key under `backend/keys/` — see [Vertex AI Setup](../../wiki/Vertex-AI-Setup) or watch the **[AI Setup Video](https://youtu.be/tOHYyQhqm3k)**.
 4. **Environment Variables:** Copy `.env.example` / `.env.local` templates and fill in secrets — see [Environment Configuration](../../wiki/Environment-Configuration)
-5. **Start the App:** Run with [Docker Compose](#%EF%B8%8F-running-with-docker-compose)
+5. **Start the App:** Run with [Docker Compose](#Running-with-Docker-Compose)
 
 ---
 
